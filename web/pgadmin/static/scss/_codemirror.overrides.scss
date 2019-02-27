@@ -1,0 +1,158 @@
+.cm-s-default .CodeMirror {
+  background: $color-editor-bg;
+}
+/* To override inbuilt Green color for matchingbracket */
+.cm-s-default .CodeMirror-matchingbracket {
+    color:  $color-gray-dark !important;
+    background-color: $color-gray-lighter !important;
+}
+
+.CodeMirror {
+  font-size: 1em;
+  font-family: monospace, monospace;
+}
+
+/* Ensure the codemirror editor displays full height gutters when resized */
+.CodeMirror, .CodeMirror-gutter {
+    height: 100% !important;
+    min-height: 100% !important;
+}
+
+/*
+ * Remove border right from "CodeMirror-gutters"
+ * class because its height doesn't increase
+ * with every new line added, instead add border
+ * right to ".CodeMirror-linenumber" class which
+ * adds a new div for every new line added
+ */
+.sql_field_layout .CodeMirror-gutters {
+    border-right: none;
+}
+
+.sql_field_layout .CodeMirror-linenumber {
+    border-right: 1px solid $color-gray-lighter;
+}
+
+/* class to disable Codemirror editor */
+.cm_disabled {
+  background: $input-disabled-bg;
+}
+
+/* make syntax-highlighting bold */
+.cm-s-default .cm-keyword {
+  font-weight: 600;
+  color: $color-editor-keyword;
+}
+
+.cm-s-default .cm-number {
+  font-weight: 600;
+  color: $color-editor-number;
+}
+
+/* Codemirror buttons */
+.CodeMirror-dialog button {
+    font-family: $font-family-primary;
+    color: $color-primary-fg;
+    font-size: 70%;
+    background-image: -webkit-linear-gradient(top, $color-primary-light 0%, $color-primary 100%);
+    background-image: -o-linear-gradient(top, $color-primary-light 0%, $color-primary 100%);
+    background-image: -webkit-gradient(linear, left top, left bottom, from($color-primary-light), to($color-primary));
+    background-image: linear-gradient(to bottom, $color-primary-light 0%, $color-primary 100%);
+    filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#{$color-primary-light}', endColorstr='#{$color-primary}', GradientType=0);
+    filter: progid:DXImageTransform.Microsoft.gradient(enabled = false);
+    background-repeat: repeat-x;
+    border-color: $color-primary;
+    border-radius: 4px;
+}
+
+.CodeMirror-gutters {
+  z-index: 2;
+  background-color: $sql-gutters-bg;
+  border-right: none;
+}
+
+/* workaround for codemirrors 'readOnly' option which is set to true instead of 'noCursor' */
+.hide-cursor-workaround .CodeMirror-cursors {
+  display: none;
+}
+
+.CodeMirror-foldmarker {
+  color: $color-primary;
+  text-shadow: #b9f 1px 1px 2px, #b9f -1px -1px 2px, #b9f 1px -1px 2px, #b9f -1px 1px 2px;
+  line-height: .3;
+  cursor: pointer;
+}
+
+.CodeMirror-linenumber {
+  color: $color-fg-theme;
+}
+
+.debugger-container .breakpoints {
+  width: 0.9em;
+}
+
+.CodeMirror, .CodeMirror-gutters {
+  min-height: 100%;
+}
+
+.CodeMirror-foldgutter {
+  width: .9em;
+}
+
+.CodeMirror-foldgutter-open,
+.CodeMirror-foldgutter-folded {
+  cursor: pointer;
+}
+
+.CodeMirror-foldgutter-open:after {
+  content: "\25BC";
+}
+
+.CodeMirror-foldgutter-folded:after {
+  content: "\25B6";
+}
+
+
+.CodeMirror-foldmarker {
+  color: $color-editor-foldmarker;
+  text-shadow: #b9f 1px 1px 2px, #b9f -1px -1px 2px, #b9f 1px -1px 2px, #b9f -1px 1px 2px;
+  font-family: $font-family-primary;
+  line-height: .3;
+  cursor: pointer;
+}
+
+.CodeMirror-hints {
+  position: absolute;
+  z-index: 10;
+  overflow: hidden;
+  list-style: none;
+
+  margin: 0;
+  padding: 0px;
+
+  -webkit-box-shadow: $dropdown-box-shadow;
+  -moz-box-shadow: $dropdown-box-shadow;
+  box-shadow: $dropdown-box-shadow;
+  border-radius: $border-radius;
+  border: $panel-border;
+
+  background: $sql-hint-bg;
+  font-size: 90%;
+  font-family: $font-family-editor;
+
+  max-height: 20em;
+  overflow-y: auto;
+
+  & li {
+    padding: 0.125rem;
+    border-radius: 0rem;
+    &.CodeMirror-hint-active {
+      background: $sql-hint-active-bg;
+      color: $sql-hint-active-fg;
+    }
+  }
+}
+
+.CodeMirror-focused .CodeMirror-selected {
+  background: $color-primary-light !important;
+}
