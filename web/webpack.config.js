@@ -308,7 +308,8 @@ module.exports = {
         ',pgadmin.tools.import_export' +
         ',pgadmin.tools.debugger.controller' +
         ',pgadmin.tools.debugger.direct' +
-        ',pgadmin.node.pga_job',
+        ',pgadmin.node.pga_job' +
+        ',pgadmin.tools.schema_diff',
       },
     }, {
       test: require.resolve('snapsvg'),
