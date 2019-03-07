@@ -28,6 +28,7 @@ from pgadmin.utils.ajax import gone
 from pgadmin.utils.ajax import make_json_response, \
     make_response as ajax_response, internal_server_error, unauthorized
 from pgadmin.utils.driver import get_driver
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 
 class DatabaseModule(CollectionNodeModule):
@@ -1098,4 +1099,5 @@ class DatabaseView(PGChildNodeView):
         )
 
 
+SchemaDiffRegistry('database', DatabaseView)
 DatabaseView.register_node_view(blueprint)

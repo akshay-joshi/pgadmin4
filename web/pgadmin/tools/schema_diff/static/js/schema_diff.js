@@ -65,6 +65,15 @@ define('pgadmin.schemadiff', [
       return this;
     },
 
+    raise_error_on_fail: function(alert_title, xhr) {
+      try {
+        var err = JSON.parse(xhr.responseText);
+        Alertify.alert(alert_title, err.errormsg);
+      } catch (e) {
+        Alertify.alert(alert_title, e.statusText);
+      }
+    },
+
     // Callback to draw Backup Dialog for objects
     show_schema_diff_tool: function(action, treeItem) {
       var self = this,
@@ -78,30 +87,12 @@ define('pgadmin.schemadiff', [
       })
       .done(function(res) {
         res.data.panel_title = 'Schema Diff'; //TODO: Set the panel title
-        console.log(res.data);
+        // TODO: Following function is used to test the fetching of the databases this should be removed later.
+        self.fetch_databases(res.data[0].server_group_id, res.data[0].id);
         self.launch_schema_diff(res.data);
       })
       .fail(function(xhr) {
-        if (target !== self) {
-          if(xhr.status == 503 && xhr.responseJSON.info != undefined &&
-              xhr.responseJSON.info == 'CONNECTION_LOST') {
-            setTimeout(function() {
-              target.handle_connection_lost(true, xhr);
-            });
-            return;
-          }
-        }
-
-        try {
-          var err = JSON.parse(xhr.responseText);
-          alertify.alert(gettext('Schema Diff initialization error'),
-            err.errormsg
-          );
-        } catch (e) {
-          alertify.alert(gettext('Schema Diff initialization error'),
-            e.statusText
-          );
-        }
+        self.raise_error_on_fail(gettext('Schema Diff initialize error') , xhr);
       });
     },
 
@@ -140,7 +131,49 @@ define('pgadmin.schemadiff', [
       };
 
       openSchemaDiffURL(schemaDiffPanel);
-    }
+    },
+
+    fetch_databases: function(group_id, server_id) {
+      var self = this,
+          url_params = {'gid': group_id, 'sid': server_id},
+          baseUrl = url_for('schema_diff.get_databases', url_params);
+
+      $.ajax({
+        url: baseUrl,
+        method: 'GET',
+        dataType: 'json',
+        contentType: 'application/json',
+      })
+      .done(function(res) {
+        // TODO: Following function is used to test the fetching of the schemas this should be removed later.
+        console.log('Databases:')
+        console.log(res);
+        self.fetch_schemas(group_id, server_id, res.data[0]._id);
+      })
+      .fail(function(xhr) {
+        self.raise_error_on_fail(gettext('Databases fetch error') , xhr);
+      });
+    },
+
+    fetch_schemas: function(group_id, server_id, database_id) {
+      var self = this,
+          url_params = {'gid': group_id, 'sid': server_id, 'did':database_id},
+          baseUrl = url_for('schema_diff.get_schemas', url_params);
+
+      $.ajax({
+        url: baseUrl,
+        method: 'GET',
+        dataType: 'json',
+        contentType: 'application/json',
+      })
+      .done(function(res) {
+        console.log('Schemas:')
+        console.log(res);
+      })
+      .fail(function(xhr) {
+        self.raise_error_on_fail(gettext('Schemas fetch error') , xhr);
+      });
+    },
   };
 
   return pgBrowser.SchemaDiff;

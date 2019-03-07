@@ -17,8 +17,9 @@ from flask_security import current_user, login_required
 from flask_babelex import gettext
 from pgadmin.utils import PgAdminModule
 from pgadmin.utils.ajax import make_json_response, bad_request, \
-    internal_server_error
+    internal_server_error, gone
 from pgadmin.model import Server
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 
 class SchemaDiffModule(PgAdminModule):
@@ -46,11 +47,13 @@ class SchemaDiffModule(PgAdminModule):
     def get_exposed_url_endpoints(self):
         """
         Returns:
-            list: URL endpoints for backup module
+            list: URL endpoints for Schema Diff module
         """
         return [
             'schema_diff.initialize_schema_diff',
             'schema_diff.panel',
+            'schema_diff.get_databases',
+            'schema_diff.get_schemas'
         ]
 
 
@@ -94,24 +97,6 @@ def panel(editor_title):
     )
 
 
-@blueprint.route(
-    '/initialize/schema_diff',
-    methods=["GET"],
-    endpoint="initialize_schema_diff"
-)
-@login_required
-def initialize_schema_diff():
-    """
-    """
-    res = []
-    servers = Server.query.filter_by(user_id=current_user.id)
-    for server in servers:
-        res.append({'id': server.id, 'name':server.name,
-                    'server_group_id':server.servergroup_id})
-
-    return make_json_response(data=res)
-
-
 @blueprint.route("/schema_diff.js")
 @login_required
 def script():
@@ -121,3 +106,72 @@ def script():
         status=200,
         mimetype="application/javascript"
     )
+
+
+@blueprint.route(
+    '/initialize/schema_diff',
+    methods=["GET"],
+    endpoint="initialize_schema_diff"
+)
+@login_required
+def initialize_schema_diff():
+    """
+
+    :return:
+    """
+    res = []
+    try:
+        servers = Server.query.filter_by(user_id=current_user.id)
+        for server in servers:
+            res.append({'id': server.id, 'name': server.name,
+                        'server_group_id': server.servergroup_id})
+    except Exception as e:
+        app.logger.exception(e)
+
+    return make_json_response(data=res)
+
+
+@blueprint.route(
+    '/get_databases/<int:gid>/<int:sid>',
+    methods=["GET"],
+    endpoint="get_databases"
+)
+@login_required
+def get_databases(gid, sid):
+    """
+
+    :return:
+    """
+    res = None
+    try:
+        cmd = {"cmd": "nodes"}
+        module = SchemaDiffRegistry.get_registered_nodes('database')
+        view = module(**cmd)
+        res = view.nodes(gid=gid, sid=sid)
+    except Exception as e:
+        app.logger.exception(e)
+
+    return res
+
+
+@blueprint.route(
+    '/get_schemas/<int:gid>/<int:sid>/<int:did>',
+    methods=["GET"],
+    endpoint="get_schemas"
+)
+@login_required
+def get_schemas(gid, sid, did):
+    """
+
+    :return:
+    """
+    res = None
+    try:
+        cmd = {"cmd": "nodes"}
+        module = SchemaDiffRegistry.get_registered_nodes('schema')
+        view = module(**cmd)
+        res = view.nodes(gid=gid, sid=sid, did=did)
+    except Exception as e:
+        app.logger.exception(e)
+
+    return res
