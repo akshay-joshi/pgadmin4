@@ -24,6 +24,8 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
 from pgadmin.utils import IS_PY2
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
+
 # If we are in Python3
 if not IS_PY2:
     unicode = str
@@ -839,4 +841,5 @@ class SequenceView(PGChildNodeView):
         )
 
 
+SchemaDiffRegistry('sequence', SequenceView)
 SequenceView.register_node_view(blueprint)

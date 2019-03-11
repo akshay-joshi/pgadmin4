@@ -24,6 +24,7 @@ from pgadmin.utils.ajax import precondition_required
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
 from pgadmin.utils import IS_PY2
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 # If we are in Python3
 if not IS_PY2:
@@ -709,4 +710,5 @@ class SynonymView(PGChildNodeView):
         )
 
 
+SchemaDiffRegistry('synonym', SynonymView)
 SynonymView.register_node_view(blueprint)

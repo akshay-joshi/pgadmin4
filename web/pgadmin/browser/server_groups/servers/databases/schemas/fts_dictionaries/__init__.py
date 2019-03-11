@@ -24,6 +24,7 @@ from pgadmin.utils import IS_PY2
 from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.driver import get_driver
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 # If we are in Python3
 if not IS_PY2:
@@ -867,4 +868,5 @@ class FtsDictionaryView(PGChildNodeView):
         )
 
 
+SchemaDiffRegistry('fts_dictionary', FtsDictionaryView)
 FtsDictionaryView.register_node_view(blueprint)

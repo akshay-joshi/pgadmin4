@@ -28,6 +28,7 @@ from pgadmin.utils.ajax import make_json_response, \
 from pgadmin.utils.ajax import precondition_required
 from pgadmin.utils.driver import get_driver
 from pgadmin.utils.preferences import Preferences
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 
 class EdbFuncModule(CollectionNodeModule):
@@ -603,6 +604,7 @@ class EdbFuncView(PGChildNodeView, DataTypeReader):
         return sql[start:end].strip("\n")
 
 
+SchemaDiffRegistry('edbfunc', EdbFuncView)
 EdbFuncView.register_node_view(blueprint)
 
 
@@ -713,4 +715,5 @@ class EdbProcView(EdbFuncView):
         )
 
 
+SchemaDiffRegistry('edbproc', EdbProcView)
 EdbProcView.register_node_view(procedure_blueprint)

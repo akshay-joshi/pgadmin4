@@ -10,8 +10,11 @@
 """A blueprint module implementing the schema_diff frame."""
 MODULE_NAME = 'schema_diff'
 
+import simplejson as json
+import pickle
+import random
 
-from flask import Response, url_for, request
+from flask import Response, session, url_for, request
 from flask import render_template, current_app as app
 from flask_security import current_user, login_required
 from flask_babelex import gettext
@@ -20,6 +23,7 @@ from pgadmin.utils.ajax import make_json_response, bad_request, \
     internal_server_error, gone
 from pgadmin.model import Server
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
+from pgadmin.tools.schema_diff.model import SchemaDiffModel
 
 
 class SchemaDiffModule(PgAdminModule):
@@ -50,10 +54,11 @@ class SchemaDiffModule(PgAdminModule):
             list: URL endpoints for Schema Diff module
         """
         return [
-            'schema_diff.initialize_schema_diff',
+            'schema_diff.initialize',
             'schema_diff.panel',
-            'schema_diff.get_databases',
-            'schema_diff.get_schemas'
+            'schema_diff.databases',
+            'schema_diff.schemas',
+            'schema_diff.compare'
         ]
 
 
@@ -108,19 +113,67 @@ def script():
     )
 
 
-@blueprint.route(
-    '/initialize/schema_diff',
-    methods=["GET"],
-    endpoint="initialize_schema_diff"
-)
-@login_required
-def initialize_schema_diff():
+def check_transaction_status(trans_id):
+    """
+    This function is used to check the transaction id
+    is available in the session object.
+
+    Args:
+        trans_id:
     """
 
-    :return:
+    if 'schemaDiff' not in session:
+        return False, gettext(
+            'Transaction ID not found in the session.'
+        ), None, None
+
+    schema_diff_data = session['schemaDiff']
+
+    # Return from the function if transaction id not found
+    if str(trans_id) not in schema_diff_data:
+        return False, gettext(
+            'Transaction ID not found in the session.'
+        ), None, None
+
+    # Fetch the object for the specified transaction id.
+    # Use pickle.loads function to get the model object
+    session_obj = schema_diff_data[str(trans_id)]
+    model_obj = pickle.loads(session_obj['model_obj'])
+
+    return True, None, model_obj, session_obj
+
+
+@blueprint.route(
+    '/initialize',
+    methods=["GET"],
+    endpoint="initialize"
+)
+@login_required
+def initialize():
+    """
+    This function will initialize the schema diff and return the list
+    of all the server's.
     """
     res = []
+    trans_id = None
     try:
+        # Create a unique id for the transaction
+        trans_id = str(random.randint(1, 9999999))
+
+        if 'schemaDiff' not in session:
+            schema_diff_data = dict()
+        else:
+            schema_diff_data = session['schemaDiff']
+
+        # Use pickle to store the command object which will be used
+        # later by the sql grid module.
+        schema_diff_data[trans_id] = {
+            'model_obj': pickle.dumps(SchemaDiffModel(), -1)
+        }
+
+        # Store the schema diff dictionary into the session variable
+        session['schemaDiff'] = schema_diff_data
+
         servers = Server.query.filter_by(user_id=current_user.id)
         for server in servers:
             res.append({'id': server.id, 'name': server.name,
@@ -128,25 +181,24 @@ def initialize_schema_diff():
     except Exception as e:
         app.logger.exception(e)
 
-    return make_json_response(data=res)
+    return make_json_response(
+        data={'servers': res, 'schemaDiffTransId': trans_id})
 
 
 @blueprint.route(
-    '/get_databases/<int:gid>/<int:sid>',
+    '/databases/<int:gid>/<int:sid>',
     methods=["GET"],
-    endpoint="get_databases"
+    endpoint="databases"
 )
 @login_required
-def get_databases(gid, sid):
+def databases(gid, sid):
     """
-
-    :return:
+    This function will return the list of databases for the specified
+    server id.
     """
     res = None
     try:
-        cmd = {"cmd": "nodes"}
-        module = SchemaDiffRegistry.get_registered_nodes('database')
-        view = module(**cmd)
+        view = SchemaDiffRegistry.get_node_view('database')
         res = view.nodes(gid=gid, sid=sid)
     except Exception as e:
         app.logger.exception(e)
@@ -155,23 +207,67 @@ def get_databases(gid, sid):
 
 
 @blueprint.route(
-    '/get_schemas/<int:gid>/<int:sid>/<int:did>',
+    '/schemas/<int:gid>/<int:sid>/<int:did>',
     methods=["GET"],
-    endpoint="get_schemas"
+    endpoint="schemas"
 )
 @login_required
-def get_schemas(gid, sid, did):
+def schemas(gid, sid, did):
     """
-
-    :return:
+    This function will return the list of schemas for the specified
+    server id and database id.
     """
     res = None
     try:
-        cmd = {"cmd": "nodes"}
-        module = SchemaDiffRegistry.get_registered_nodes('schema')
-        view = module(**cmd)
+        view = SchemaDiffRegistry.get_node_view('schema')
         res = view.nodes(gid=gid, sid=sid, did=did)
     except Exception as e:
         app.logger.exception(e)
 
     return res
+
+
+@blueprint.route(
+    '/compare/<int:trans_id>/<int:source_gid>/<int:source_sid>/'
+    '<int:source_did>/<int:source_scid>/<int:target_gid>/<int:target_sid>/'
+    '<int:target_did>/<int:target_scid>',
+    methods=["GET"],
+    endpoint="compare"
+)
+@login_required
+def compare(trans_id, source_gid, source_sid, source_did, source_scid,
+            target_gid, target_sid, target_did, target_scid):
+    """
+    This function will compare the two schemas.
+    """
+
+    # Check the transaction
+    status, error_msg, model_obj, session_obj = \
+        check_transaction_status(trans_id)
+
+    if error_msg == gettext('Transaction ID not found in the session.'):
+        return make_json_response(success=0, errormsg=error_msg, status=404)
+
+    res = []
+    try:
+        model_obj.clear_data()
+        all_registered_nodes = SchemaDiffRegistry.get_registered_nodes()
+        for node, view in all_registered_nodes.items():
+            if node == 'database' or node == 'schema':
+                continue
+
+            view = SchemaDiffRegistry.get_node_view(node)
+            source_res = view.nodes(gid=source_gid, sid=source_sid,
+                                    did=source_did, scid=source_scid)
+            target_res = view.nodes(gid=target_gid, sid=target_sid,
+                                    did=target_did, scid=target_scid)
+
+            src_test = json.loads(source_res.data.decode('utf-8'))
+            tar_test = json.loads(target_res.data.decode('utf-8'))
+
+            print("Test")
+
+    except Exception as e:
+        app.logger.exception(e)
+
+    return make_json_response(result=res)

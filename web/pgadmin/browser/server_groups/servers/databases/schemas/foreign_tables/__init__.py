@@ -32,6 +32,7 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.compile_template_name import compile_template_path
 from pgadmin.utils.driver import get_driver
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 # If we are in Python3
 if not IS_PY2:
@@ -1368,4 +1369,5 @@ class ForeignTableView(PGChildNodeView, DataTypeReader):
         return ajax_response(response=sql)
 
 
+SchemaDiffRegistry('foreign_table', ForeignTableView)
 ForeignTableView.register_node_view(blueprint)

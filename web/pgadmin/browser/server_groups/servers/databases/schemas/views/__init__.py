@@ -25,6 +25,7 @@ from pgadmin.browser.utils import PGChildNodeView
 from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.driver import get_driver
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 """
     This module is responsible for generating two nodes
@@ -1777,5 +1778,7 @@ class MViewNode(ViewNode, VacuumSettings):
             return internal_server_error(errormsg=str(e))
 
 
+SchemaDiffRegistry('view', ViewNode)
 ViewNode.register_node_view(view_blueprint)
+SchemaDiffRegistry('mview', MViewNode)
 MViewNode.register_node_view(mview_blueprint)

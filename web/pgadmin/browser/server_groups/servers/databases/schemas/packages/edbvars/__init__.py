@@ -25,6 +25,7 @@ from pgadmin.utils.ajax import make_json_response, \
     make_response as ajax_response, internal_server_error, gone
 from pgadmin.utils.ajax import precondition_required
 from pgadmin.utils.driver import get_driver
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 
 class EdbVarModule(CollectionNodeModule):
@@ -339,4 +340,5 @@ class EdbVarView(PGChildNodeView, DataTypeReader):
         return ajax_response(response=sql)
 
 
+SchemaDiffRegistry('edbvar', EdbVarView)
 EdbVarView.register_node_view(blueprint)

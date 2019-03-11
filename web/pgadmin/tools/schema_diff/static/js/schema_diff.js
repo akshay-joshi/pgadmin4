@@ -13,10 +13,8 @@ define('pgadmin.schemadiff', [
 ], function(
   gettext, url_for, $, _, Backbone, Alertify, Backform, pgBrowser
 ) {
-  // Some scripts do export their object in the window only.
-  // Generally the one, which do no have AMD support.
-  var pgBrowser = pgAdmin.Browser;
 
+  var wcDocker = window.wcDocker;
   /* Return back, this has been called more than once */
   if (pgBrowser.SchemaDiff)
     return pgBrowser.SchemaDiff;
@@ -44,15 +42,15 @@ define('pgadmin.schemadiff', [
         module: this,
         applies: ['tools'],
         callback: 'show_schema_diff_tool',
-        priority: 13,
+        priority: 1,
         label: gettext('Schema Diff'),
         enable: true,
       }];
 
       pgBrowser.add_menus(menus);
 
-      // Creating a new pgAdmin.Browser frame to show the data.
-      var schemaDiffFrameType = new pgAdmin.Browser.Frame({
+      // Creating a new pgBrowser frame to show the data.
+      var schemaDiffFrameType = new pgBrowser.Frame({
         name: 'frm_schemadiff',
         showTitle: true,
         isCloseable: true,
@@ -75,9 +73,9 @@ define('pgadmin.schemadiff', [
     },
 
     // Callback to draw Backup Dialog for objects
-    show_schema_diff_tool: function(action, treeItem) {
+    show_schema_diff_tool: function() {
       var self = this,
-          baseUrl = url_for('schema_diff.initialize_schema_diff', null);
+        baseUrl = url_for('schema_diff.initialize', null);
 
       $.ajax({
         url: baseUrl,
@@ -86,9 +84,11 @@ define('pgadmin.schemadiff', [
         contentType: 'application/json',
       })
       .done(function(res) {
+        self.trans_id = res.data.schemaDiffTransId;
         res.data.panel_title = 'Schema Diff'; //TODO: Set the panel title
-        // TODO: Following function is used to test the fetching of the databases this should be removed later.
-        self.fetch_databases(res.data[0].server_group_id, res.data[0].id);
+        // TODO: Following function is used to test the fetching of the
+        // databases this should be moved to server selection event later.
+        self.fetch_databases(res.data.servers[0].server_group_id, res.data.servers[0].id);
         self.launch_schema_diff(res.data);
       })
       .fail(function(xhr) {
@@ -97,8 +97,7 @@ define('pgadmin.schemadiff', [
     },
 
     launch_schema_diff: function(data) {
-      var self = this,
-        panel_title = data.panel_title,
+      var panel_title = data.panel_title,
         panel_tooltip = '';
 
       var url_params = {
@@ -135,8 +134,8 @@ define('pgadmin.schemadiff', [
 
     fetch_databases: function(group_id, server_id) {
       var self = this,
-          url_params = {'gid': group_id, 'sid': server_id},
-          baseUrl = url_for('schema_diff.get_databases', url_params);
+        url_params = {'gid': group_id, 'sid': server_id},
+        baseUrl = url_for('schema_diff.databases', url_params);
 
       $.ajax({
         url: baseUrl,
@@ -145,8 +144,9 @@ define('pgadmin.schemadiff', [
         contentType: 'application/json',
       })
       .done(function(res) {
-        // TODO: Following function is used to test the fetching of the schemas this should be removed later.
-        console.log('Databases:')
+        // TODO: Following function is used to test the fetching of the schemas
+        // this should be moved on database selection event.
+        console.log('Databases:');
         console.log(res);
         self.fetch_schemas(group_id, server_id, res.data[0]._id);
       })
@@ -157,8 +157,8 @@ define('pgadmin.schemadiff', [
 
     fetch_schemas: function(group_id, server_id, database_id) {
       var self = this,
-          url_params = {'gid': group_id, 'sid': server_id, 'did':database_id},
-          baseUrl = url_for('schema_diff.get_schemas', url_params);
+        url_params = {'gid': group_id, 'sid': server_id, 'did':database_id},
+        baseUrl = url_for('schema_diff.schemas', url_params);
 
       $.ajax({
         url: baseUrl,
@@ -167,11 +167,41 @@ define('pgadmin.schemadiff', [
         contentType: 'application/json',
       })
       .done(function(res) {
-        console.log('Schemas:')
+        console.log('Schemas:');
         console.log(res);
+        // TODO: function is used to test compare schema this should be
+        // moved on compare button click.
+        self.compare_schemas();
       })
       .fail(function(xhr) {
         self.raise_error_on_fail(gettext('Schemas fetch error') , xhr);
+      });
+    },
+
+    compare_schemas: function() {
+      // TODO: get the gid, sid, did, scid from source and target combo box
+      // Below will be used for testing purpose.
+      var s_gid=1, s_sid=2, s_did=13255, s_scid=2200,
+        t_gid=1, t_sid=3, t_did=13329, t_scid=2200;
+
+      var self = this,
+        url_params = {'trans_id':self.trans_id, 'source_gid': s_gid,
+          'source_sid': s_sid, 'source_did': s_did, 'source_scid': s_scid,
+          'target_gid': t_gid, 'target_sid': t_sid, 'target_did': t_did,
+          'target_scid': t_scid},
+        baseUrl = url_for('schema_diff.compare', url_params);
+
+      $.ajax({
+        url: baseUrl,
+        method: 'GET',
+        dataType: 'json',
+        contentType: 'application/json',
+      })
+      .done(function(res) {
+        console.log(res);
+      })
+      .fail(function(xhr) {
+        self.raise_error_on_fail(gettext('Schema compare error') , xhr);
       });
     },
   };

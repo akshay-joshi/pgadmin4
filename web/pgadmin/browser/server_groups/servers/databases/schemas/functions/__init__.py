@@ -30,8 +30,8 @@ from pgadmin.browser.utils import PGChildNodeView
 from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.driver import get_driver
-
 from config import PG_DEFAULT_DRIVER
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 
 class FunctionModule(SchemaChildModule):
@@ -1577,6 +1577,7 @@ class FunctionView(PGChildNodeView, DataTypeReader):
         )
 
 
+SchemaDiffRegistry('function', FunctionView)
 FunctionView.register_node_view(blueprint)
 
 
@@ -1690,6 +1691,7 @@ class ProcedureView(FunctionView):
         )
 
 
+SchemaDiffRegistry('procedure', ProcedureView)
 ProcedureView.register_node_view(procedure_blueprint)
 
 
@@ -1801,4 +1803,5 @@ class TriggerFunctionView(FunctionView):
         )
 
 
+SchemaDiffRegistry('trigger_function', TriggerFunctionView)
 TriggerFunctionView.register_node_view(trigger_function_blueprint)

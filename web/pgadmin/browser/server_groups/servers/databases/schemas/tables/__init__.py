@@ -22,6 +22,7 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from .utils import BaseTableView
 from pgadmin.utils.preferences import Preferences
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 
 class TableModule(SchemaChildModule):
@@ -1537,4 +1538,5 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         )
 
 
+SchemaDiffRegistry('table', TableView)
 TableView.register_node_view(blueprint)

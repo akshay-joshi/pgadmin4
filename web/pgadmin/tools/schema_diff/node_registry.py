@@ -22,7 +22,27 @@ class SchemaDiffRegistry(object):
 
     @classmethod
     def get_registered_nodes(cls, node_name=None):
+        """
+        This function will return the node's view object if node name
+        is specified or return the complete list of registered nodes.
+
+        :param node_name: Name of the node ex: Database, Schema, etc..
+        :return:
+        """
         if node_name is not None:
             return cls._registered_nodes[node_name]
 
         return cls._registered_nodes
+
+    @classmethod
+    def get_node_view(cls, node_name):
+        """
+        This function will return the view object for the "nodes"
+        command as per the specified node name.
+
+        :param node_name: Name of the node ex: Database, Schema, etc..
+        :return:
+        """
+        cmd = {"cmd": "nodes"}
+        module = SchemaDiffRegistry.get_registered_nodes(node_name)
+        return module(**cmd)
