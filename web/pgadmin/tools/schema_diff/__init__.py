@@ -261,6 +261,17 @@ def compare(trans_id, source_sid, source_did, source_scid,
                                    target_did=target_did,
                                    target_scid=target_scid)
 
+                # Set the result to model
+                model_obj.set_result(node_name, res)
+
+        # As we changed the model object we need to
+        # restore it and update the session variable.
+        session_obj['model_obj'] = pickle.dumps(model_obj, -1)
+        if 'schemaDiff' in session:
+            schema_diff_data = session['schemaDiff']
+            schema_diff_data[str(trans_id)] = session_obj
+            session['schemaDiff'] = session_obj
+
     except Exception as e:
         app.logger.exception(e)
 

@@ -9,6 +9,7 @@
 
 import os
 import sys
+import copy
 from collections import defaultdict
 from operator import attrgetter
 
@@ -295,6 +296,55 @@ def is_utility_exists(file):
         error_msg = gettext(u"'%s' file not found. Please correct the Binary"
                             u" Path in the Preferences dialog" % file)
     return error_msg
+
+
+def compare_dictionaries(source_dict, target_dict, ignore_keys=None):
+    """
+    This function will compare the two dictionaries.
+
+    :param source_dict: First Dictionary
+    :param target_dict: Second Dictionary
+    :param ignore_keys: List of keys that will be ignored while comparing
+    :return:
+    """
+    dict1 = copy.deepcopy(source_dict)
+    dict2 = copy.deepcopy(target_dict)
+
+    # Find the duplicate keys in both the dictionaries
+    dict1_keys = set(dict1.keys())
+    dict2_keys = set(dict2.keys())
+    intersect_keys = dict1_keys.intersection(dict2_keys)
+
+    # Keys that are available in first and missing in second.
+    source_only = dict()
+    added = dict1_keys - dict2_keys
+    for item in added:
+        source_only[item] = source_dict[item]
+
+    target_only = dict()
+    # Keys that are available in second and missing in first.
+    removed = dict2_keys - dict1_keys
+    for item in removed:
+        target_only[item] = target_dict[item]
+
+    # Compare the values of duplicates keys.
+    different = dict()
+    for key in intersect_keys:
+        # ignore the keys if available.
+        for ig_key in ignore_keys:
+            dict1[key].pop(ig_key)
+            dict2[key].pop(ig_key)
+
+        if dict1[key] != dict2[key]:
+            different[key] = (source_dict[key], target_dict[key])
+
+    # Find the identical values
+    identical = dict()
+    for key in intersect_keys:
+        if dict1[key] == dict2[key]:
+            identical[key] = (source_dict[key], target_dict[key])
+
+    return source_only, target_only, different, identical
 
 
 # Shortcut configuration for Accesskey

@@ -20,7 +20,7 @@ from config import PG_DEFAULT_DRIVER
 from pgadmin.browser.server_groups.servers.databases.schemas.utils \
     import SchemaChildModule
 from pgadmin.browser.utils import PGChildNodeView
-from pgadmin.utils import IS_PY2
+from pgadmin.utils import IS_PY2, compare_dictionaries
 from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.compile_template_name import compile_template_path
@@ -762,11 +762,15 @@ class CollationView(PGChildNodeView):
         :param scid: Schema Id
         :return:
         """
+        res = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'nodes.sql']), scid=scid)
-        status, res = self.conn.execute_2darray(SQL)
+                                        'properties.sql']), scid=scid)
+        status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
+
+        for row in rset['rows']:
+            res[row['name']] = row
 
         return res
 
@@ -778,17 +782,25 @@ class CollationView(PGChildNodeView):
         :param kwargs:
         :return:
         """
-        s_sid = kwargs.get('source_sid')
-        s_did = kwargs.get('source_did')
-        s_scid = kwargs.get('source_scid')
-        t_sid = kwargs.get('target_sid')
-        t_did = kwargs.get('target_did')
-        t_scid = kwargs.get('target_scid')
+        src_sid = kwargs.get('source_sid')
+        src_did = kwargs.get('source_did')
+        src_scid = kwargs.get('source_scid')
+        tar_sid = kwargs.get('target_sid')
+        tar_did = kwargs.get('target_did')
+        tar_scid = kwargs.get('target_scid')
 
-        source_collations = self.fetch_collations(sid=s_sid, did=s_did,
-                                                  scid=s_scid)
-        target_collations = self.fetch_collations(sid=t_sid, did=t_did,
-                                                  scid=t_scid)
+        source_collations = self.fetch_collations(sid=src_sid, did=src_did,
+                                                  scid=src_scid)
+        target_collations = self.fetch_collations(sid=tar_sid, did=tar_did,
+                                                  scid=tar_scid)
+
+        ignore_keys = ['oid', 'owner']
+        source_only, target_only, different, identical \
+            = compare_dictionaries(source_collations, target_collations,
+                                   ignore_keys)
+
+        return dict(source_only=source_only, target_only=target_only,
+                    different=different, identical=identical)
 
 
 SchemaDiffRegistry('collation', CollationView)
