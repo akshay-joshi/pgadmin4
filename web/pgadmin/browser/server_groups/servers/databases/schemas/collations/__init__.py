@@ -145,6 +145,10 @@ class CollationView(PGChildNodeView):
     * dependent(gid, sid, did, scid):
       - This function will generate dependent list to show it in dependent
         pane for the selected Collation node.
+
+    * compare(**kwargs):
+      - This function will compare the collation nodes from two different
+        schemas.
     """
 
     node_type = blueprint.node_type
@@ -174,7 +178,8 @@ class CollationView(PGChildNodeView):
         'dependent': [{'get': 'dependents'}],
         'module.js': [{}, {}, {'get': 'module_js'}],
         'get_collations': [{'get': 'get_collation'},
-                           {'get': 'get_collation'}]
+                           {'get': 'get_collation'}],
+        'compare': [{'get': 'compare'}, {'get': 'compare'}]
     })
 
     def check_precondition(f):
@@ -745,6 +750,45 @@ class CollationView(PGChildNodeView):
             response=dependencies_result,
             status=200
         )
+
+    @check_precondition
+    def fetch_collations(self, sid, did, scid):
+        """
+        This function will fetch the list of all the collations for
+        specified schema id.
+
+        :param sid: Server Id
+        :param did: Database Id
+        :param scid: Schema Id
+        :return:
+        """
+        SQL = render_template("/".join([self.template_path,
+                                        'nodes.sql']), scid=scid)
+        status, res = self.conn.execute_2darray(SQL)
+        if not status:
+            return internal_server_error(errormsg=res)
+
+        return res
+
+    def compare(self, **kwargs):
+        """
+        This function is used to compare all the collation objects
+        from two different schemas.
+
+        :param kwargs:
+        :return:
+        """
+        s_sid = kwargs.get('source_sid')
+        s_did = kwargs.get('source_did')
+        s_scid = kwargs.get('source_scid')
+        t_sid = kwargs.get('target_sid')
+        t_did = kwargs.get('target_did')
+        t_scid = kwargs.get('target_scid')
+
+        source_collations = self.fetch_collations(sid=s_sid, did=s_did,
+                                                  scid=s_scid)
+        target_collations = self.fetch_collations(sid=t_sid, did=t_did,
+                                                  scid=t_scid)
 
 
 SchemaDiffRegistry('collation', CollationView)

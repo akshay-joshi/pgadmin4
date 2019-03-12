@@ -43,6 +43,6 @@ class SchemaDiffRegistry(object):
         :param node_name: Name of the node ex: Database, Schema, etc..
         :return:
         """
-        cmd = {"cmd": "nodes"}
+        cmd = {"cmd": "nodes, compare"}
         module = SchemaDiffRegistry.get_registered_nodes(node_name)
         return module(**cmd)

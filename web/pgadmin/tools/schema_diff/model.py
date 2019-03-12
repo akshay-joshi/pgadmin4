@@ -22,12 +22,10 @@ class SchemaDiffModel(object):
         Args:
             **kwargs : N number of parameters
         """
-        self.source_children = dict()
-        self.target_children = dict()
+        self.comparison_result = dict()
 
     def clear_data(self):
         """
         This function clear the model data.
         """
-        self.source_children.clear()
-        self.target_children.clear()
+        self.comparison_result.clear()

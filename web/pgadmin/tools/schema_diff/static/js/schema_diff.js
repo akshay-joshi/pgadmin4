@@ -181,14 +181,12 @@ define('pgadmin.schemadiff', [
     compare_schemas: function() {
       // TODO: get the gid, sid, did, scid from source and target combo box
       // Below will be used for testing purpose.
-      var s_gid=1, s_sid=2, s_did=13255, s_scid=2200,
-        t_gid=1, t_sid=3, t_did=13329, t_scid=2200;
+      var s_sid=2, s_did=13255, s_scid=2200, t_sid=3, t_did=13329, t_scid=2200;
 
       var self = this,
-        url_params = {'trans_id':self.trans_id, 'source_gid': s_gid,
-          'source_sid': s_sid, 'source_did': s_did, 'source_scid': s_scid,
-          'target_gid': t_gid, 'target_sid': t_sid, 'target_did': t_did,
-          'target_scid': t_scid},
+        url_params = {'trans_id':self.trans_id, 'source_sid': s_sid,
+          'source_did': s_did, 'source_scid': s_scid,
+          'target_sid': t_sid, 'target_did': t_did, 'target_scid': t_scid},
         baseUrl = url_for('schema_diff.compare', url_params);
 
       $.ajax({

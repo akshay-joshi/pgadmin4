@@ -228,15 +228,14 @@ def schemas(gid, sid, did):
 
 
 @blueprint.route(
-    '/compare/<int:trans_id>/<int:source_gid>/<int:source_sid>/'
-    '<int:source_did>/<int:source_scid>/<int:target_gid>/<int:target_sid>/'
-    '<int:target_did>/<int:target_scid>',
+    '/compare/<int:trans_id>/<int:source_sid>/<int:source_did>/'
+    '<int:source_scid>/<int:target_sid>/<int:target_did>/<int:target_scid>',
     methods=["GET"],
     endpoint="compare"
 )
 @login_required
-def compare(trans_id, source_gid, source_sid, source_did, source_scid,
-            target_gid, target_sid, target_did, target_scid):
+def compare(trans_id, source_sid, source_did, source_scid,
+            target_sid, target_did, target_scid):
     """
     This function will compare the two schemas.
     """
@@ -252,20 +251,15 @@ def compare(trans_id, source_gid, source_sid, source_did, source_scid,
     try:
         model_obj.clear_data()
         all_registered_nodes = SchemaDiffRegistry.get_registered_nodes()
-        for node, view in all_registered_nodes.items():
-            if node == 'database' or node == 'schema':
-                continue
-
-            view = SchemaDiffRegistry.get_node_view(node)
-            source_res = view.nodes(gid=source_gid, sid=source_sid,
-                                    did=source_did, scid=source_scid)
-            target_res = view.nodes(gid=target_gid, sid=target_sid,
-                                    did=target_did, scid=target_scid)
-
-            src_test = json.loads(source_res.data.decode('utf-8'))
-            tar_test = json.loads(target_res.data.decode('utf-8'))
-
-            print("Test")
+        for node_name, node_view in all_registered_nodes.items():
+            view = SchemaDiffRegistry.get_node_view(node_name)
+            if hasattr(view, 'compare'):
+                res = view.compare(source_sid=source_sid,
+                                   source_did=source_did,
+                                   source_scid=source_scid,
+                                   target_sid=target_sid,
+                                   target_did=target_did,
+                                   target_scid=target_scid)
 
     except Exception as e:
         app.logger.exception(e)
