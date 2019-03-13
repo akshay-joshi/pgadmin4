@@ -25,6 +25,7 @@ from pgadmin.browser.utils import PGChildNodeView
 from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.driver import get_driver
+from pgadmin.utils import compare_dictionaries
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 """
@@ -255,6 +256,10 @@ class ViewNode(PGChildNodeView, VacuumSettings):
     * dependent(gid, sid, did, scid):
       - This function will generate dependent list to show it in dependent
         pane for the selected view node.
+
+    * compare(**kwargs):
+      - This function will compare the view nodes from two
+        different schemas.
     """
     node_type = view_blueprint.node_type
 
@@ -293,7 +298,8 @@ class ViewNode(PGChildNodeView, VacuumSettings):
             {'get': 'get_table_vacuum'}],
         'get_toast_table_vacuum': [
             {'get': 'get_toast_table_vacuum'},
-            {'get': 'get_toast_table_vacuum'}]
+            {'get': 'get_toast_table_vacuum'}],
+        'compare': [{'get': 'compare'}, {'get': 'compare'}]
     })
 
     def __init__(self, *args, **kwargs):
@@ -1272,6 +1278,71 @@ class ViewNode(PGChildNodeView, VacuumSettings):
 
         return ajax_response(response=sql)
 
+    @check_precondition
+    def fetch_views(self, sid, did, scid):
+        """
+        This function will fetch the list of all the views for
+        specified schema id.
+
+        :param sid: Server Id
+        :param did: Database Id
+        :param scid: Schema Id
+        :return:
+        """
+        res = dict()
+        SQL = render_template("/".join([self.template_path,
+                                        'properties.sql']), scid=scid)
+        status, rset = self.conn.execute_2darray(SQL)
+        if not status:
+            return internal_server_error(errormsg=res)
+
+        for row in rset['rows']:
+            res[row['name']] = row
+
+        return res
+
+    def compare(self, **kwargs):
+        """
+        This function is used to compare all the view objects
+        from two different schemas.
+
+        :param kwargs:
+        :return:
+        """
+        src_sid = kwargs.get('source_sid')
+        src_did = kwargs.get('source_did')
+        src_scid = kwargs.get('source_scid')
+        tar_sid = kwargs.get('target_sid')
+        tar_did = kwargs.get('target_did')
+        tar_scid = kwargs.get('target_scid')
+
+        source_views = self.fetch_views(sid=src_sid, did=src_did,
+                                        scid=src_scid)
+        target_views = self.fetch_views(sid=tar_sid, did=tar_did,
+                                        scid=tar_scid)
+
+        # If both the dict have no items then return None.
+        if len(source_views) <= 0 and len(target_views) <= 0:
+            return None
+
+        ignore_keys = ['oid', 'owner']
+        source_only, target_only, different, identical \
+            = compare_dictionaries(source_views, target_views,
+                                   ignore_keys)
+
+        res = {key: {'oid': source_only[key]['oid'],
+                     'status': 'source'} for key in source_only}
+        res.update({key: {'oid': target_only[key]['oid'],
+                          'status': 'target'} for key in target_only})
+        res.update({key: {'source_oid': different[key][0]['oid'],
+                          'target_oid': different[key][1]['oid'],
+                          'status': 'different'} for key in different})
+        res.update({key: {'source_oid': identical[key][0]['oid'],
+                          'target_oid': identical[key][1]['oid'],
+                          'status': 'identical'} for key in identical})
+
+        return res
+
 
 # Override the operations for materialized view
 mview_operations = {
@@ -1776,6 +1847,71 @@ class MViewNode(ViewNode, VacuumSettings):
         except Exception as e:
             current_app.logger.exception(e)
             return internal_server_error(errormsg=str(e))
+
+    @check_precondition
+    def fetch_mviews(self, sid, did, scid):
+        """
+        This function will fetch the list of all the mviews for
+        specified schema id.
+
+        :param sid: Server Id
+        :param did: Database Id
+        :param scid: Schema Id
+        :return:
+        """
+        res = dict()
+        SQL = render_template("/".join([self.template_path,
+                                        'properties.sql']), scid=scid)
+        status, rset = self.conn.execute_2darray(SQL)
+        if not status:
+            return internal_server_error(errormsg=res)
+
+        for row in rset['rows']:
+            res[row['name']] = row
+
+        return res
+
+    def compare(self, **kwargs):
+        """
+        This function is used to compare all the mview objects
+        from two different schemas.
+
+        :param kwargs:
+        :return:
+        """
+        src_sid = kwargs.get('source_sid')
+        src_did = kwargs.get('source_did')
+        src_scid = kwargs.get('source_scid')
+        tar_sid = kwargs.get('target_sid')
+        tar_did = kwargs.get('target_did')
+        tar_scid = kwargs.get('target_scid')
+
+        source_mviews = self.fetch_mviews(sid=src_sid, did=src_did,
+                                          scid=src_scid)
+        target_mviews = self.fetch_mviews(sid=tar_sid, did=tar_did,
+                                          scid=tar_scid)
+
+        # If both the dict have no items then return None.
+        if len(source_mviews) <= 0 and len(target_mviews) <= 0:
+            return None
+
+        ignore_keys = ['oid', 'owner']
+        source_only, target_only, different, identical \
+            = compare_dictionaries(source_mviews, target_mviews,
+                                   ignore_keys)
+
+        res = {key: {'oid': source_only[key]['oid'],
+                     'status': 'source'} for key in source_only}
+        res.update({key: {'oid': target_only[key]['oid'],
+                          'status': 'target'} for key in target_only})
+        res.update({key: {'source_oid': different[key][0]['oid'],
+                          'target_oid': different[key][1]['oid'],
+                          'status': 'different'} for key in different})
+        res.update({key: {'source_oid': identical[key][0]['oid'],
+                          'target_oid': identical[key][1]['oid'],
+                          'status': 'identical'} for key in identical})
+
+        return res
 
 
 SchemaDiffRegistry('view', ViewNode)

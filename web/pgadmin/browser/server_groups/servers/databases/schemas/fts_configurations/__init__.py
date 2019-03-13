@@ -20,7 +20,7 @@ from config import PG_DEFAULT_DRIVER
 from pgadmin.browser.server_groups.servers.databases.schemas.utils \
     import SchemaChildModule
 from pgadmin.browser.utils import PGChildNodeView
-from pgadmin.utils import IS_PY2
+from pgadmin.utils import IS_PY2, compare_dictionaries
 from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.driver import get_driver
@@ -172,6 +172,9 @@ class FtsConfigurationView(PGChildNodeView):
     * dependencies(self, gid, sid, did, scid, cfgid):
       - This function get the dependencies and return ajax response for node.
 
+    * compare(**kwargs):
+      - This function will compare the fts configuration nodes from two
+        different schemas.
     """
 
     node_type = blueprint.node_type
@@ -208,6 +211,7 @@ class FtsConfigurationView(PGChildNodeView):
                        {'get': 'copyConfig'}],
         'tokens': [{'get': 'tokens'}, {'get': 'tokens'}],
         'dictionaries': [{}, {'get': 'dictionaries'}],
+        'compare': [{'get': 'compare'}, {'get': 'compare'}]
     })
 
     def _init_(self, **kwargs):
@@ -939,6 +943,74 @@ class FtsConfigurationView(PGChildNodeView):
             response=dependencies_result,
             status=200
         )
+
+    @check_precondition
+    def fetch_fts_configurations(self, sid, did, scid):
+        """
+        This function will fetch the list of all the fts configurations for
+        specified schema id.
+
+        :param sid: Server Id
+        :param did: Database Id
+        :param scid: Schema Id
+        :return:
+        """
+        res = dict()
+        SQL = render_template("/".join([self.template_path,
+                                        'properties.sql']), scid=scid)
+        status, rset = self.conn.execute_2darray(SQL)
+        if not status:
+            return internal_server_error(errormsg=res)
+
+        for row in rset['rows']:
+            res[row['name']] = row
+
+        return res
+
+    def compare(self, **kwargs):
+        """
+        This function is used to compare all the fts configurations objects
+        from two different schemas.
+
+        :param kwargs:
+        :return:
+        """
+        src_sid = kwargs.get('source_sid')
+        src_did = kwargs.get('source_did')
+        src_scid = kwargs.get('source_scid')
+        tar_sid = kwargs.get('target_sid')
+        tar_did = kwargs.get('target_did')
+        tar_scid = kwargs.get('target_scid')
+
+        source_fts_configurations = \
+            self.fetch_fts_configurations(sid=src_sid, did=src_did,
+                                          scid=src_scid)
+        target_fts_configurations = \
+            self.fetch_fts_configurations(sid=tar_sid, did=tar_did,
+                                          scid=tar_scid)
+
+        # If both the dict have no items then return None.
+        if len(source_fts_configurations) <= 0 and \
+                len(target_fts_configurations) <= 0:
+            return None
+
+        ignore_keys = ['oid', 'owner']
+        source_only, target_only, different, identical \
+            = compare_dictionaries(source_fts_configurations,
+                                   target_fts_configurations, ignore_keys)
+
+        res = {key: {'oid': source_only[key]['oid'],
+                     'status': 'source'} for key in source_only}
+        res.update({key: {'oid': target_only[key]['oid'],
+                          'status': 'target'} for key in target_only})
+        res.update({key: {'source_oid': different[key][0]['oid'],
+                          'target_oid': different[key][1]['oid'],
+                          'status': 'different'} for key in different})
+        res.update({key: {'source_oid': identical[key][0]['oid'],
+                          'target_oid': identical[key][1]['oid'],
+                          'status': 'identical'} for key in identical})
+
+        return res
 
 
 SchemaDiffRegistry('fts_configuration', FtsConfigurationView)

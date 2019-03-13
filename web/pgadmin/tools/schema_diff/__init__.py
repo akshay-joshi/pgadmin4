@@ -167,9 +167,9 @@ def initialize():
 
         # Use pickle to store the command object which will be used
         # later by the sql grid module.
-        schema_diff_data[trans_id] = {
-            'model_obj': pickle.dumps(SchemaDiffModel(), -1)
-        }
+        # schema_diff_data[trans_id] = {
+        #     'model_obj': pickle.dumps(SchemaDiffModel(), -1)
+        # }
 
         # Store the schema diff dictionary into the session variable
         session['schemaDiff'] = schema_diff_data
@@ -240,16 +240,8 @@ def compare(trans_id, source_sid, source_did, source_scid,
     This function will compare the two schemas.
     """
 
-    # Check the transaction
-    status, error_msg, model_obj, session_obj = \
-        check_transaction_status(trans_id)
-
-    if error_msg == gettext('Transaction ID not found in the session.'):
-        return make_json_response(success=0, errormsg=error_msg, status=404)
-
-    res = []
+    comparison_result = dict()
     try:
-        model_obj.clear_data()
         all_registered_nodes = SchemaDiffRegistry.get_registered_nodes()
         for node_name, node_view in all_registered_nodes.items():
             view = SchemaDiffRegistry.get_node_view(node_name)
@@ -261,18 +253,9 @@ def compare(trans_id, source_sid, source_did, source_scid,
                                    target_did=target_did,
                                    target_scid=target_scid)
 
-                # Set the result to model
-                model_obj.set_result(node_name, res)
-
-        # As we changed the model object we need to
-        # restore it and update the session variable.
-        session_obj['model_obj'] = pickle.dumps(model_obj, -1)
-        if 'schemaDiff' in session:
-            schema_diff_data = session['schemaDiff']
-            schema_diff_data[str(trans_id)] = session_obj
-            session['schemaDiff'] = session_obj
-
+                if res is not None:
+                    comparison_result[node_name] = res
     except Exception as e:
         app.logger.exception(e)
 
-    return make_json_response(result=res)
+    return make_json_response(data=comparison_result)

@@ -22,7 +22,7 @@ from pgadmin.browser.server_groups.servers.databases.schemas.utils \
 from pgadmin.browser.server_groups.servers.utils import parse_priv_from_db, \
     parse_priv_to_db
 from pgadmin.browser.utils import PGChildNodeView
-from pgadmin.utils import IS_PY2
+from pgadmin.utils import IS_PY2, compare_dictionaries
 from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.driver import get_driver
@@ -174,6 +174,10 @@ class TypeView(PGChildNodeView, DataTypeReader):
     * get_external_functions_list(gid, sid, did, scid, tid):
       - This function will return list of external functions
         in ajax response
+
+    * compare(**kwargs):
+      - This function will compare the type nodes from two
+        different schemas.
     """
 
     node_type = blueprint.node_type
@@ -212,7 +216,8 @@ class TypeView(PGChildNodeView, DataTypeReader):
         'get_collations': [{'get': 'get_collations'},
                            {'get': 'get_collations'}],
         'get_external_functions': [{'get': 'get_external_functions_list'},
-                                   {'get': 'get_external_functions_list'}]
+                                   {'get': 'get_external_functions_list'}],
+        'compare': [{'get': 'compare'}, {'get': 'compare'}]
     })
 
     def check_precondition(f):
@@ -1444,6 +1449,71 @@ class TypeView(PGChildNodeView, DataTypeReader):
             response=dependencies_result,
             status=200
         )
+
+    @check_precondition
+    def fetch_types(self, sid, did, scid):
+        """
+        This function will fetch the list of all the types for
+        specified schema id.
+
+        :param sid: Server Id
+        :param did: Database Id
+        :param scid: Schema Id
+        :return:
+        """
+        res = dict()
+        SQL = render_template("/".join([self.template_path,
+                                        'properties.sql']), scid=scid)
+        status, rset = self.conn.execute_2darray(SQL)
+        if not status:
+            return internal_server_error(errormsg=res)
+
+        for row in rset['rows']:
+            res[row['name']] = row
+
+        return res
+
+    def compare(self, **kwargs):
+        """
+        This function is used to compare all the type objects
+        from two different schemas.
+
+        :param kwargs:
+        :return:
+        """
+        src_sid = kwargs.get('source_sid')
+        src_did = kwargs.get('source_did')
+        src_scid = kwargs.get('source_scid')
+        tar_sid = kwargs.get('target_sid')
+        tar_did = kwargs.get('target_did')
+        tar_scid = kwargs.get('target_scid')
+
+        source_types = self.fetch_types(sid=src_sid, did=src_did,
+                                        scid=src_scid)
+        target_types = self.fetch_types(sid=tar_sid, did=tar_did,
+                                        scid=tar_scid)
+
+        # If both the dict have no items then return None.
+        if len(source_types) <= 0 and len(target_types) <= 0:
+            return None
+
+        ignore_keys = ['oid', 'owner']
+        source_only, target_only, different, identical \
+            = compare_dictionaries(source_types, target_types,
+                                   ignore_keys)
+
+        res = {key: {'oid': source_only[key]['oid'],
+                     'status': 'source'} for key in source_only}
+        res.update({key: {'oid': target_only[key]['oid'],
+                          'status': 'target'} for key in target_only})
+        res.update({key: {'source_oid': different[key][0]['oid'],
+                          'target_oid': different[key][1]['oid'],
+                          'status': 'different'} for key in different})
+        res.update({key: {'source_oid': identical[key][0]['oid'],
+                          'target_oid': identical[key][1]['oid'],
+                          'status': 'identical'} for key in identical})
+
+        return res
 
 
 SchemaDiffRegistry('type', TypeView)

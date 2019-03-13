@@ -794,13 +794,27 @@ class CollationView(PGChildNodeView):
         target_collations = self.fetch_collations(sid=tar_sid, did=tar_did,
                                                   scid=tar_scid)
 
+        # If both the dict have no items then return None.
+        if len(source_collations) <= 0 and len(target_collations) <= 0:
+            return None
+
         ignore_keys = ['oid', 'owner']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_collations, target_collations,
                                    ignore_keys)
 
-        return dict(source_only=source_only, target_only=target_only,
-                    different=different, identical=identical)
+        res = {key: {'oid': source_only[key]['oid'],
+                     'status': 'source'} for key in source_only}
+        res.update({key: {'oid': target_only[key]['oid'],
+                          'status': 'target'} for key in target_only})
+        res.update({key: {'source_oid': different[key][0]['oid'],
+                          'target_oid': different[key][1]['oid'],
+                          'status': 'different'} for key in different})
+        res.update({key: {'source_oid': identical[key][0]['oid'],
+                          'target_oid': identical[key][1]['oid'],
+                          'status': 'identical'} for key in identical})
+
+        return res
 
 
 SchemaDiffRegistry('collation', CollationView)
