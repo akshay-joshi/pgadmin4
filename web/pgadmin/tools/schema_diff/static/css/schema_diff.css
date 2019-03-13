@@ -1,0 +1,12 @@
+.icon-schema-diff {
+  display: inline-block;
+  align-content: center;
+  vertical-align: middle;
+  height: 18px;
+  width: 18px;
+  background-size: 20px !important;
+  background-repeat: no-repeat;
+  background-position-x: center;
+  background-position-y: center;
+  background-image: url('../img/compare.svg') !important;
+}

@@ -30,7 +30,7 @@ const HardSourceWebpackPlugin = require('hard-source-webpack-plugin');
 // specified in `chunks` into vendor.js bundle
 const vendorChunks = new webpack.optimize.CommonsChunkPlugin({
   name: 'vendor',
-  chunks: ['app.bundle', 'sqleditor', 'codemirror', 'debugger_direct'],
+  chunks: ['app.bundle', 'sqleditor', 'codemirror', 'debugger_direct', 'schema_diff'],
   filename: 'vendor.js',
   minChunks: function(module) {
     return webpackShimConfig.isExternal(module);
@@ -42,7 +42,7 @@ const vendorChunks = new webpack.optimize.CommonsChunkPlugin({
 // pgLibs holds files that will be moved into this bundle.
 const pgAdminCommonChunks = new webpack.optimize.CommonsChunkPlugin({
   name: 'pgadmin_commons',
-  chunks: ['app.bundle', 'sqleditor', 'codemirror', 'debugger_direct'],
+  chunks: ['app.bundle', 'sqleditor', 'codemirror', 'debugger_direct', 'schema_diff'],
   filename: 'pgadmin_commons.js',
   minChunks: function(module) {
     return webpackShimConfig.isPgAdminLib(module);
@@ -174,6 +174,7 @@ module.exports = {
     codemirror: sourceDir + '/bundle/codemirror.js',
     sqleditor: './pgadmin/tools/sqleditor/static/js/sqleditor.js',
     debugger_direct: './pgadmin/tools/debugger/static/js/direct.js',
+    schema_diff: './pgadmin/tools/schema_diff/static/js/schema_diff_hook.js',
     file_utils: './pgadmin/misc/file_manager/static/js/utility.js',
     pgadmin: pgadminStyles,
     style: './pgadmin/static/css/style.css',
