@@ -726,6 +726,9 @@ class SynonymView(PGChildNodeView):
         :return:
         """
         res = dict()
+        if self.manager.server_type != 'ppas':
+            return res
+
         SQL = render_template("/".join([self.template_path,
                                         'properties.sql']), scid=scid)
         status, rset = self.conn.execute_2darray(SQL)

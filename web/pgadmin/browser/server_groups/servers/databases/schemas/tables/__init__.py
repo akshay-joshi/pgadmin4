@@ -1555,8 +1555,10 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         :return:
         """
         res = dict()
-        SQL = render_template("/".join([self.template_path,
-                                        'properties.sql']), scid=scid)
+        SQL = render_template("/".join([self.table_template_path,
+                                        'properties.sql']),
+                              did=did, scid=scid,
+                              datlastsysoid=self.datlastsysoid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)

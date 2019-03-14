@@ -1463,7 +1463,8 @@ class TypeView(PGChildNodeView, DataTypeReader):
         """
         res = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'properties.sql']), scid=scid)
+                                        'properties.sql']),
+                              scid=scid, datlastsysoid=self.datlastsysoid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
@@ -1497,7 +1498,7 @@ class TypeView(PGChildNodeView, DataTypeReader):
         if len(source_types) <= 0 and len(target_types) <= 0:
             return None
 
-        ignore_keys = ['oid', 'owner']
+        ignore_keys = ['oid', 'typeowner']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_types, target_types,
                                    ignore_keys)

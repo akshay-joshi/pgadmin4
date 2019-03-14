@@ -1291,7 +1291,8 @@ class ViewNode(PGChildNodeView, VacuumSettings):
         """
         res = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'properties.sql']), scid=scid)
+                                        'sql/properties.sql']), did=did,
+                              scid=scid, datlastsysoid=self.datlastsysoid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
@@ -1861,7 +1862,8 @@ class MViewNode(ViewNode, VacuumSettings):
         """
         res = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'properties.sql']), scid=scid)
+                                        'sql/properties.sql']), did=did,
+                              scid=scid, datlastsysoid=self.datlastsysoid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)

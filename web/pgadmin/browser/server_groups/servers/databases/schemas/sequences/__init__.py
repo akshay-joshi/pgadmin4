@@ -841,7 +841,7 @@ class SequenceView(PGChildNodeView):
             status=200
         )
 
-    @check_precondition
+    @check_precondition(action="fetch_sequences")
     def fetch_sequences(self, sid, did, scid):
         """
         This function will fetch the list of all the sequences for

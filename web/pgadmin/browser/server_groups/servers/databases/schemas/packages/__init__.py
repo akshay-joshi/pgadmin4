@@ -774,7 +774,7 @@ class PackageView(PGChildNodeView):
 
         return sql[start:end].strip("\n")
 
-    @check_precondition
+    @check_precondition(action="fetch_packages")
     def fetch_packages(self, sid, did, scid):
         """
         This function will fetch the list of all the packages for
@@ -786,6 +786,9 @@ class PackageView(PGChildNodeView):
         :return:
         """
         res = dict()
+        if self.manager.server_type != 'ppas':
+            return res
+
         SQL = render_template("/".join([self.template_path,
                                         'properties.sql']), scid=scid)
         status, rset = self.conn.execute_2darray(SQL)
