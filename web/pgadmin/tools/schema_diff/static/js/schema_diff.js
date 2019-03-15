@@ -79,9 +79,11 @@ define('pgadmin.schemadiff', [
 
     launch_schema_diff: function(data) {
       var panel_title = data.panel_title,
+        trans_id = data.schemaDiffTransId,
         panel_tooltip = '';
 
       var url_params = {
+          'trans_id': trans_id,
           'editor_title': panel_title,
         },
         baseUrl = url_for('schema_diff.panel', url_params);

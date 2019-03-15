@@ -56,9 +56,10 @@ class SchemaDiffModule(PgAdminModule):
         return [
             'schema_diff.initialize',
             'schema_diff.panel',
+            'schema_diff.servers',
             'schema_diff.databases',
             'schema_diff.schemas',
-            'schema_diff.compare'
+            'schema_diff.compare',
         ]
 
 
@@ -74,11 +75,11 @@ def index():
 
 
 @blueprint.route(
-    '/panel/<path:editor_title>',
+    '/panel/<int:trans_id>/<path:editor_title>',
     methods=["GET"],
     endpoint='panel'
 )
-def panel(editor_title):
+def panel(trans_id, editor_title):
     """
     This method calls index.html to render the schema diff.
 
@@ -98,6 +99,7 @@ def panel(editor_title):
     return render_template(
         "schema_diff/index.html",
         _=gettext,
+        trans_id=trans_id,
         editor_title=editor_title
     )
 
@@ -154,7 +156,6 @@ def initialize():
     This function will initialize the schema diff and return the list
     of all the server's.
     """
-    res = []
     trans_id = None
     try:
         # Create a unique id for the transaction
@@ -174,15 +175,36 @@ def initialize():
         # Store the schema diff dictionary into the session variable
         session['schemaDiff'] = schema_diff_data
 
-        servers = Server.query.filter_by(user_id=current_user.id)
-        for server in servers:
-            res.append({'id': server.id, 'name': server.name,
-                        'server_group_id': server.servergroup_id})
     except Exception as e:
         app.logger.exception(e)
 
     return make_json_response(
-        data={'servers': res, 'schemaDiffTransId': trans_id})
+        data={'schemaDiffTransId': trans_id})
+
+
+@blueprint.route(
+    '/servers',
+    methods=["GET"],
+    endpoint="servers"
+)
+@login_required
+def servers():
+    """
+    This function will return the list of databases for the specified
+    server id.
+    """
+    res = []
+    try:
+        for server in Server.query.filter_by(user_id=current_user.id):
+            res.append({'id': server.id, 'name': server.name,
+                        'sgid': server.servergroup_id})
+
+    except Exception as e:
+        app.logger.exception(e)
+
+    return make_json_response(data={
+        'servers': res
+    })
 
 
 @blueprint.route(

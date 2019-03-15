@@ -31,7 +31,7 @@ define([
         });
       };
 
-      SchemaDiffUI.fetch_databases(1, 1);
+      SchemaDiffUI.test_compare_schema(trans_id);
     },
   };
 
