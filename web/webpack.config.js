@@ -27,29 +27,6 @@ const extractStyle = new MiniCssExtractPlugin({
 const envType = PRODUCTION ? 'production': 'development';
 const HardSourceWebpackPlugin = require('hard-source-webpack-plugin');
 
-// Extract vendor related libraries(node_modules/lib/lib.js) from bundles
-// specified in `chunks` into vendor.js bundle
-const vendorChunks = new webpack.optimize.CommonsChunkPlugin({
-  name: 'vendor',
-  chunks: ['app.bundle', 'sqleditor', 'codemirror', 'debugger_direct', 'schema_diff'],
-  filename: 'vendor.js',
-  minChunks: function(module) {
-    return webpackShimConfig.isExternal(module);
-  },
-});
-
-// Extract pgAdmin common libraries(pgadmin/web/module/filename.js) from bundles
-// specified in `chunks` into pgadmin_commons.js bundle.
-// pgLibs holds files that will be moved into this bundle.
-const pgAdminCommonChunks = new webpack.optimize.CommonsChunkPlugin({
-  name: 'pgadmin_commons',
-  chunks: ['app.bundle', 'sqleditor', 'codemirror', 'debugger_direct', 'schema_diff'],
-  filename: 'pgadmin_commons.js',
-  minChunks: function(module) {
-    return webpackShimConfig.isPgAdminLib(module);
-  },
-});
-
 // Expose libraries in app context so they need not to
 // require('libname') when used in a module
 const providePlugin = new webpack.ProvidePlugin({
