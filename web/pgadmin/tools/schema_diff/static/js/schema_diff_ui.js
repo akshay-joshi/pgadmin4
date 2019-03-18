@@ -20,15 +20,15 @@ export function fetch_servers() {
     dataType: 'json',
     contentType: 'application/json',
   })
-  .done(function (res) {
-    // TODO: Following function is used to test the fetching of the schemas
-    // this should be moved on database selection event.
-    console.log('Servers:');
-    console.log(res);
-  })
-  .fail(function (xhr) {
-    raise_error_on_fail(gettext('Databases fetch error'), xhr);
-  });
+    .done(function (res) {
+      // TODO: Following function is used to test the fetching of the schemas
+      // this should be moved on database selection event.
+      // console.log('Servers:');
+      // console.log(res);
+    })
+    .fail(function (xhr) {
+      raise_error_on_fail(gettext('Databases fetch error'), xhr);
+    });
 }
 
 export function fetch_databases(group_id, server_id) {
@@ -44,8 +44,8 @@ export function fetch_databases(group_id, server_id) {
     .done(function (res) {
       // TODO: Following function is used to test the fetching of the schemas
       // this should be moved on database selection event.
-      console.log('Databases:');
-      console.log(res);
+      // console.log('Databases:');
+      // console.log(res);
     })
     .fail(function (xhr) {
       raise_error_on_fail(gettext('Databases fetch error'), xhr);
@@ -63,8 +63,8 @@ export function fetch_schemas(group_id, server_id, database_id) {
     contentType: 'application/json',
   })
     .done(function (res) {
-      console.log('Schemas:');
-      console.log(res);
+      // console.log('Schemas:');
+      // console.log(res);
       // TODO: function is used to test compare schema this should be
       // moved on compare button click.
     })
@@ -92,12 +92,12 @@ export function compare_schemas(trans_id) {
     dataType: 'json',
     contentType: 'application/json',
   })
-  .done(function (res) {
-    console.log(res);
-  })
-  .fail(function (xhr) {
-    raise_error_on_fail(gettext('Schema compare error'), xhr);
-  });
+    .done(function (res) {
+      console.log(res);
+    })
+    .fail(function (xhr) {
+      raise_error_on_fail(gettext('Schema compare error'), xhr);
+    });
 }
 
 export function test_compare_schema(trans_id) {
@@ -111,7 +111,7 @@ export function test_compare_schema(trans_id) {
           fetch_schemas(group_id, server_id, res.data[0]._id)
             .done((res)=>{
               compare_schemas(trans_id);
-            })
-        })
-    })
+            });
+        });
+    });
 }

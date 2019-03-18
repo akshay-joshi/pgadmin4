@@ -65,16 +65,16 @@ define('pgadmin.schemadiff', [
         dataType: 'json',
         contentType: 'application/json',
       })
-      .done(function(res) {
-        self.trans_id = res.data.schemaDiffTransId;
-        res.data.panel_title = 'Schema Diff'; //TODO: Set the panel title
-        // TODO: Following function is used to test the fetching of the
-        // databases this should be moved to server selection event later.
-        self.launch_schema_diff(res.data);
-      })
-      .fail(function(xhr) {
-        self.raise_error_on_fail(gettext('Schema Diff initialize error') , xhr);
-      });
+        .done(function(res) {
+          self.trans_id = res.data.schemaDiffTransId;
+          res.data.panel_title = 'Schema Diff'; //TODO: Set the panel title
+          // TODO: Following function is used to test the fetching of the
+          // databases this should be moved to server selection event later.
+          self.launch_schema_diff(res.data);
+        })
+        .fail(function(xhr) {
+          self.raise_error_on_fail(gettext('Schema Diff initialize error') , xhr);
+        });
     },
 
     launch_schema_diff: function(data) {
