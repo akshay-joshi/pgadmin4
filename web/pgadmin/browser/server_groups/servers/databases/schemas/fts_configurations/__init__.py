@@ -994,7 +994,7 @@ class FtsConfigurationView(PGChildNodeView):
                 len(target_fts_configurations) <= 0:
             return None
 
-        ignore_keys = ['oid', 'owner']
+        ignore_keys = ['oid', 'owner', 'schema']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_fts_configurations,
                                    target_fts_configurations, ignore_keys)

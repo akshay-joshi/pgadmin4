@@ -1498,7 +1498,7 @@ class TypeView(PGChildNodeView, DataTypeReader):
         if len(source_types) <= 0 and len(target_types) <= 0:
             return None
 
-        ignore_keys = ['oid', 'typeowner']
+        ignore_keys = ['oid', 'typeowner', 'typrelid', 'typarray']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_types, target_types,
                                    ignore_keys)

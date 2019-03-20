@@ -824,7 +824,7 @@ class PackageView(PGChildNodeView):
         if len(source_packages) <= 0 and len(target_packages) <= 0:
             return None
 
-        ignore_keys = ['oid', 'owner']
+        ignore_keys = ['oid', 'owner', 'schema']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_packages, target_packages,
                                    ignore_keys)

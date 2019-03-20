@@ -1421,7 +1421,7 @@ class ForeignTableView(PGChildNodeView, DataTypeReader):
                 len(target_foreign_tables) <= 0:
             return None
 
-        ignore_keys = ['oid', 'owner']
+        ignore_keys = ['oid', 'owner', 'basensp']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_foreign_tables,
                                    target_foreign_tables, ignore_keys)

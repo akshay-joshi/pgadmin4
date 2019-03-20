@@ -921,7 +921,7 @@ class FtsDictionaryView(PGChildNodeView):
                 len(target_fts_dictionaries) <= 0:
             return None
 
-        ignore_keys = ['oid', 'owner']
+        ignore_keys = ['oid', 'owner', 'schema']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_fts_dictionaries,
                                    target_fts_dictionaries, ignore_keys)

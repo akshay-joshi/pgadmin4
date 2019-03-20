@@ -1592,7 +1592,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         if len(source_tables) <= 0 and len(target_tables) <= 0:
             return None
 
-        ignore_keys = ['oid', 'owner']
+        ignore_keys = ['oid', 'owner', 'schema']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_tables, target_tables,
                                    ignore_keys)

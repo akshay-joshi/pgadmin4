@@ -298,6 +298,38 @@ def is_utility_exists(file):
     return error_msg
 
 
+def is_dictionaries_identical(source_dict, target_dict):
+    """
+    This function is used to recursively compare two dictionaries with
+    same keys.
+    :param source_dict:
+    :param target_dict:
+    :return:
+    """
+    src_keys = set(source_dict.keys())
+    tar_keys = set(target_dict.keys())
+
+    # Keys that are available in source and missing in target.
+    src_only = src_keys - tar_keys
+    # Keys that are available in target and missing in source.
+    tar_only = tar_keys - src_keys
+
+    # If number of keys are different in source and target then
+    # return False
+    if len(src_only) != len(tar_only):
+        return False
+
+    for key in source_dict.keys():
+        if type(source_dict[key]) is dict:
+            return is_dictionaries_identical(source_dict[key],
+                                             target_dict[key])
+        else:
+            if source_dict[key] != target_dict[key]:
+                return False
+
+    return True
+
+
 def compare_dictionaries(source_dict, target_dict, ignore_keys=None):
     """
     This function will compare the two dictionaries.
@@ -315,34 +347,34 @@ def compare_dictionaries(source_dict, target_dict, ignore_keys=None):
     dict2_keys = set(dict2.keys())
     intersect_keys = dict1_keys.intersection(dict2_keys)
 
-    # Keys that are available in first and missing in second.
+    # Keys that are available in source and missing in target.
     source_only = dict()
     added = dict1_keys - dict2_keys
     for item in added:
         source_only[item] = source_dict[item]
 
     target_only = dict()
-    # Keys that are available in second and missing in first.
+    # Keys that are available in target and missing in source.
     removed = dict2_keys - dict1_keys
     for item in removed:
         target_only[item] = target_dict[item]
 
     # Compare the values of duplicates keys.
+    identical = dict()
     different = dict()
     for key in intersect_keys:
         # ignore the keys if available.
         for ig_key in ignore_keys:
-            dict1[key].pop(ig_key)
-            dict2[key].pop(ig_key)
+            if ig_key in dict1[key]:
+                dict1[key].pop(ig_key)
+            if ig_key in dict2[key]:
+                dict2[key].pop(ig_key)
 
-        if dict1[key] != dict2[key]:
-            different[key] = (source_dict[key], target_dict[key])
-
-    # Find the identical values
-    identical = dict()
-    for key in intersect_keys:
-        if dict1[key] == dict2[key]:
+        # Recursively Compare the two dictionary
+        if is_dictionaries_identical(dict1[key], dict2[key]):
             identical[key] = (source_dict[key], target_dict[key])
+        else:
+            different[key] = (source_dict[key], target_dict[key])
 
     return source_only, target_only, different, identical
 

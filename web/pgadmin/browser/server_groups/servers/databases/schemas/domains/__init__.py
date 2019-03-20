@@ -880,6 +880,7 @@ AND relkind != 'c'))"""
         :return:
         """
         res = dict()
+        domain_constraints = dict()
         SQL = render_template("/".join([self.template_path,
                                         'properties.sql']), scid=scid)
         status, rset = self.conn.execute_2darray(SQL)
@@ -887,6 +888,30 @@ AND relkind != 'c'))"""
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
+            # Get Domain Constraints
+            SQL = render_template("/".join([self.template_path,
+                                            'get_constraints.sql']),
+                                  doid=row['oid'])
+            status, ret = self.conn.execute_dict(SQL)
+            if not status:
+                return internal_server_error(errormsg=res)
+
+            # Fetch domain_constraints
+            for item in ret['rows']:
+                # Remove keys that should not be the part of comparision.
+                item.pop('conoid')
+                item.pop('nspname')
+                domain_constraints[item['conname']] = item
+
+            row['constraints'] = domain_constraints
+
+            # Get Type Length and Precision
+            row.update(self._parse_type(row['fulltype']))
+            # Set System Domain Status
+            row['sysdomain'] = False
+            if row['oid'] <= self.manager.db_info[did]['datlastsysoid']:
+                row['sysdomain'] = True
+
             res[row['name']] = row
 
         return res
@@ -915,7 +940,7 @@ AND relkind != 'c'))"""
         if len(source_domains) <= 0 and len(target_domains) <= 0:
             return None
 
-        ignore_keys = ['oid', 'owner']
+        ignore_keys = ['oid', 'owner', 'basensp']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_domains, target_domains,
                                    ignore_keys)

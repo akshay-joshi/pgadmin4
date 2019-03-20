@@ -764,7 +764,7 @@ class SynonymView(PGChildNodeView):
         if len(source_synonyms) <= 0 and len(target_synonyms) <= 0:
             return None
 
-        ignore_keys = ['oid', 'owner']
+        ignore_keys = ['oid', 'owner', 'schema']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_synonyms, target_synonyms,
                                    ignore_keys)

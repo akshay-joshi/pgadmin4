@@ -1326,7 +1326,7 @@ class ViewNode(PGChildNodeView, VacuumSettings):
         if len(source_views) <= 0 and len(target_views) <= 0:
             return None
 
-        ignore_keys = ['oid', 'owner']
+        ignore_keys = ['oid', 'owner', 'schema']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_views, target_views,
                                    ignore_keys)
@@ -1897,7 +1897,7 @@ class MViewNode(ViewNode, VacuumSettings):
         if len(source_mviews) <= 0 and len(target_mviews) <= 0:
             return None
 
-        ignore_keys = ['oid', 'owner']
+        ignore_keys = ['oid', 'owner', 'schema']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_mviews, target_mviews,
                                    ignore_keys)
