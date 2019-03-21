@@ -2,7 +2,7 @@ import url_for from 'sources/url_for';
 import $ from 'jquery';
 import gettext from 'sources/gettext';
 import Alertify from 'pgadmin.alertifyjs';
-
+import Backform from 'pgadmin.backform';
 
 function raise_error_on_fail(alert_title, xhr) {
   try {
@@ -11,6 +11,201 @@ function raise_error_on_fail(alert_title, xhr) {
   } catch (e) {
     Alertify.alert(alert_title, e.statusText);
   }
+}
+
+Backform.SchemaDiffFormRow = Backform.Form.extend({
+  label: '',
+  className: function() {
+    return 'pg-el-sm-12 pg-el-md-12 pg-el-lg-12 pg-el-12';
+  },
+  tabPanelClassName: function() {
+    return Backform.tabClassName;
+  },
+  tabIndex: 0,
+  initialize: function(opts) {
+    this.label = opts.label;
+    Backform.Form.prototype.initialize.apply(this, arguments);
+  },
+  template: {
+    'row_label':  _.template(`
+      <div class="col-2"><%=value%></div>
+    `),
+    'form_row': _.template(`
+      <div class="row"></div>
+    `),
+    'form_col': _.template(`
+      <div class="col"></div>
+    `),
+  },
+  render: function() {
+    this.cleanup();
+
+    var c = this.$el
+        .children().first().children('.active')
+        .first().attr('id'),
+      m = this.model,
+      controls = this.controls,
+      tmpls = this.template,
+      self = this,
+      idx = (this.tabIndex * 100),
+      evalF = function(f, d, m) {
+        return (_.isFunction(f) ? !!f.apply(d, [m]) : !!f);
+      };
+
+    this.$el.empty()
+
+    let $form_row = $(tmpls['form_row']()).appendTo(this.$el);
+    $form_row.append($(tmpls['row_label']({value: this.label})));
+
+    this.fields.each(function(f) {
+      var cntr = new(f.get('control'))({
+        field: f,
+        model: m,
+        dialog: self,
+        tabIndex: idx,
+      });
+
+      $form_row.append(
+        $(tmpls['form_col']()).append(cntr.render().$el)
+      );
+      controls.push(cntr);
+    });
+
+    return this;
+  },
+  remove: function(opts) {
+    if (opts && opts.data) {
+      if (this.model) {
+        if (this.model.reset) {
+          this.model.reset({
+            validate: false,
+            silent: true,
+            stop: true,
+          });
+        }
+        this.model.clear({
+          validate: false,
+          silent: true,
+          stop: true,
+        });
+        delete(this.model);
+      }
+      if (this.errorModel) {
+        this.errorModel.clear({
+          validate: false,
+          silent: true,
+          stop: true,
+        });
+        delete(this.errorModel);
+      }
+    }
+    this.cleanup();
+    Backform.Form.prototype.remove.apply(this, arguments);
+  },
+});
+
+export function initialize($container) {
+
+  var $schema_form = $(`
+    <div>
+      <div class="row">
+        <div class="col-7">
+          <div class="source-row"></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-7">
+          <div class="target-row"></div>
+        </div>
+        <div class="col-5">
+          <div class="action-btns d-flex">
+              <button class="btn btn-primary mr-auto"><i class="icon-schema-diff-white"></i>&nbsp;Compare</button>
+              <button class="btn btn-secondary mr-1"><i class="icon-script"></i>&nbsp;Generate Script</button>
+              <button class="btn btn-secondary"><i class="fa fa-filter"></i>&nbsp;Filter</button>
+          </div>
+        </div>
+      <div>
+    </div>
+  `).appendTo($container);
+
+  var source_row  = new Backform.SchemaDiffFormRow({
+    el: $schema_form.find('.source-row'),
+    label: 'Select Source',
+    model: new Backbone.Model({
+      src_server: 'f',
+      src_db: 'f',
+      src_schema: 's',
+    }),
+    fields: [{
+      id: 'src_server', label: false,
+      control: Backform.Select2Control, options: [
+        {'label': gettext('Fail'), 'value': 'f'},
+        {'label': gettext('Success'), 'value': 's'},
+        {'label': gettext('Ignore'), 'value': 'i'},
+      ], select2: {allowClear: false}, disabled: function() {
+        return false;
+      },
+    }, {
+      id: 'src_db',
+      control: 'select2', options: [
+        {'label': gettext('Fail'), 'value': 'f'},
+        {'label': gettext('Success'), 'value': 's'},
+        {'label': gettext('Ignore'), 'value': 'i'},
+      ], select2: {allowClear: false}, disabled: function() {
+        return false;
+      },
+    }, {
+      id: 'src_schema',
+      control: 'select2', options: [
+        {'label': gettext('Fail'), 'value': 'f'},
+        {'label': gettext('Success'), 'value': 's'},
+        {'label': gettext('Ignore'), 'value': 'i'},
+      ], select2: {allowClear: false}, disabled: function() {
+        return false;
+      },
+    }],
+  });
+
+  var target_row  = new Backform.SchemaDiffFormRow({
+    el: $schema_form.find('.target-row'),
+    label: 'Select Target',
+    model: new Backbone.Model({
+      src_server: 'f',
+      src_db: 'f',
+      src_schema: 's',
+    }),
+    fields: [{
+      id: 'src_server', label: false,
+      control: Backform.Select2Control, options: [
+        {'label': gettext('Fail'), 'value': 'f'},
+        {'label': gettext('Success'), 'value': 's'},
+        {'label': gettext('Ignore'), 'value': 'i'},
+      ], select2: {allowClear: false}, disabled: function() {
+        return false;
+      },
+    }, {
+      id: 'src_db',
+      control: 'select2', options: [
+        {'label': gettext('Fail'), 'value': 'f'},
+        {'label': gettext('Success'), 'value': 's'},
+        {'label': gettext('Ignore'), 'value': 'i'},
+      ], select2: {allowClear: false}, disabled: function() {
+        return false;
+      },
+    }, {
+      id: 'src_schema',
+      control: 'select2', options: [
+        {'label': gettext('Fail'), 'value': 'f'},
+        {'label': gettext('Success'), 'value': 's'},
+        {'label': gettext('Ignore'), 'value': 'i'},
+      ], select2: {allowClear: false}, disabled: function() {
+        return false;
+      },
+    }],
+  });
+
+  source_row.render();
+  target_row.render();
 }
 
 export function fetch_servers() {

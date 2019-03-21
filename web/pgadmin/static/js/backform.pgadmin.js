@@ -1935,7 +1935,9 @@ define([
 
     formatter: Select2Formatter,
     template: _.template([
-      '<label class="<%=Backform.controlLabelClassName%>"><%=label%></label>',
+      '<% if(label == false) {} else {%>',
+      '  <label class="<%=Backform.controlLabelClassName%>"><%=label%></label>',
+      '<% }%>',
       '<div class="<%=Backform.controlsClassName%>">',
       ' <select class="<%=Backform.controlClassName%> <%=extraClasses.join(\' \')%>"',
       '  name="<%=name%>" value="<%-value%>" <%=disabled ? "disabled" : ""%>',
@@ -1959,7 +1961,6 @@ define([
       '</div>',
     ].join('\n')),
     render: function() {
-
       if (this.$sel && this.$sel.select2 &&
         this.$sel.select2.hasOwnProperty('destroy')) {
         this.$sel.select2('destroy');

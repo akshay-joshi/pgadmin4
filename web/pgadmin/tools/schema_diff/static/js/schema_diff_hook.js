@@ -32,6 +32,7 @@ define([
       };
 
       SchemaDiffUI.test_compare_schema(trans_id);
+      SchemaDiffUI.initialize($('.schema-diff-content'));
     },
   };
 
