@@ -958,11 +958,24 @@ class FtsConfigurationView(PGChildNodeView):
         res = dict()
         SQL = render_template("/".join([self.template_path,
                                         'properties.sql']), scid=scid)
-        status, rset = self.conn.execute_2darray(SQL)
+        status, fts_cfg = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
 
-        for row in rset['rows']:
+        for row in fts_cfg['rows']:
+            # In edit mode fetch token/dictionary list also
+            sql = render_template(
+                "/".join([self.template_path, 'tokenDictList.sql']),
+                cfgid=row['oid']
+            )
+
+            status, fts_tok = self.conn.execute_dict(sql)
+            if not status:
+                return internal_server_error(errormsg=fts_tok)
+
+            token = {tok['token']: dict(zip(tok['dictname'], tok['dictname']))
+                     for tok in fts_tok['rows']}
+            row['token'] = token
             res[row['name']] = row
 
         return res
