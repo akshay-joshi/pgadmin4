@@ -20,6 +20,7 @@ Bug fixes
 
 | `Bug #1269 <https://redmine.postgresql.org/issues/1269>`_ - Fix naming inconsistency for the column and FTS parser modules.
 | `Bug #3104 <https://redmine.postgresql.org/issues/3104>`_ - Improve a couple of German translations.
+| `Bug #3968 <https://redmine.postgresql.org/issues/3968>`_ - Update wcDocker to fix the issue where the Scratch Pad grows in size if the results panel is resized.
 | `Bug #3995 <https://redmine.postgresql.org/issues/3995>`_ - Avoid 'bogus varno' message from Postgres when viewing the SQL for a table with triggers.
 | `Bug #4019 <https://redmine.postgresql.org/issues/4019>`_ - Update all Python and JavaScript dependencies.
 | `Bug #4050 <https://redmine.postgresql.org/issues/4050>`_ - Make the WHEN field a CodeMirror control on the Event Trigger dialogue.
@@ -32,3 +33,4 @@ Bug fixes
 | `Bug #4071 <https://redmine.postgresql.org/issues/4071>`_ - Ensure that Firefox prompts for a filename/location when downloading query results as a CSV file.
 | `Bug #4073 <https://redmine.postgresql.org/issues/4073>`_ - Change the CodeMirror active line background colour to $color-danger-lighter so it doesn't conflict with the selection colour.
 | `Bug #4081 <https://redmine.postgresql.org/issues/4081>`_ - Fix the RE-SQL syntax for roles with a VALID UNTIL clause.
+| `Bug #4090 <https://redmine.postgresql.org/issues/4090>`_ - Improve the German translation for Backup Server.

@@ -68,21 +68,27 @@ class PGUtilitiesBackupFeatureTest(BaseFeatureTest):
 
         self.wait.until(EC.element_to_be_clickable(
             (By.CSS_SELECTOR, ".file [name='file']"))).click()
-
-        self.page.fill_input_by_field_name("file", "test_backup")
+        # .input-group-append >button
+        self.page.fill_input_by_field_name(
+            "file", "test_backup", loose_focus=True)
 
         self.page.find_by_xpath("//button[contains(@class,'fa-save') "
                                 "and contains(.,'Backup')]").click()
 
         self.page.find_by_css_selector('.ajs-bg-bgprocess')
 
+        # status = self.page.find_by_css_selector(
+        #     ".pg-bg-status .bg-success-light .pg-bg-status-text").text
+
         status = self.page.find_by_css_selector(
-            ".pg-bg-status .bg-success-light .pg-bg-status-text").text
+            ".pg-bg-status-text").text
+
         self.assertEquals(status, "Successfully completed.")
 
         self.page.find_by_css_selector(
             ".pg-bg-more-details").click()
 
+        backup_file = None
         # Check for XSS in Backup details
         if self.is_xss_check:
             self._check_detailed_window_for_xss('Backup')
@@ -99,7 +105,6 @@ class PGUtilitiesBackupFeatureTest(BaseFeatureTest):
 
             self.assertIn("pg_dump", str(command))
 
-            backup_file = None
             if command:
                 backup_file = command[int(command.find('--file')) +
                                       8:int(command.find('--host')) - 2]
@@ -117,7 +122,8 @@ class PGUtilitiesBackupFeatureTest(BaseFeatureTest):
         self.wait.until(EC.element_to_be_clickable(
             (By.CSS_SELECTOR, ".file [name='file']"))).click()
 
-        self.page.fill_input_by_field_name("file", "test_backup")
+        self.page.fill_input_by_field_name(
+            "file", "test_backup", loose_focus=True)
 
         self.page.find_by_xpath("//button[contains(@class,'fa-upload')"
                                 " and contains(.,'Restore')]").click()
@@ -125,7 +131,7 @@ class PGUtilitiesBackupFeatureTest(BaseFeatureTest):
         self.page.find_by_css_selector('.ajs-bg-bgprocess')
 
         status = self.page.find_by_css_selector(
-            ".pg-bg-status .bg-success-light .pg-bg-status-text").text
+            ".pg-bg-status-text").text
         self.assertEquals(status, "Successfully completed.")
 
         self.page.find_by_css_selector(
