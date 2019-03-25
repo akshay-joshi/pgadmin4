@@ -865,6 +865,22 @@ class SequenceView(PGChildNodeView):
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
+            SQL = render_template(
+                "/".join([self.template_path, 'get_def.sql']),
+                data=row
+            )
+            status, r_def = self.conn.execute_dict(SQL)
+            if not status:
+                return internal_server_error(errormsg=r_def)
+
+            row['current_value'] = r_def['rows'][0]['last_value']
+            row['minimum'] = r_def['rows'][0]['min_value']
+            row['maximum'] = r_def['rows'][0]['max_value']
+            row['increment'] = r_def['rows'][0]['increment_by']
+            row['start'] = r_def['rows'][0]['start_value']
+            row['cache'] = r_def['rows'][0]['cache_value']
+            row['cycled'] = r_def['rows'][0]['is_cycled']
+
             res[row['name']] = row
 
         return res
