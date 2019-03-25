@@ -318,6 +318,12 @@ def is_dictionaries_identical(source_dict, target_dict):
     # return False
     if len(src_only) != len(tar_only):
         return False
+    else:
+        # If number of keys are same but key is not present in target then
+        # return False
+        for key in src_only:
+            if key not in tar_only:
+                return False
 
     for key in source_dict.keys():
         if type(source_dict[key]) is dict:

@@ -1470,6 +1470,20 @@ class TypeView(PGChildNodeView, DataTypeReader):
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
+            add_prop = self.additional_properties(row, row['oid'])
+
+            if 'composite' in add_prop:
+                members = {row['member_name']: row
+                           for row in add_prop['composite']}
+                row['members'] = members
+            elif 'enum' in add_prop:
+                enum = {row['label']: row['label']
+                        for row in add_prop['enum']}
+                row['enum'] = enum
+            elif 'rows' in add_prop:
+                range = {row['typname']: row for row in add_prop['rows']}
+                row['range'] = range
+
             res[row['name']] = row
 
         return res
@@ -1498,7 +1512,8 @@ class TypeView(PGChildNodeView, DataTypeReader):
         if len(source_types) <= 0 and len(target_types) <= 0:
             return None
 
-        ignore_keys = ['oid', 'typeowner', 'typrelid', 'typarray']
+        ignore_keys = ['oid', 'alias', 'schema', 'typnamespace', 'typeowner',
+                       'typrelid', 'typarray']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_types, target_types,
                                    ignore_keys)
