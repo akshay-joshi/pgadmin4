@@ -298,7 +298,7 @@ def is_utility_exists(file):
     return error_msg
 
 
-def is_dictionaries_identical(source_dict, target_dict):
+def are_dictionaries_identical(source_dict, target_dict):
     """
     This function is used to recursively compare two dictionaries with
     same keys.
@@ -306,6 +306,12 @@ def is_dictionaries_identical(source_dict, target_dict):
     :param target_dict:
     :return:
     """
+
+    # If type is other then dict then return False as we will
+    # not be able to compare two different data structure.
+    if type(source_dict) is not dict or type(target_dict) is not dict:
+        return False
+
     src_keys = set(source_dict.keys())
     tar_keys = set(target_dict.keys())
 
@@ -327,8 +333,9 @@ def is_dictionaries_identical(source_dict, target_dict):
 
     for key in source_dict.keys():
         if type(source_dict[key]) is dict:
-            return is_dictionaries_identical(source_dict[key],
-                                             target_dict[key])
+            if not are_dictionaries_identical(source_dict[key],
+                                              target_dict[key]):
+                return False
         else:
             if source_dict[key] != target_dict[key]:
                 return False
@@ -377,7 +384,7 @@ def compare_dictionaries(source_dict, target_dict, ignore_keys=None):
                 dict2[key].pop(ig_key)
 
         # Recursively Compare the two dictionary
-        if is_dictionaries_identical(dict1[key], dict2[key]):
+        if are_dictionaries_identical(dict1[key], dict2[key]):
             identical[key] = (source_dict[key], target_dict[key])
         else:
             different[key] = (source_dict[key], target_dict[key])
