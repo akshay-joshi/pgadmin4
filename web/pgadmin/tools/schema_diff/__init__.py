@@ -24,6 +24,9 @@ from pgadmin.utils.ajax import make_json_response, bad_request, \
 from pgadmin.model import Server
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 from pgadmin.tools.schema_diff.model import SchemaDiffModel
+from pgadmin.browser.server_groups.servers import server_icon_and_background
+from config import PG_DEFAULT_DRIVER
+from pgadmin.utils.driver import get_driver
 
 
 class SchemaDiffModule(PgAdminModule):
@@ -195,16 +198,26 @@ def servers():
     """
     res = []
     try:
+        """Return a JSON document listing the server groups for the user"""
+        driver = get_driver(PG_DEFAULT_DRIVER)
+
         for server in Server.query.filter_by(user_id=current_user.id):
-            res.append({'id': server.id, 'name': server.name,
-                        'sgid': server.servergroup_id})
+            manager = driver.connection_manager(server.id)
+            conn = manager.connection()
+            connected = conn.connected()
+
+            res.append({
+                "id": server.id,
+                "gid": server.servergroup_id,
+                "label": server.name,
+                "icon": server_icon_and_background(connected, manager, server),
+                "_id": server.id,
+            })
 
     except Exception as e:
         app.logger.exception(e)
 
-    return make_json_response(data={
-        'servers': res
-    })
+    return make_json_response(data=res)
 
 
 @blueprint.route(

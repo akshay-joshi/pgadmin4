@@ -17,13 +17,14 @@ define([
   CodeMirror, Backform, SchemaDiffUI
 ) {
   var pgTools = pgAdmin.Tools = pgAdmin.Tools || {};
+  var SchemaDiffUI = SchemaDiffUI.default;
 
   /* Return back, this has been called more than once */
-  if (pgTools.SchemaDiff)
-    return pgTools.SchemaDiff;
+  if (pgTools.SchemaDiffHook)
+    return pgTools.SchemaDiffHook;
 
   pgTools.SchemaDiffHook = {
-    init: function(trans_id) {
+    load: function(trans_id) {
       window.onbeforeunload = function() {
         $.ajax({
           url: url_for('schemadiff.index') + 'close/'+trans_id,
@@ -31,8 +32,9 @@ define([
         });
       };
 
-      SchemaDiffUI.test_compare_schema(trans_id);
-      SchemaDiffUI.initialize($('.schema-diff-content'));
+      let schemaUi = new SchemaDiffUI($('.schema-diff-content'));
+      schemaUi.render();
+      schemaUi.test_compare_schema(trans_id);
     },
   };
 
