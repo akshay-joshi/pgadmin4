@@ -303,25 +303,47 @@ class FtsTemplateView(PGChildNodeView):
 
     @check_precondition
     def properties(self, gid, sid, did, scid, tid):
+        """
+
+        :param gid:
+        :param sid:
+        :param did:
+        :param scid:
+        :param tid:
+        :return:
+        """
+        status, res = self._fetch_properties(scid, tid)
+        if not status:
+            return res
+
+        return ajax_response(
+            response=res,
+            status=200
+        )
+
+    def _fetch_properties(self, scid, tid):
+        """
+        This function is used to fetch the properties of specified object.
+
+        :param scid:
+        :param pid:
+        :return:
+        """
         sql = render_template(
             "/".join([self.template_path, 'properties.sql']),
             scid=scid,
             tid=tid
         )
         status, res = self.conn.execute_dict(sql)
-
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(
+            return False, gone(
                 gettext("Could not find the requested FTS template.")
             )
 
-        return ajax_response(
-            response=res['rows'][0],
-            status=200
-        )
+        return True, res['rows'][0]
 
     @check_precondition
     def create(self, gid, sid, did, scid):
@@ -764,13 +786,15 @@ class FtsTemplateView(PGChildNodeView):
         """
         res = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'properties.sql']), scid=scid)
+                                        'nodes.sql']), scid=scid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
-            res[row['name']] = row
+            status, data = self._fetch_properties(scid, row['oid'])
+            if status:
+                res[row['name']] = data
 
         return res
 

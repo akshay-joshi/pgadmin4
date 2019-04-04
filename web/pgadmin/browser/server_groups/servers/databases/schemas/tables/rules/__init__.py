@@ -23,7 +23,10 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
-from pgadmin.utils import IS_PY2
+from pgadmin.utils.compile_template_name import compile_template_path
+from pgadmin.utils import IS_PY2, compare_dictionaries
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
+
 # If we are in Python3
 if not IS_PY2:
     unicode = str
@@ -210,6 +213,12 @@ class RuleView(PGChildNodeView):
             ]['datlastsysoid'] if self.manager.db_info is not None and \
                 kwargs['did'] in self.manager.db_info else 0
             self.template_path = 'rules/sql'
+            self.table_template_path = compile_template_path(
+                'table/sql',
+                self.manager.server_type,
+                self.manager.version
+            )
+
             return f(*args, **kwargs)
 
         return wrap
@@ -292,21 +301,34 @@ class RuleView(PGChildNodeView):
         Fetch the properties of an individual rule and render in properties tab
 
         """
+        status, data = self._fetch_properties(rid)
+        if not status:
+            return data
+
+        return ajax_response(
+            response=data,
+            status=200
+        )
+
+    def _fetch_properties(self, rid):
+        """
+        This function is used to fetch the properties of the specified object
+        :param rid:
+        :return:
+        """
         SQL = render_template("/".join(
             [self.template_path, 'properties.sql']
         ), rid=rid, datlastsysoid=self.datlastsysoid)
         status, res = self.conn.execute_dict(SQL)
 
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(gettext("""Could not find the rule in the table."""))
+            return False, gone(
+                gettext("""Could not find the rule in the table."""))
 
-        return ajax_response(
-            response=parse_rule_definition(res),
-            status=200
-        )
+        return True, parse_rule_definition(res)
 
     @check_precondition
     def create(self, gid, sid, did, scid, tid):
@@ -540,5 +562,84 @@ class RuleView(PGChildNodeView):
             status=200
         )
 
+    @check_precondition
+    def fetch_rules(self, sid, did, scid, tid):
+        """
+        This function will fetch the list of all the rules for
+        specified schema id.
 
+        :param sid: Server Id
+        :param did: Database Id
+        :param scid: Schema Id
+        :param tid: Table Id
+        :return:
+        """
+        res = dict()
+
+        # Fetch all the tables
+        SQL = render_template("/".join([self.table_template_path,
+                                        'nodes.sql']), scid=scid)
+        status, tables = self.conn.execute_2darray(SQL)
+        if not status:
+            return internal_server_error(errormsg=tables)
+
+        for table in tables['rows']:
+            SQL = render_template("/".join([self.template_path,
+                                            'nodes.sql']), tid=table['oid'])
+            status, rules = self.conn.execute_2darray(SQL)
+            if not status:
+                return internal_server_error(errormsg=rules)
+
+            for row in rules['rows']:
+                status, data = self._fetch_properties(row['oid'])
+                if status:
+                    res[row['name']] = data
+
+        return res
+
+    def compare(self, **kwargs):
+        """
+        This function is used to compare all the rule objects
+        from two different schemas.
+
+        :param kwargs:
+        :return:
+        """
+        src_sid = kwargs.get('source_sid')
+        src_did = kwargs.get('source_did')
+        src_scid = kwargs.get('source_scid')
+        tar_sid = kwargs.get('target_sid')
+        tar_did = kwargs.get('target_did')
+        tar_scid = kwargs.get('target_scid')
+
+        source_rules = self.fetch_rules(sid=src_sid, did=src_did,
+                                        scid=src_scid, tid=0)
+
+        target_rules = self.fetch_rules(sid=tar_sid, did=tar_did,
+                                        scid=tar_scid, tid=0)
+
+        # If both the dict have no items then return None.
+        if len(source_rules) <= 0 and len(target_rules) <= 0:
+            return None
+
+        ignore_keys = ['oid', 'schema']
+        source_only, target_only, different, identical \
+            = compare_dictionaries(source_rules, target_rules,
+                                   ignore_keys)
+
+        res = {key: {'oid': source_only[key]['oid'],
+                     'status': 'source'} for key in source_only}
+        res.update({key: {'oid': target_only[key]['oid'],
+                          'status': 'target'} for key in target_only})
+        res.update({key: {'source_oid': different[key][0]['oid'],
+                          'target_oid': different[key][1]['oid'],
+                          'status': 'different'} for key in different})
+        res.update({key: {'source_oid': identical[key][0]['oid'],
+                          'target_oid': identical[key][1]['oid'],
+                          'status': 'identical'} for key in identical})
+
+        return res
+
+
+SchemaDiffRegistry('rule', RuleView)
 RuleView.register_node_view(blueprint)

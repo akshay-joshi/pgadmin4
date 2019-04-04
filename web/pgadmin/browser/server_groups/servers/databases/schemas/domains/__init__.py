@@ -391,15 +391,31 @@ class DomainView(PGChildNodeView, DataTypeReader):
             scid: Schema Id
             doid: Domain Id
         """
+        status, res = self._fetch_properties(did, scid, doid)
+        if not status:
+            return res
 
+        return ajax_response(
+            response=res,
+            status=200
+        )
+
+    def _fetch_properties(self, did, scid, doid):
+        """
+        This function is used to fecth the properties of specified object.
+        :param did:
+        :param scid:
+        :param doid:
+        :return:
+        """
         SQL = render_template("/".join([self.template_path, 'properties.sql']),
                               scid=scid, doid=doid)
         status, res = self.conn.execute_dict(SQL)
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(gettext("""
+            return False, gone(gettext("""
 Could not find the domain in the database.
 It may have been removed by another user or moved to another schema.
 """))
@@ -415,7 +431,7 @@ It may have been removed by another user or moved to another schema.
                               doid=doid)
         status, res = self.conn.execute_dict(SQL)
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         data['constraints'] = res['rows']
 
@@ -428,10 +444,7 @@ It may have been removed by another user or moved to another schema.
         if doid <= self.manager.db_info[did]['datlastsysoid']:
             data['sysdomain'] = True
 
-        return ajax_response(
-            response=data,
-            status=200
-        )
+        return True, data
 
     def _parse_type(self, basetype):
         """
@@ -880,39 +893,24 @@ AND relkind != 'c'))"""
         :return:
         """
         res = dict()
-        domain_constraints = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'properties.sql']), scid=scid)
+                                        'node.sql']), scid=scid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
-            # Get Domain Constraints
-            SQL = render_template("/".join([self.template_path,
-                                            'get_constraints.sql']),
-                                  doid=row['oid'])
-            status, ret = self.conn.execute_dict(SQL)
-            if not status:
-                return internal_server_error(errormsg=res)
+            status, data = self._fetch_properties(did, scid, row['oid'])
 
-            # Fetch domain_constraints
-            for item in ret['rows']:
-                # Remove keys that should not be the part of comparision.
-                item.pop('conoid')
-                item.pop('nspname')
-                domain_constraints[item['conname']] = item
+            if status:
+                if 'constraints' in data and len(data['constraints']) > 0:
+                    for item in data['constraints']:
+                        # Remove keys that should not be the part
+                        # of comparision.
+                        item.pop('conoid')
+                        item.pop('nspname')
 
-            row['constraints'] = domain_constraints
-
-            # Get Type Length and Precision
-            row.update(self._parse_type(row['fulltype']))
-            # Set System Domain Status
-            row['sysdomain'] = False
-            if row['oid'] <= self.manager.db_info[did]['datlastsysoid']:
-                row['sysdomain'] = True
-
-            res[row['name']] = row
+                res[row['name']] = data
 
         return res
 

@@ -412,21 +412,37 @@ class ViewNode(PGChildNodeView, VacuumSettings):
         Fetches the properties of an individual view
         and render in the properties tab
         """
+        status, res = self._fetch_properties(scid, vid)
+        if not status:
+            return res
+
+        return ajax_response(
+            response=res,
+            status=200
+        )
+
+    def _fetch_properties(self, scid, vid):
+        """
+        This function is used to fetch the properties of the specified object
+        :param scid:
+        :param vid:
+        :return:
+        """
         SQL = render_template("/".join(
             [self.template_path, 'sql/properties.sql']
         ), vid=vid, datlastsysoid=self.datlastsysoid)
         status, res = self.conn.execute_dict(SQL)
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(gettext("""Could not find the view."""))
+            return False, gone(gettext("""Could not find the view."""))
 
         SQL = render_template("/".join(
             [self.template_path, 'sql/acl.sql']), vid=vid)
         status, dataclres = self.conn.execute_dict(SQL)
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         for row in dataclres['rows']:
             priv = parse_priv_from_db(row)
@@ -440,10 +456,7 @@ class ViewNode(PGChildNodeView, VacuumSettings):
         # merging formated result with main result again
         result.update(frmtd_reslt)
 
-        return ajax_response(
-            response=result,
-            status=200
-        )
+        return True, result
 
     @staticmethod
     def formatter(result):
@@ -1295,14 +1308,16 @@ class ViewNode(PGChildNodeView, VacuumSettings):
         """
         res = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'sql/properties.sql']), did=did,
+                                        'sql/nodes.sql']), did=did,
                               scid=scid, datlastsysoid=self.datlastsysoid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
-            res[row['name']] = row
+            status, data = self._fetch_properties(scid, row['oid'])
+            if status:
+                res[row['name']] = data
 
         return res
 
@@ -1780,21 +1795,39 @@ class MViewNode(ViewNode, VacuumSettings):
         Fetches the properties of an individual view
         and render in the properties tab
         """
+        status, res = self._fetch_mview_properties(did, scid, vid)
+        if not status:
+            return res
+
+        return ajax_response(
+            response=res,
+            status=200
+        )
+
+    def _fetch_mview_properties(self, did, scid, vid):
+        """
+        This function is used to fetch the properties of the specified object
+        :param did:
+        :param scid:
+        :param vid:
+        :return:
+        """
         SQL = render_template("/".join(
             [self.template_path, 'sql/properties.sql']
         ), did=did, vid=vid, datlastsysoid=self.datlastsysoid)
         status, res = self.conn.execute_dict(SQL)
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(gettext("""Could not find the materialized view."""))
+            return False, gone(
+                gettext("""Could not find the materialized view."""))
 
         SQL = render_template("/".join(
             [self.template_path, 'sql/acl.sql']), vid=vid)
         status, dataclres = self.conn.execute_dict(SQL)
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         for row in dataclres['rows']:
             priv = parse_priv_from_db(row)
@@ -1813,10 +1846,7 @@ class MViewNode(ViewNode, VacuumSettings):
         result['vacuum_toast'] = self.parse_vacuum_data(
             self.conn, result, 'toast')
 
-        return ajax_response(
-            response=result,
-            status=200
-        )
+        return True, result
 
     @check_precondition
     def refresh_data(self, gid, sid, did, scid, vid):
@@ -1881,14 +1911,16 @@ class MViewNode(ViewNode, VacuumSettings):
         """
         res = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'sql/properties.sql']), did=did,
+                                        'sql/nodes.sql']), did=did,
                               scid=scid, datlastsysoid=self.datlastsysoid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
-            res[row['name']] = row
+            status, data = self._fetch_mview_properties(did, scid, row['oid'])
+            if status:
+                res[row['name']] = data
 
         return res
 

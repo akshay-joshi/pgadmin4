@@ -570,7 +570,22 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         Returns:
             JSON of selected table node
         """
+        status, res = self._fetch_properties(did, scid, tid)
+        if not status:
+            return res
 
+        return super(TableView, self).properties(
+            gid, sid, did, scid, tid, res
+        )
+
+    def _fetch_properties(self, did, scid, tid):
+        """
+        This function is used to fetch the properties of the specified object
+        :param did:
+        :param scid:
+        :param tid:
+        :return:
+        """
         SQL = render_template(
             "/".join([self.table_template_path, 'properties.sql']),
             did=did, scid=scid, tid=tid,
@@ -578,10 +593,11 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         )
         status, res = self.conn.execute_dict(SQL)
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(gettext("The specified table could not be found."))
+            return False, gone(
+                gettext("The specified table could not be found."))
 
         # We will check the threshold set by user before executing
         # the query because that can cause performance issues
@@ -608,7 +624,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
             status, count = self.conn.execute_scalar(SQL)
 
             if not status:
-                return internal_server_error(errormsg=count)
+                return False, internal_server_error(errormsg=count)
 
             res['rows'][0]['rows_cnt'] = count
 
@@ -616,9 +632,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         elif not estimated_row_count:
             res['rows'][0]['rows_cnt'] = estimated_row_count
 
-        return super(TableView, self).properties(
-            gid, sid, did, scid, tid, res
-        )
+        return True, res
 
     @BaseTableView.check_precondition
     def types(self, gid, sid, did, scid, tid=None, clid=None):
@@ -1561,24 +1575,15 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         if not status:
             return internal_server_error(errormsg=tables)
 
-        for item in tables['rows']:
-            SQL = render_template("/".join([self.table_template_path,
-                                            'properties.sql']),
-                                  did=did, scid=scid, tid=item['oid'],
-                                  datlastsysoid=self.datlastsysoid)
-            status, rset = self.conn.execute_2darray(SQL)
-            if not status:
-                return internal_server_error(errormsg=rset)
+        for row in tables['rows']:
+            status, data = self._fetch_properties(did, scid, row['oid'])
+            if status:
+                data = super(TableView, self).properties(
+                    0, sid, did, scid, row['oid'], data, False
+                )
 
-            row = rset['rows'][0]
-            row = self._formatter(did, scid, row['oid'], row)
-
-            # Fetch the columns for comparision
-            self.fetch_columns_constraints(row)
-            # Fetch the partition for comparison
-            self.fetch_partition(scid, row)
-
-            res[item['name']] = row
+                self.remove_keys_for_comparision(data)
+                res[row['name']] = data
 
         return res
 
@@ -1625,176 +1630,57 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
 
         return res
 
-    def fetch_partition(self, scid, row):
+    def remove_keys_for_comparision(self, data):
         """
-        This function is used to fetch partition for schema diff.
+        This function is used to
         :param scid: Schema ID
-        :param row:
+        :param data:
         :return:
         """
-
-        # Fetch partition of this table if it is partitioned table.
-        if 'is_partitioned' in row and row['is_partitioned']:
-            # get the partition type
-            row['partition_type'] = \
-                row['partition_scheme'].split()[0].lower()
-
-            partitions = dict()
-            SQL = render_template("/".join([self.partition_template_path,
-                                            'nodes.sql']),
-                                  scid=scid, tid=row['oid'])
-            status, rset = self.conn.execute_2darray(SQL)
-            if not status:
-                return internal_server_error(errormsg=rset)
-
-            for p_row in rset['rows']:
-                partition_name = p_row['name']
-                # if schema name is different then display schema
-                # qualified name on UI.
-                if row['schema'] != p_row['schema_name']:
-                    partition_name = p_row['schema_name'] + '.' + \
-                        p_row['name']
-
-                if row['partition_type'] == 'range':
-                    range_part = p_row['partition_value'].split(
-                        'FOR VALUES FROM (')[1].split(') TO')
-                    range_from = range_part[0]
-                    range_to = range_part[1][2:-1]
-
-                    partitions[partition_name] = {
-                        'partition_name': partition_name,
-                        'values_from': range_from,
-                        'values_to': range_to
-                    }
-                elif row['partition_type'] == 'list':
-                    range_part = p_row['partition_value'].split(
-                        'FOR VALUES IN (')[1]
-
-                    range_in = range_part[:-1]
-                    partitions[partition_name] = {
-                        'partition_name': partition_name,
-                        'values_in': range_in
-                    }
-                else:
-                    range_part = p_row['partition_value'].split(
-                        'FOR VALUES WITH (')[1].split(",")
-                    range_modulus = range_part[0].strip().strip(
-                        "modulus").strip()
-                    range_remainder = range_part[1].strip(). \
-                        strip(" remainder").strip(")").strip()
-
-                    partitions[partition_name] = {
-                        'partition_name': partition_name,
-                        'values_modulus': range_modulus,
-                        'values_remainder': range_remainder
-                    }
-
-            row['partitions'] = partitions
-
-    def fetch_columns_constraints(self, row):
-        """
-        This function is used to fetch columns and constraints for
-        schema diff.
-
-        :param scid: Schema ID
-        :param row:
-        :return:
-        """
-        if 'columns' in row and len(row['columns']) > 0:
-            columns = dict()
-            for col in row['columns']:
+        if 'columns' in data and len(data['columns']) > 0:
+            for col in data['columns']:
                 # Remove keys that should not be the part of comparision.
                 col.pop('relname')
                 col.pop('nspname')
                 col.pop('parent_tbl')
                 col.pop('edit_types')
                 col.pop('attrelid')
-                columns[col['name']] = col
 
-            row['columns'] = columns
-
-        if 'conkey' in row and row['conkey'] is not None and \
-                len(row['conkey']) > 0:
-            row['conkey'] = {conkey: conkey for conkey in row['conkey']}
-
-        if 'coll_inherits' in row and row['conkey'] is not None and \
-                len(row['coll_inherits']) > 0:
-            row['coll_inherits'] = {inh: inh for inh in row['coll_inherits']}
-
-        if 'primary_key' in row and row['primary_key'] is not None and \
-                len(row['primary_key']) > 0:
-            primary_key = dict()
-            for pkey in row['primary_key']:
+        if 'primary_key' in data and data['primary_key'] is not None and \
+                len(data['primary_key']) > 0:
+            for pkey in data['primary_key']:
                 # Remove keys that should not be the part of comparision.
                 pkey.pop('oid')
 
-                pkey['columns'] = {pkey_col['column']: pkey_col['column']
-                                   for pkey_col in pkey['columns']}
-                primary_key[pkey['name']] = pkey
-
-            row['primary_key'] = primary_key
-
-        if 'unique_constraint' in row and \
-                row['unique_constraint'] is not None and \
-                len(row['unique_constraint']) > 0:
-            unique_constraint = dict()
-            for ukey in row['unique_constraint']:
+        if 'unique_constraint' in data and \
+                data['unique_constraint'] is not None and \
+                len(data['unique_constraint']) > 0:
+            for ukey in data['unique_constraint']:
                 # Remove keys that should not be the part of comparision.
                 ukey.pop('oid')
 
-                ukey['columns'] = {ukey_col['column']: ukey_col['column']
-                                   for ukey_col in ukey['columns']}
-                unique_constraint[ukey['name']] = ukey
-
-            row['unique_constraint'] = unique_constraint
-
-        if 'check_constraint' in row and row['check_constraint'] is not None \
-                and len(row['check_constraint']) > 0:
-            check_constraint = dict()
-            for ckey in row['check_constraint']:
+        if 'check_constraint' in data and \
+                data['check_constraint'] is not None and \
+                len(data['check_constraint']) > 0:
+            for ckey in data['check_constraint']:
                 # Remove keys that should not be the part of comparision.
                 ckey.pop('oid')
                 ckey.pop('nspname')
-                check_constraint[ckey['name']] = ckey
 
-            row['check_constraint'] = check_constraint
-
-        if 'foreign_key' in row and row['foreign_key'] is not None \
-                and len(row['foreign_key']) > 0:
-            foreign_key = dict()
-            for fkey in row['foreign_key']:
+        if 'foreign_key' in data and data['foreign_key'] is not None \
+                and len(data['foreign_key']) > 0:
+            for fkey in data['foreign_key']:
                 # Remove keys that should not be the part of comparision.
                 fkey.pop('oid')
                 fkey.pop('fknsp')
                 fkey.pop('confrelid')
 
-                if 'conkey' in fkey and len(fkey['conkey']) > 0:
-                    fkey['conkey'] = \
-                        {conkey: conkey for conkey in fkey['conkey']}
-
-                if 'confkey' in fkey and len(fkey['confkey']) > 0:
-                    fkey['confkey'] = \
-                        {confkey: confkey for confkey in fkey['confkey']}
-
-                fkey['columns'] = {fkey_col['local_column']: fkey_col
-                                   for fkey_col in fkey['columns']}
-                foreign_key[fkey['name']] = fkey
-
-            row['foreign_key'] = foreign_key
-
-        if 'exclude_constraint' in row and \
-                row['exclude_constraint'] is not None and \
-                len(row['exclude_constraint']) > 0:
-            exclude_constraint = dict()
-            for ekey in row['exclude_constraint']:
+        if 'exclude_constraint' in data and \
+                data['exclude_constraint'] is not None and \
+                len(data['exclude_constraint']) > 0:
+            for ekey in data['exclude_constraint']:
                 # Remove keys that should not be the part of comparision.
                 ekey.pop('oid')
-
-                ekey['columns'] = {ekey_col['column']: ekey_col
-                                   for ekey_col in ekey['columns']}
-                exclude_constraint[ekey['name']] = ekey
-
-            row['exclusion_constraint'] = exclude_constraint
 
 
 SchemaDiffRegistry('table', TableView)

@@ -1605,13 +1605,15 @@ class FunctionView(PGChildNodeView, DataTypeReader):
             return res
 
         SQL = render_template("/".join([self.sql_template_path,
-                                        'properties.sql']), scid=scid)
+                                        'node.sql']), scid=scid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
-            res[row['name']] = row
+            data = self._fetch_properties(0, sid, did, scid, row['oid'])
+            if isinstance(data, dict):
+                res[row['name']] = data
 
         return res
 

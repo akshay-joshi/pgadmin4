@@ -268,6 +268,23 @@ class SequenceView(PGChildNodeView):
         Returns:
 
         """
+        status, res = self._fetch_properties(scid, seid)
+        if not status:
+            return res
+
+        return ajax_response(
+            response=res,
+            status=200
+        )
+
+    def _fetch_properties(self, scid, seid):
+        """
+        This function is used to fetch the properties of the specified object.
+        :param scid:
+        :param seid:
+        :return:
+        """
+
         SQL = render_template(
             "/".join([self.template_path, 'properties.sql']),
             scid=scid, seid=seid
@@ -275,10 +292,11 @@ class SequenceView(PGChildNodeView):
         status, res = self.conn.execute_dict(SQL)
 
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(_("Could not find the sequence in the database."))
+            return False, gone(
+                _("Could not find the sequence in the database."))
 
         for row in res['rows']:
             SQL = render_template(
@@ -287,7 +305,7 @@ class SequenceView(PGChildNodeView):
             )
             status, rset1 = self.conn.execute_dict(SQL)
             if not status:
-                return internal_server_error(errormsg=rset1)
+                return False, internal_server_error(errormsg=rset1)
 
             row['current_value'] = rset1['rows'][0]['last_value']
             row['minimum'] = rset1['rows'][0]['min_value']
@@ -314,7 +332,7 @@ class SequenceView(PGChildNodeView):
         )
         status, dataclres = self.conn.execute_dict(SQL)
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         for row in dataclres['rows']:
             priv = parse_priv_from_db(row)
@@ -323,10 +341,7 @@ class SequenceView(PGChildNodeView):
             else:
                 res['rows'][0][row['deftype']] = [priv]
 
-        return ajax_response(
-            response=res['rows'][0],
-            status=200
-        )
+        return True, res['rows'][0]
 
     @check_precondition(action="create")
     def create(self, gid, sid, did, scid):
@@ -872,29 +887,15 @@ class SequenceView(PGChildNodeView):
         """
         res = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'properties.sql']), scid=scid)
+                                        'nodes.sql']), scid=scid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
-            SQL = render_template(
-                "/".join([self.template_path, 'get_def.sql']),
-                data=row
-            )
-            status, r_def = self.conn.execute_dict(SQL)
-            if not status:
-                return internal_server_error(errormsg=r_def)
-
-            row['current_value'] = r_def['rows'][0]['last_value']
-            row['minimum'] = r_def['rows'][0]['min_value']
-            row['maximum'] = r_def['rows'][0]['max_value']
-            row['increment'] = r_def['rows'][0]['increment_by']
-            row['start'] = r_def['rows'][0]['start_value']
-            row['cache'] = r_def['rows'][0]['cache_value']
-            row['cycled'] = r_def['rows'][0]['is_cycled']
-
-            res[row['name']] = row
+            status, data = self._fetch_properties(scid, row['oid'])
+            if status:
+                res[row['name']] = data
 
         return res
 

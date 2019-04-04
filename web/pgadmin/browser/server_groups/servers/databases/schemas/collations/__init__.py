@@ -325,23 +325,36 @@ class CollationView(PGChildNodeView):
             JSON of selected collation node
         """
 
+        status, res = self._fetch_properties(scid, coid)
+        if not status:
+            return res
+
+        return ajax_response(
+            response=res,
+            status=200
+        )
+
+    def _fetch_properties(self, scid, coid):
+        """
+        This function fetch the properties for the specified object.
+
+        :param scid: Schema ID
+        :param coid: Collation ID
+        """
+
         SQL = render_template("/".join([self.template_path,
                                         'properties.sql']),
                               scid=scid, coid=coid)
         status, res = self.conn.execute_dict(SQL)
 
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(
-                gettext("Could not find the collation object in the database.")
-            )
+            return False, gone(gettext("Could not find the collation "
+                                       "object in the database."))
 
-        return ajax_response(
-            response=res['rows'][0],
-            status=200
-        )
+        return True, res['rows'][0]
 
     @check_precondition
     def get_collation(self, gid, sid, did, scid, coid=None):
@@ -764,13 +777,15 @@ class CollationView(PGChildNodeView):
         """
         res = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'properties.sql']), scid=scid)
+                                        'nodes.sql']), scid=scid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
-            res[row['name']] = row
+            status, data = self._fetch_properties(scid, row['oid'])
+            if status:
+                res[row['name']] = data
 
         return res
 

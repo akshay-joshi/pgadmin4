@@ -2126,7 +2126,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
-    def properties(self, gid, sid, did, scid, tid, res):
+    def properties(self, gid, sid, did, scid, tid, res,
+                   return_ajax_response=True):
         """
         This function will show the properties of the selected table node.
 
@@ -2138,6 +2139,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             scid: Schema ID
             tid: Table ID
             res: Table/Partition table properties
+            return_ajax_response: If True then return the ajax response
 
         Returns:
             JSON of selected table node
@@ -2221,6 +2223,9 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     })
 
             data['partitions'] = partitions
+
+        if not return_ajax_response:
+            return data
 
         return ajax_response(
             response=data,

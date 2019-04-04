@@ -375,7 +375,23 @@ class FtsDictionaryView(PGChildNodeView):
             scid: Schema Id
             dcid: fts dictionary id
         """
+        status, res = self._fetch_properties(scid, dcid)
+        if not status:
+            return res
 
+        return ajax_response(
+            response=res,
+            status=200
+        )
+
+    def _fetch_properties(self, scid, dcid):
+        """
+        This function is used to fetch the properties of specified object.
+
+        :param scid:
+        :param dcid:
+        :return:
+        """
         sql = render_template(
             "/".join([self.template_path, 'properties.sql']),
             scid=scid,
@@ -384,10 +400,10 @@ class FtsDictionaryView(PGChildNodeView):
         status, res = self.conn.execute_dict(sql)
 
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(_(
+            return False, gone(_(
                 "Could not find the FTS Dictionary node in the database node."
             ))
 
@@ -404,10 +420,7 @@ class FtsDictionaryView(PGChildNodeView):
                 res['rows'][0]['options']
             )
 
-        return ajax_response(
-            response=res['rows'][0],
-            status=200
-        )
+        return True, res['rows'][0]
 
     @check_precondition
     def create(self, gid, sid, did, scid):
@@ -884,13 +897,15 @@ class FtsDictionaryView(PGChildNodeView):
         """
         res = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'properties.sql']), scid=scid)
+                                        'nodes.sql']), scid=scid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
-            res[row['name']] = row
+            status, data = self._fetch_properties(scid, row['oid'])
+            if status:
+                res[row['name']] = data
 
         return res
 

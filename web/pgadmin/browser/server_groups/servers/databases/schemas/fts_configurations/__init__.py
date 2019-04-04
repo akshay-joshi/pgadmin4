@@ -365,7 +365,22 @@ class FtsConfigurationView(PGChildNodeView):
             scid: Schema Id
             cfgid: fts Configuration id
         """
+        status, res = self._fetch_properties(scid, cfgid)
+        if not status:
+            return res
 
+        return ajax_response(
+            response=res,
+            status=200
+        )
+
+    def _fetch_properties(self, scid, cfgid):
+        """
+        This function is used to fetch property of specified object.
+        :param scid:
+        :param cfgid:
+        :return:
+        """
         sql = render_template(
             "/".join([self.template_path, 'properties.sql']),
             scid=scid,
@@ -374,10 +389,10 @@ class FtsConfigurationView(PGChildNodeView):
         status, res = self.conn.execute_dict(sql)
 
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(
+            return False, gone(
                 _(
                     "Could not find the FTS Configuration node in the "
                     "database node.")
@@ -392,14 +407,11 @@ class FtsConfigurationView(PGChildNodeView):
         status, rset = self.conn.execute_dict(sql)
 
         if not status:
-            return internal_server_error(errormsg=rset)
+            return False, internal_server_error(errormsg=rset)
 
         res['rows'][0]['tokens'] = rset['rows']
 
-        return ajax_response(
-            response=res['rows'][0],
-            status=200
-        )
+        return True, res['rows'][0]
 
     @check_precondition
     def create(self, gid, sid, did, scid):
@@ -957,26 +969,15 @@ class FtsConfigurationView(PGChildNodeView):
         """
         res = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'properties.sql']), scid=scid)
+                                        'nodes.sql']), scid=scid)
         status, fts_cfg = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
 
         for row in fts_cfg['rows']:
-            # In edit mode fetch token/dictionary list also
-            sql = render_template(
-                "/".join([self.template_path, 'tokenDictList.sql']),
-                cfgid=row['oid']
-            )
-
-            status, fts_tok = self.conn.execute_dict(sql)
-            if not status:
-                return internal_server_error(errormsg=fts_tok)
-
-            token = {tok['token']: dict(zip(tok['dictname'], tok['dictname']))
-                     for tok in fts_tok['rows']}
-            row['token'] = token
-            res[row['name']] = row
+            status, data = self._fetch_properties(scid, row['oid'])
+            if status:
+                res[row['name']] = data
 
         return res
 

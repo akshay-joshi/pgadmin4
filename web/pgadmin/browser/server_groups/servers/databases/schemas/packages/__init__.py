@@ -313,15 +313,31 @@ class PackageView(PGChildNodeView):
         Returns:
 
         """
+        status, res = self._fetch_properties(scid, pkgid)
+        if not status:
+            return res
+
+        return ajax_response(
+            response=res,
+            status=200
+        )
+
+    def _fetch_properties(self, scid, pkgid):
+        """
+        This function is used to fetch the properties of specified object.
+        :param scid:
+        :param pkgid:
+        :return:
+        """
         SQL = render_template("/".join([self.template_path, 'properties.sql']),
                               scid=scid, pkgid=pkgid)
         status, res = self.conn.execute_dict(SQL)
 
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(
+            return False, gone(
                 errormsg=_("Could not find the package in the database.")
             )
 
@@ -336,16 +352,13 @@ class PackageView(PGChildNodeView):
         status, rset1 = self.conn.execute_dict(SQL)
 
         if not status:
-            return internal_server_error(errormsg=rset1)
+            return False, internal_server_error(errormsg=rset1)
 
         for row in rset1['rows']:
             priv = parse_priv_from_db(row)
             res['rows'][0].setdefault(row['deftype'], []).append(priv)
 
-        return ajax_response(
-            response=res['rows'][0],
-            status=200
-        )
+        return True, res['rows'][0]
 
     @check_precondition(action="create")
     def create(self, gid, sid, did, scid):
@@ -790,13 +803,15 @@ class PackageView(PGChildNodeView):
             return res
 
         SQL = render_template("/".join([self.template_path,
-                                        'properties.sql']), scid=scid)
+                                        'nodes.sql']), scid=scid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
-            res[row['name']] = row
+            status, data = self._fetch_properties(scid, row['oid'])
+            if status:
+                res[row['name']] = data
 
         return res
 

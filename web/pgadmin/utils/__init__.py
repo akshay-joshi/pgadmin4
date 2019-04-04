@@ -298,6 +298,29 @@ def is_utility_exists(file):
     return error_msg
 
 
+def are_lists_identical(source_list, target_list):
+    """
+    This function is used to compare two list.
+    :param source_list:
+    :param target_list:
+    :return:
+    """
+    if len(source_list) != len(target_list):
+        return False
+    else:
+        for index in range(len(source_list)):
+            # Check the type of the value if it is an dictionary then
+            # call are_dictionaries_identical() function.
+            if type(source_list[index]) is dict:
+                if not are_dictionaries_identical(source_list[index],
+                                                  target_list[index]):
+                    return False
+            else:
+                if source_list[index] != target_list[index]:
+                    return False
+    return True
+
+
 def are_dictionaries_identical(source_dict, target_dict):
     """
     This function is used to recursively compare two dictionaries with
@@ -306,11 +329,6 @@ def are_dictionaries_identical(source_dict, target_dict):
     :param target_dict:
     :return:
     """
-
-    # If type is other then dict then return False as we will
-    # not be able to compare two different data structure.
-    if type(source_dict) is not dict or type(target_dict) is not dict:
-        return False
 
     src_keys = set(source_dict.keys())
     tar_keys = set(target_dict.keys())
@@ -335,6 +353,9 @@ def are_dictionaries_identical(source_dict, target_dict):
         if type(source_dict[key]) is dict:
             if not are_dictionaries_identical(source_dict[key],
                                               target_dict[key]):
+                return False
+        elif type(source_dict[key]) is list:
+            if not are_lists_identical(source_dict[key], target_dict[key]):
                 return False
         else:
             if source_dict[key] != target_dict[key]:

@@ -566,6 +566,22 @@ class TypeView(PGChildNodeView, DataTypeReader):
         Returns:
             JSON of selected type node
         """
+        status, res = self._fetch_properties(scid, tid)
+        if not status:
+            return res
+
+        return ajax_response(
+            response=res,
+            status=200
+        )
+
+    def _fetch_properties(self, scid, tid):
+        """
+        This function is used to fecth the properties of the specified object.
+        :param scid:
+        :param tid:
+        :return:
+        """
 
         SQL = render_template(
             "/".join([self.template_path,
@@ -576,10 +592,10 @@ class TypeView(PGChildNodeView, DataTypeReader):
         )
         status, res = self.conn.execute_dict(SQL)
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(
+            return False, gone(
                 gettext("""Could not find the type in the database."""))
 
         # Making copy of output for future use
@@ -590,7 +606,7 @@ class TypeView(PGChildNodeView, DataTypeReader):
                               scid=scid, tid=tid)
         status, acl = self.conn.execute_dict(SQL)
         if not status:
-            return internal_server_error(errormsg=acl)
+            return False, internal_server_error(errormsg=acl)
 
         # We will set get privileges from acl sql so we don't need
         # it from properties sql
@@ -606,10 +622,7 @@ class TypeView(PGChildNodeView, DataTypeReader):
         # Calling function to check and additional properties if available
         copy_dict.update(self.additional_properties(copy_dict, tid))
 
-        return ajax_response(
-            response=copy_dict,
-            status=200
-        )
+        return True, copy_dict
 
     @check_precondition
     def get_collations(self, gid, sid, did, scid, tid=None):
@@ -1463,28 +1476,16 @@ class TypeView(PGChildNodeView, DataTypeReader):
         """
         res = dict()
         SQL = render_template("/".join([self.template_path,
-                                        'properties.sql']),
+                                        'nodes.sql']),
                               scid=scid, datlastsysoid=self.datlastsysoid)
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
-            add_prop = self.additional_properties(row, row['oid'])
-
-            if 'composite' in add_prop:
-                members = {row['member_name']: row
-                           for row in add_prop['composite']}
-                row['members'] = members
-            elif 'enum' in add_prop:
-                enum = {row['label']: row['label']
-                        for row in add_prop['enum']}
-                row['enum'] = enum
-            elif 'rows' in add_prop:
-                range = {row['typname']: row for row in add_prop['rows']}
-                row['range'] = range
-
-            res[row['name']] = row
+            status, data = self._fetch_properties(scid, row['oid'])
+            if status:
+                res[row['name']] = data
 
         return res
 
