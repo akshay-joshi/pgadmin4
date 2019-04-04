@@ -5,7 +5,7 @@ try {
     ['sources/generated/schema_diff'],
     function(pgSchemaDiffHook) {
       var pgSchemaDiffHook = pgSchemaDiffHook || pgAdmin.Tools.SchemaDiffHook;
-      pgSchemaDiffHook.init({{trans_id}});
+      pgSchemaDiffHook.load({{trans_id}});
     },
     function() {
       console.log(arguments);
