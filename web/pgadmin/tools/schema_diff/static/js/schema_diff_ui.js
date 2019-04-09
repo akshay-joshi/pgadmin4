@@ -3,7 +3,7 @@ import $ from 'jquery';
 import gettext from 'sources/gettext';
 import Alertify from 'pgadmin.alertifyjs';
 import Backform from 'pgadmin.backform';
-import * as pgNode from 'pgadmin.browser.node';
+import Backbone from 'backbone';
 
 
 Backform.SchemaDiffFormRow = Backform.Form.extend({
@@ -33,19 +33,13 @@ Backform.SchemaDiffFormRow = Backform.Form.extend({
   render: function() {
     this.cleanup();
 
-    var c = this.$el
-        .children().first().children('.active')
-        .first().attr('id'),
+    var controls = this.controls,
       m = this.model,
-      controls = this.controls,
       tmpls = this.template,
       self = this,
-      idx = (this.tabIndex * 100),
-      evalF = function(f, d, m) {
-        return (_.isFunction(f) ? !!f.apply(d, [m]) : !!f);
-      };
+      idx = (this.tabIndex * 100);
 
-    this.$el.empty()
+    this.$el.empty();
 
     let $form_row = $(tmpls['form_row']()).appendTo(this.$el);
     $form_row.append($(tmpls['row_label']({value: this.label})));
@@ -121,7 +115,7 @@ export default class SchemaDiffUI {
       dataType: 'json',
       contentType: 'application/json',
     })
-      .done(function (res) {
+      .done(function () {
         // TODO: Following function is used to test the fetching of the schemas
         // this should be moved on database selection event.
         // console.log('Servers:');
@@ -143,7 +137,7 @@ export default class SchemaDiffUI {
       dataType: 'json',
       contentType: 'application/json',
     })
-      .done(function (res) {
+      .done(function () {
         // TODO: Following function is used to test the fetching of the schemas
         // this should be moved on database selection event.
         // console.log('Databases:');
@@ -165,7 +159,7 @@ export default class SchemaDiffUI {
       dataType: 'json',
       contentType: 'application/json',
     })
-      .done(function (res) {
+      .done(function () {
         // console.log('Schemas:');
         // console.log(res);
         // TODO: function is used to test compare schema this should be
@@ -196,7 +190,7 @@ export default class SchemaDiffUI {
       contentType: 'application/json',
     })
       .done(function (res) {
-        console.log(res);
+        console.warn(res);
       })
       .fail(function (xhr) {
         self.raise_error_on_fail(gettext('Schema compare error'), xhr);
@@ -209,11 +203,11 @@ export default class SchemaDiffUI {
     self.fetch_servers()
       .done((res)=>{
         server_id = res.data[0].id;
-        group_id = res.data[0].sgid;
+        group_id = res.data[0].gid;
         self.fetch_databases(group_id, server_id)
           .done((res)=>{
             self.fetch_schemas(group_id, server_id, res.data[0]._id)
-              .done((res)=>{
+              .done(()=>{
                 self.compare_schemas(trans_id);
               });
           });

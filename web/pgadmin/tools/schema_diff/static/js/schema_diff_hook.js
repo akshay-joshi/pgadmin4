@@ -14,10 +14,10 @@ define([
   'pgadmin.tools.schema_diff_ui','wcdocker', 'pgadmin.browser.frame',
 ], function(
   gettext, url_for, $, _, S, Alertify, pgAdmin, pgBrowser, Backbone, Backgrid,
-  CodeMirror, Backform, SchemaDiffUI
+  CodeMirror, Backform, SchemaDiffUIModule
 ) {
   var pgTools = pgAdmin.Tools = pgAdmin.Tools || {};
-  var SchemaDiffUI = SchemaDiffUI.default;
+  var SchemaDiffUI = SchemaDiffUIModule.default;
 
   /* Return back, this has been called more than once */
   if (pgTools.SchemaDiffHook)

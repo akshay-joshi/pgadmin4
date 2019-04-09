@@ -1381,6 +1381,11 @@ class ForeignTableView(PGChildNodeView, DataTypeReader):
             status, data = self._fetch_properties(0, sid, did, scid,
                                                   row['oid'])
             if status:
+                if 'constraints' in data and data['constraints'] is not None \
+                        and len(data['constraints']) > 0:
+                    for item in data['constraints']:
+                        item.pop('conoid')
+
                 res[row['name']] = data
 
         return res

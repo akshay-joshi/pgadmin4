@@ -746,7 +746,7 @@ class SynonymView(PGChildNodeView):
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
-            status, data = self._fetch_properties(scid, row['oid'])
+            status, data = self._fetch_properties(scid, row['name'])
             if status:
                 res[row['name']] = data
 
@@ -781,15 +781,15 @@ class SynonymView(PGChildNodeView):
             = compare_dictionaries(source_synonyms, target_synonyms,
                                    ignore_keys)
 
-        res = {key: {'oid': source_only[key]['oid'],
+        res = {key: {'oid': source_only[key]['name'],
                      'status': 'source'} for key in source_only}
-        res.update({key: {'oid': target_only[key]['oid'],
+        res.update({key: {'oid': target_only[key]['name'],
                           'status': 'target'} for key in target_only})
-        res.update({key: {'source_oid': different[key][0]['oid'],
-                          'target_oid': different[key][1]['oid'],
+        res.update({key: {'source_oid': different[key][0]['name'],
+                          'target_oid': different[key][1]['name'],
                           'status': 'different'} for key in different})
-        res.update({key: {'source_oid': identical[key][0]['oid'],
-                          'target_oid': identical[key][1]['oid'],
+        res.update({key: {'source_oid': identical[key][0]['name'],
+                          'target_oid': identical[key][1]['name'],
                           'status': 'identical'} for key in identical})
 
         return res
