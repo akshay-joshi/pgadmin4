@@ -305,7 +305,8 @@ def are_lists_identical(source_list, target_list):
     :param target_list:
     :return:
     """
-    if len(source_list) != len(target_list):
+    if source_list is None or target_list is None or \
+            len(source_list) != len(target_list):
         return False
     else:
         for index in range(len(source_list)):
