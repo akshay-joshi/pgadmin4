@@ -1642,7 +1642,7 @@ class FunctionView(PGChildNodeView, DataTypeReader):
             return None
 
         ignore_keys = ['oid', 'proowner', 'typnsp', 'xmin', 'prokind',
-                       'proisagg', 'pronamespace']
+                       'proisagg', 'pronamespace', 'proargdefaults']
         source_only, target_only, different, identical \
             = compare_dictionaries(source_functions, target_functions,
                                    ignore_keys)
