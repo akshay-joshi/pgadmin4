@@ -281,12 +281,18 @@ def compare(trans_id, source_sid, source_did, source_scid,
         for node_name, node_view in all_registered_nodes.items():
             view = SchemaDiffRegistry.get_node_view(node_name)
             if hasattr(view, 'compare'):
+                import time
+                start = time.time()
                 res = view.compare(source_sid=source_sid,
                                    source_did=source_did,
                                    source_scid=source_scid,
                                    target_sid=target_sid,
                                    target_did=target_did,
                                    target_scid=target_scid)
+
+                end = time.time() - start
+                print("Total Time taken to compare ", node_name, " is: ",
+                      time.strftime("%H:%M:%S", time.gmtime(end)))
 
                 if res is not None:
                     comparison_result[node_name] = res

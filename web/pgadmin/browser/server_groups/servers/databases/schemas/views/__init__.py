@@ -1766,9 +1766,9 @@ class MViewNode(ViewNode, VacuumSettings):
         values
         """
 
-        res = self.get_vacuum_table_settings(self.conn)
+        res = self.get_vacuum_table_settings(self.conn, sid)
         return ajax_response(
-            response=res['rows'],
+            response=res,
             status=200
         )
 
@@ -1782,10 +1782,10 @@ class MViewNode(ViewNode, VacuumSettings):
           - setting
         values
         """
-        res = self.get_vacuum_toast_settings(self.conn)
+        res = self.get_vacuum_toast_settings(self.conn, sid)
 
         return ajax_response(
-            response=res['rows'],
+            response=res,
             status=200
         )
 
