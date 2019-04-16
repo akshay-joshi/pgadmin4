@@ -1384,7 +1384,8 @@ class ForeignTableView(PGChildNodeView, DataTypeReader):
                 if 'constraints' in data and data['constraints'] is not None \
                         and len(data['constraints']) > 0:
                     for item in data['constraints']:
-                        item.pop('conoid')
+                        if 'conoid' in item:
+                            item.pop('conoid')
 
                 res[row['name']] = data
 

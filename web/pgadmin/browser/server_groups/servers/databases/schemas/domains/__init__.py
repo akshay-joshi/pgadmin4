@@ -907,8 +907,10 @@ AND relkind != 'c'))"""
                     for item in data['constraints']:
                         # Remove keys that should not be the part
                         # of comparision.
-                        item.pop('conoid')
-                        item.pop('nspname')
+                        if 'conoid' in item:
+                            item.pop('conoid')
+                        if 'nspname' in item:
+                            item.pop('nspname')
 
                 res[row['name']] = data
 

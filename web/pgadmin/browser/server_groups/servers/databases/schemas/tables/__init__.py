@@ -1640,17 +1640,23 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         if 'columns' in data and len(data['columns']) > 0:
             for col in data['columns']:
                 # Remove keys that should not be the part of comparision.
-                col.pop('relname')
-                col.pop('nspname')
-                col.pop('parent_tbl')
-                col.pop('edit_types')
-                col.pop('attrelid')
+                if 'relname' in col:
+                    col.pop('relname')
+                if 'nspname' in col:
+                    col.pop('nspname')
+                if 'parent_tbl' in col:
+                    col.pop('parent_tbl')
+                if 'edit_types' in col:
+                    col.pop('edit_types')
+                if 'attrelid' in col:
+                    col.pop('attrelid')
 
         if 'primary_key' in data and data['primary_key'] is not None and \
                 len(data['primary_key']) > 0:
             for pkey in data['primary_key']:
                 # Remove keys that should not be the part of comparision.
-                pkey.pop('oid')
+                if 'oid' in pkey:
+                    pkey.pop('oid')
 
         if 'unique_constraint' in data and \
                 data['unique_constraint'] is not None and \
@@ -1664,23 +1670,29 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                 len(data['check_constraint']) > 0:
             for ckey in data['check_constraint']:
                 # Remove keys that should not be the part of comparision.
-                ckey.pop('oid')
-                ckey.pop('nspname')
+                if 'oid' in ckey:
+                    ckey.pop('oid')
+                if 'nspname' in ckey:
+                    ckey.pop('nspname')
 
         if 'foreign_key' in data and data['foreign_key'] is not None \
                 and len(data['foreign_key']) > 0:
             for fkey in data['foreign_key']:
                 # Remove keys that should not be the part of comparision.
-                fkey.pop('oid')
-                fkey.pop('fknsp')
-                fkey.pop('confrelid')
+                if 'oid' in fkey:
+                    fkey.pop('oid')
+                if 'fknsp' in fkey:
+                    fkey.pop('fknsp')
+                if 'confrelid' in fkey:
+                    fkey.pop('confrelid')
 
         if 'exclude_constraint' in data and \
                 data['exclude_constraint'] is not None and \
                 len(data['exclude_constraint']) > 0:
             for ekey in data['exclude_constraint']:
                 # Remove keys that should not be the part of comparision.
-                ekey.pop('oid')
+                if 'oid' in ekey:
+                    ekey.pop('oid')
 
 
 SchemaDiffRegistry('table', TableView)
