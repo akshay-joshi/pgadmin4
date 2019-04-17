@@ -1226,5 +1226,5 @@ class TriggerView(PGChildNodeView):
         return res
 
 
-SchemaDiffRegistry('trigger', TriggerView)
+SchemaDiffRegistry('Triggers', TriggerView)
 TriggerView.register_node_view(blueprint)

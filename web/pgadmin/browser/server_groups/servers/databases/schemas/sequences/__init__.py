@@ -947,5 +947,5 @@ class SequenceView(PGChildNodeView):
         return res
 
 
-SchemaDiffRegistry('sequence', SequenceView)
+SchemaDiffRegistry('Sequences', SequenceView)
 SequenceView.register_node_view(blueprint)

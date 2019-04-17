@@ -1661,7 +1661,7 @@ class FunctionView(PGChildNodeView, DataTypeReader):
         return res
 
 
-SchemaDiffRegistry('function', FunctionView)
+SchemaDiffRegistry('Functions', FunctionView)
 FunctionView.register_node_view(blueprint)
 
 
@@ -1775,7 +1775,7 @@ class ProcedureView(FunctionView):
         )
 
 
-SchemaDiffRegistry('procedure', ProcedureView)
+SchemaDiffRegistry('Procedures', ProcedureView)
 ProcedureView.register_node_view(procedure_blueprint)
 
 
@@ -1887,5 +1887,5 @@ class TriggerFunctionView(FunctionView):
         )
 
 
-SchemaDiffRegistry('trigger_function', TriggerFunctionView)
+SchemaDiffRegistry('Trigger Functions', TriggerFunctionView)
 TriggerFunctionView.register_node_view(trigger_function_blueprint)

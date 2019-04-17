@@ -1972,7 +1972,7 @@ class MViewNode(ViewNode, VacuumSettings):
         return res
 
 
-SchemaDiffRegistry('view', ViewNode)
+SchemaDiffRegistry('Views', ViewNode)
 ViewNode.register_node_view(view_blueprint)
-SchemaDiffRegistry('mview', MViewNode)
+SchemaDiffRegistry('Materialized Views', MViewNode)
 MViewNode.register_node_view(mview_blueprint)

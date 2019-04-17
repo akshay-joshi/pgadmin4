@@ -1436,5 +1436,5 @@ class ForeignTableView(PGChildNodeView, DataTypeReader):
         return res
 
 
-SchemaDiffRegistry('foreign_table', ForeignTableView)
+SchemaDiffRegistry('Foreign Tables', ForeignTableView)
 ForeignTableView.register_node_view(blueprint)

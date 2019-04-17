@@ -170,19 +170,19 @@ export default class SchemaDiffUI {
       });
   }
   
-  compare_schemas(trans_id) {
+  compare_schemas() {
     // TODO: get the gid, sid, did, scid from source and target combo box
     // Below will be used for testing purpose.
-    var s_sid = 2, s_did = 13255, s_scid = 2200, t_sid = 3, t_did = 13329, t_scid = 2200;
+    var s_sid = 2, s_did = 13255, s_scid = 16393, t_sid = 2, t_did = 13255, t_scid = 16394;
   
     var self = this,
       url_params = {
-        'trans_id': trans_id, 'source_sid': s_sid,
+        'trans_id': self.trans_id, 'source_sid': s_sid,
         'source_did': s_did, 'source_scid': s_scid,
         'target_sid': t_sid, 'target_did': t_did, 'target_scid': t_scid,
       },
       baseUrl = url_for('schema_diff.compare', url_params);
-  
+
     return $.ajax({
       url: baseUrl,
       method: 'GET',
@@ -190,15 +190,18 @@ export default class SchemaDiffUI {
       contentType: 'application/json',
     })
       .done(function (res) {
+        self.stopDiffPoller();
         console.warn(res);
       })
       .fail(function (xhr) {
         self.raise_error_on_fail(gettext('Schema compare error'), xhr);
+        self.stopDiffPoller();
       });
   }
   
   test_compare_schema(trans_id) {
     let self = this;
+    self.trans_id = trans_id;
     let group_id, server_id;
     self.fetch_servers()
       .done((res)=>{
@@ -208,10 +211,48 @@ export default class SchemaDiffUI {
           .done((res)=>{
             self.fetch_schemas(group_id, server_id, res.data[0]._id)
               .done(()=>{
-                self.compare_schemas(trans_id);
+                self.compare_schemas();
+                self.startDiffPoller();
               });
           });
       });
+  }
+
+  startDiffPoller() {
+    let self = this;
+    $('#diff_fetching_data').removeClass('d-none');
+
+    let thePollingFunc = function() {
+      let url_params = {'trans_id': self.trans_id},
+        baseUrl = url_for('schema_diff.poll', url_params);
+
+      $.ajax({
+        url: baseUrl,
+        method: 'GET',
+        dataType: 'json',
+        contentType: 'application/json',
+      })
+        .done(function (res) {
+          let msg = res.data.compare_msg + res.data.diff_percentage + '% completed';
+          $('#diff_fetching_data').find('.schema-diff-busy-text').text(msg);
+        })
+        .fail(function (xhr) {
+          self.raise_error_on_fail(gettext('Poll error'), xhr);
+          self.stopDiffPoller();
+        });
+    };
+
+    /* Execute once for the first time as setInterval will not do */
+    thePollingFunc();
+    self.diff_poller_int_id = setInterval(thePollingFunc, 2000);
+  }
+
+  stopDiffPoller() {
+    let self = this;
+    clearInterval(self.diff_poller_int_id);
+    $('#diff_fetching_data').find('.schema-diff-busy-text').text('');
+    $('#diff_fetching_data').addClass('d-none');
+
   }
 
   render() {

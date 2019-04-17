@@ -1710,5 +1710,5 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                     ekey.pop('oid')
 
 
-SchemaDiffRegistry('table', TableView)
+SchemaDiffRegistry('Tables', TableView)
 TableView.register_node_view(blueprint)

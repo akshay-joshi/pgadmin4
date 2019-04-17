@@ -63,6 +63,7 @@ class SchemaDiffModule(PgAdminModule):
             'schema_diff.databases',
             'schema_diff.schemas',
             'schema_diff.compare',
+            'schema_diff.poll',
         ]
 
 
@@ -143,9 +144,25 @@ def check_transaction_status(trans_id):
     # Fetch the object for the specified transaction id.
     # Use pickle.loads function to get the model object
     session_obj = schema_diff_data[str(trans_id)]
-    model_obj = pickle.loads(session_obj['model_obj'])
+    diff_model_obj = pickle.loads(session_obj['diff_model_obj'])
 
-    return True, None, model_obj, session_obj
+    return True, None, diff_model_obj, session_obj
+
+
+def update_session_diff_transaction(trans_id, session_obj, diff_model_obj):
+    """
+    This function is used to update the diff model into the session.
+    :param trans_id:
+    :param session_obj:
+    :param diff_model_obj:
+    :return:
+    """
+    session_obj['diff_model_obj'] = pickle.dumps(diff_model_obj, -1)
+
+    if 'schemaDiff' in session:
+        schema_diff_data = session['schemaDiff']
+        schema_diff_data[str(trans_id)] = session_obj
+        session['schemaDiff'] = schema_diff_data
 
 
 @blueprint.route(
@@ -169,11 +186,11 @@ def initialize():
         else:
             schema_diff_data = session['schemaDiff']
 
-        # Use pickle to store the command object which will be used
-        # later by the sql grid module.
-        # schema_diff_data[trans_id] = {
-        #     'model_obj': pickle.dumps(SchemaDiffModel(), -1)
-        # }
+        # Use pickle to store the Schema Diff Model which will be used
+        # later by the diff module.
+        schema_diff_data[trans_id] = {
+            'diff_model_obj': pickle.dumps(SchemaDiffModel(), -1)
+        }
 
         # Store the schema diff dictionary into the session variable
         session['schemaDiff'] = schema_diff_data
@@ -274,11 +291,26 @@ def compare(trans_id, source_sid, source_did, source_scid,
     """
     This function will compare the two schemas.
     """
+    # Check the transaction and connection status
+    status, error_msg, diff_model_obj, session_obj = \
+        check_transaction_status(trans_id)
+
+    if error_msg == gettext('Transaction ID not found in the session.'):
+        return make_json_response(success=0, errormsg=error_msg, status=404)
 
     comparison_result = dict()
     try:
         all_registered_nodes = SchemaDiffRegistry.get_registered_nodes()
+        node_percent = round(100 / len(all_registered_nodes))
+        total_percent = 0
+
         for node_name, node_view in all_registered_nodes.items():
+            msg = "Comparing " + node_name + " ..."
+            diff_model_obj.set_comparison_info(msg, total_percent)
+            # Update the message and total percentage done in session object
+            update_session_diff_transaction(trans_id, session_obj,
+                                            diff_model_obj)
+
             view = SchemaDiffRegistry.get_node_view(node_name)
             if hasattr(view, 'compare'):
                 import time
@@ -296,7 +328,38 @@ def compare(trans_id, source_sid, source_did, source_scid,
 
                 if res is not None:
                     comparison_result[node_name] = res
+            total_percent = total_percent + node_percent
+
+        msg = "Successfully compare the specified schemas."
+        total_percent = 100
+        diff_model_obj.set_comparison_info(msg, total_percent)
+        # Update the message and total percentage done in session object
+        update_session_diff_transaction(trans_id, session_obj, diff_model_obj)
+
     except Exception as e:
         app.logger.exception(e)
 
     return make_json_response(data=comparison_result)
+
+
+@blueprint.route(
+    '/poll/<int:trans_id>', methods=["GET"], endpoint="poll"
+)
+@login_required
+def poll(trans_id):
+    """
+    This function is used to check the schema comparison is completed or not.
+    :param trans_id:
+    :return:
+    """
+
+    # Check the transaction and connection status
+    status, error_msg, diff_model_obj, session_obj = \
+        check_transaction_status(trans_id)
+
+    if error_msg == gettext('Transaction ID not found in the session.'):
+        return make_json_response(success=0, errormsg=error_msg, status=404)
+
+    msg, diff_percentage = diff_model_obj.get_comparison_info()
+    return make_json_response(data={'compare_msg': msg,
+                                    'diff_percentage': diff_percentage})

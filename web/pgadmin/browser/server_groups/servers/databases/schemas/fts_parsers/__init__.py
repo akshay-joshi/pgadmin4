@@ -963,5 +963,5 @@ class FtsParserView(PGChildNodeView):
         return res
 
 
-SchemaDiffRegistry('fts_parser', FtsParserView)
+SchemaDiffRegistry('FTS Parsers', FtsParserView)
 FtsParserView.register_node_view(blueprint)

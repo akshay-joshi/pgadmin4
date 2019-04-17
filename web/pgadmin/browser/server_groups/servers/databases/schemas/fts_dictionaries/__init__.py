@@ -960,5 +960,5 @@ class FtsDictionaryView(PGChildNodeView):
         return res
 
 
-SchemaDiffRegistry('fts_dictionary', FtsDictionaryView)
+SchemaDiffRegistry('FTS Dictionaries', FtsDictionaryView)
 FtsDictionaryView.register_node_view(blueprint)

@@ -1032,5 +1032,5 @@ class FtsConfigurationView(PGChildNodeView):
         return res
 
 
-SchemaDiffRegistry('fts_configuration', FtsConfigurationView)
+SchemaDiffRegistry('FTS Configurations', FtsConfigurationView)
 FtsConfigurationView.register_node_view(blueprint)

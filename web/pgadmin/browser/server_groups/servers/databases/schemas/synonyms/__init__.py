@@ -795,5 +795,5 @@ class SynonymView(PGChildNodeView):
         return res
 
 
-SchemaDiffRegistry('synonym', SynonymView)
+SchemaDiffRegistry('Synonyms', SynonymView)
 SynonymView.register_node_view(blueprint)

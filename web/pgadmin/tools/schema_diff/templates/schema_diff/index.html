@@ -16,12 +16,12 @@ try {
 {% endblock %}
 {% block body %}
 <div id="schema-diff-container" class="negative-space p-2">
-    <div class="pg-sp-container sql-editor-busy-fetching d-none">
+    <div id="diff_fetching_data" class="pg-sp-container schema-diff-busy-fetching d-none">
         <div class="pg-sp-content">
             <div class="row">
-                <div class="col-12 pg-sp-icon sql-editor-busy-icon"></div>
+                <div class="col-12 pg-sp-icon"></div>
             </div>
-            <div class="row"><div class="col-12 pg-sp-text sql-editor-busy-text">{{ _('Loading {0} v{1}...').format(config.APP_NAME, config.APP_VERSION) }}</div></div>
+            <div class="row"><div class="col-12 pg-sp-text schema-diff-busy-text"></div></div>
         </div>
     </div>
     <div class="schema-diff-content">

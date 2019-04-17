@@ -837,5 +837,5 @@ class CollationView(PGChildNodeView):
         return res
 
 
-SchemaDiffRegistry('collation', CollationView)
+SchemaDiffRegistry('Collations', CollationView)
 CollationView.register_node_view(blueprint)

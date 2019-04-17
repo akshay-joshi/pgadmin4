@@ -858,5 +858,5 @@ class PackageView(PGChildNodeView):
         return res
 
 
-SchemaDiffRegistry('package', PackageView)
+SchemaDiffRegistry('Packages', PackageView)
 PackageView.register_node_view(blueprint)

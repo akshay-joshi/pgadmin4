@@ -1189,5 +1189,5 @@ class IndexesView(PGChildNodeView):
         return res
 
 
-SchemaDiffRegistry('index', IndexesView)
+SchemaDiffRegistry('Indexes', IndexesView)
 IndexesView.register_node_view(blueprint)

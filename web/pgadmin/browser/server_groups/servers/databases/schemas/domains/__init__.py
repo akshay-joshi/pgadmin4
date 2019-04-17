@@ -959,5 +959,5 @@ AND relkind != 'c'))"""
         return res
 
 
-SchemaDiffRegistry('domain', DomainView)
+SchemaDiffRegistry('Domains', DomainView)
 DomainView.register_node_view(blueprint)

@@ -1533,5 +1533,5 @@ class TypeView(PGChildNodeView, DataTypeReader):
         return res
 
 
-SchemaDiffRegistry('type', TypeView)
+SchemaDiffRegistry('Types', TypeView)
 TypeView.register_node_view(blueprint)

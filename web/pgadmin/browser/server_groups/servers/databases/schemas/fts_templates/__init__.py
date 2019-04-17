@@ -847,5 +847,5 @@ class FtsTemplateView(PGChildNodeView):
         return res
 
 
-SchemaDiffRegistry('fts_template', FtsTemplateView)
+SchemaDiffRegistry('FTS Templates', FtsTemplateView)
 FtsTemplateView.register_node_view(blueprint)
