@@ -699,7 +699,7 @@ AND relkind != 'c'))"""
         )
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, doid=None):
+    def sql(self, gid, sid, did, scid, doid=None, return_ajax_response=True):
         """
         Returns the SQL for the Domain object.
 
@@ -709,6 +709,7 @@ AND relkind != 'c'))"""
             did: Database Id
             scid: Schema Id
             doid: Domain Id
+            return_ajax_response:
         """
 
         SQL = render_template("/".join([self.template_path,
@@ -750,6 +751,9 @@ AND relkind != 'c'))"""
 
 """.format(self.qtIdent(self.conn, data['basensp'], data['name']))
         SQL = sql_header + SQL
+
+        if not return_ajax_response:
+            return SQL.strip('\n')
 
         return ajax_response(response=SQL.strip('\n'))
 
@@ -946,17 +950,69 @@ AND relkind != 'c'))"""
                                    ignore_keys)
 
         res = {key: {'oid': source_only[key]['oid'],
-                     'status': 'source'} for key in source_only}
+                     'status': SchemaDiffRegistry.SOURCE_ONLY}
+               for key in source_only}
         res.update({key: {'oid': target_only[key]['oid'],
-                          'status': 'target'} for key in target_only})
+                          'status': SchemaDiffRegistry.TARGET_ONLY}
+                    for key in target_only})
         res.update({key: {'source_oid': different[key][0]['oid'],
                           'target_oid': different[key][1]['oid'],
-                          'status': 'different'} for key in different})
+                          'status': SchemaDiffRegistry.DIFFERENT}
+                    for key in different})
         res.update({key: {'source_oid': identical[key][0]['oid'],
                           'target_oid': identical[key][1]['oid'],
-                          'status': 'identical'} for key in identical})
+                          'status': SchemaDiffRegistry.IDENTICAL}
+                    for key in identical})
 
         return res
+
+    def get_ddl(self, **kwargs):
+        """
+        This function is used to get the DDL for source, target and
+        their diff.
+        :param kwargs:
+        :return:
+        """
+
+        src_sid = kwargs.get('source_sid')
+        src_did = kwargs.get('source_did')
+        src_scid = kwargs.get('source_scid')
+        tar_sid = kwargs.get('target_sid')
+        tar_did = kwargs.get('target_did')
+        tar_scid = kwargs.get('target_scid')
+        src_oid = kwargs.get('source_oid')
+        tar_oid = kwargs.get('target_oid')
+        comp_status = kwargs.get('comp_status')
+
+        source_ddl = ''
+        target_ddl = ''
+        diff_ddl = ''
+
+        if comp_status == SchemaDiffRegistry.SOURCE_ONLY:
+            source_ddl = self.sql(gid=0, sid=src_sid, did=src_did,
+                                  scid=src_scid, doid=src_oid,
+                                  return_ajax_response=False)
+        elif comp_status == SchemaDiffRegistry.TARGET_ONLY:
+            target_ddl = self.sql(gid=0, sid=tar_sid, did=tar_did,
+                                  scid=tar_scid, doid=tar_oid,
+                                  return_ajax_response=False)
+        elif comp_status == SchemaDiffRegistry.DIFFERENT:
+            source_ddl = self.sql(gid=0, sid=src_sid, did=src_did,
+                                  scid=src_scid, doid=src_oid,
+                                  return_ajax_response=False)
+            target_ddl = self.sql(gid=0, sid=tar_sid, did=tar_did,
+                                  scid=tar_scid, doid=tar_oid,
+                                  return_ajax_response=False)
+            # TODO: Implement the DDL for the difference.
+        elif comp_status == SchemaDiffRegistry.IDENTICAL:
+            source_ddl = self.sql(gid=0, sid=src_sid, did=src_did,
+                                  scid=src_scid, doid=src_oid,
+                                  return_ajax_response=False)
+            target_ddl = self.sql(gid=0, sid=tar_sid, did=tar_did,
+                                  scid=tar_scid, doid=tar_oid,
+                                  return_ajax_response=False)
+
+        return source_ddl, target_ddl, diff_ddl
 
 
 SchemaDiffRegistry('Domains', DomainView)

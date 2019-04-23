@@ -64,6 +64,7 @@ class SchemaDiffModule(PgAdminModule):
             'schema_diff.schemas',
             'schema_diff.compare',
             'schema_diff.poll',
+            'schema_diff.ddl_compare'
         ]
 
 
@@ -313,18 +314,12 @@ def compare(trans_id, source_sid, source_did, source_scid,
 
             view = SchemaDiffRegistry.get_node_view(node_name)
             if hasattr(view, 'compare'):
-                import time
-                start = time.time()
                 res = view.compare(source_sid=source_sid,
                                    source_did=source_did,
                                    source_scid=source_scid,
                                    target_sid=target_sid,
                                    target_did=target_did,
                                    target_scid=target_scid)
-
-                end = time.time() - start
-                print("Total Time taken to compare ", node_name, " is: ",
-                      time.strftime("%H:%M:%S", time.gmtime(end)))
 
                 if res is not None:
                     comparison_result[node_name] = res
@@ -363,3 +358,42 @@ def poll(trans_id):
     msg, diff_percentage = diff_model_obj.get_comparison_info()
     return make_json_response(data={'compare_msg': msg,
                                     'diff_percentage': diff_percentage})
+
+
+@blueprint.route(
+    '/ddl_compare/<int:trans_id>/<int:source_sid>/<int:source_did>/'
+    '<int:source_scid>/<int:target_sid>/<int:target_did>/<int:target_scid>/'
+    '<int:source_oid>/<int:target_oid>/<node_type>/<comp_status>/',
+    methods=["GET"],
+    endpoint="ddl_compare"
+)
+@login_required
+def ddl_compare(trans_id, source_sid, source_did, source_scid,
+                target_sid, target_did, target_scid, source_oid,
+                target_oid, node_type, comp_status):
+    """
+    This function is used to compare the specified object and return the
+    DDL comparison.
+    """
+    # Check the transaction and connection status
+    status, error_msg, diff_model_obj, session_obj = \
+        check_transaction_status(trans_id)
+
+    if error_msg == gettext('Transaction ID not found in the session.'):
+        return make_json_response(success=0, errormsg=error_msg, status=404)
+
+    source_ddl = ''
+    target_ddl = ''
+    diff_ddl = ''
+    view = SchemaDiffRegistry.get_node_view(node_type)
+    if hasattr(view, 'get_ddl'):
+        source_ddl, target_ddl, diff_ddl = \
+            view.get_ddl(source_sid=source_sid, source_did=source_did,
+                         source_scid=source_scid, target_sid=target_sid,
+                         target_did=target_did, target_scid=target_scid,
+                         source_oid=source_oid, target_oid=target_oid,
+                         comp_status=comp_status)
+
+    return make_json_response(data={'source_ddl': source_ddl,
+                                    'target_ddl': target_ddl,
+                                    'diff_ddl': diff_ddl})

@@ -118,8 +118,8 @@ export default class SchemaDiffUI {
       .done(function () {
         // TODO: Following function is used to test the fetching of the schemas
         // this should be moved on database selection event.
-        // console.log('Servers:');
-        // console.log(res);
+        // console.warn('Servers:');
+        // console.warn(res);
       })
       .fail(function (xhr) {
         self.raise_error_on_fail(gettext('Databases fetch error'), xhr);
@@ -140,8 +140,8 @@ export default class SchemaDiffUI {
       .done(function () {
         // TODO: Following function is used to test the fetching of the schemas
         // this should be moved on database selection event.
-        // console.log('Databases:');
-        // console.log(res);
+        // console.warn('Databases:');
+        // console.warn(res);
       })
       .fail(function (xhr) {
         self.raise_error_on_fail(gettext('Databases fetch error'), xhr);
@@ -160,8 +160,8 @@ export default class SchemaDiffUI {
       contentType: 'application/json',
     })
       .done(function () {
-        // console.log('Schemas:');
-        // console.log(res);
+        // console.warn('Schemas:');
+        // console.warn(res);
         // TODO: function is used to test compare schema this should be
         // moved on compare button click.
       })
@@ -173,13 +173,15 @@ export default class SchemaDiffUI {
   compare_schemas() {
     // TODO: get the gid, sid, did, scid from source and target combo box
     // Below will be used for testing purpose.
-    var s_sid = 2, s_did = 13255, s_scid = 16393, t_sid = 2, t_did = 13255, t_scid = 16394;
+    var self = this;
+    self.s_sid = 2, self.s_did = 13255, self.s_scid = 16393,
+    self.t_sid = 2, self.t_did = 13255, self.t_scid = 16394;
   
-    var self = this,
-      url_params = {
-        'trans_id': self.trans_id, 'source_sid': s_sid,
-        'source_did': s_did, 'source_scid': s_scid,
-        'target_sid': t_sid, 'target_did': t_did, 'target_scid': t_scid,
+    var url_params = {
+        'trans_id': self.trans_id, 'source_sid': self.s_sid,
+        'source_did': self.s_did, 'source_scid': self.s_scid,
+        'target_sid': self.t_sid, 'target_did': self.t_did,
+        'target_scid': self.t_scid,
       },
       baseUrl = url_for('schema_diff.compare', url_params);
 
@@ -192,6 +194,19 @@ export default class SchemaDiffUI {
       .done(function (res) {
         self.stopDiffPoller();
         console.warn(res);
+
+        // TODO: Remove this code from here it is for testing DDL comparison
+        for (var key in res.data) {
+          for (var inner_key in res.data[key]) {
+            if (res.data[key][inner_key].status === 'source')
+              self.ddlCompare(res.data[key][inner_key].oid, 0, key, 'source')
+            else if (res.data[key][inner_key].status === 'target')
+              self.ddlCompare(0, res.data[key][inner_key].oid, key, 'target')
+            else if (res.data[key][inner_key].status === 'different')
+              self.ddlCompare(res.data[key][inner_key].source_oid,
+                res.data[key][inner_key].target_oid, key, 'different')
+          }
+        }
       })
       .fail(function (xhr) {
         self.raise_error_on_fail(gettext('Schema compare error'), xhr);
@@ -253,6 +268,32 @@ export default class SchemaDiffUI {
     $('#diff_fetching_data').find('.schema-diff-busy-text').text('');
     $('#diff_fetching_data').addClass('d-none');
 
+  }
+
+  ddlCompare(source_oid, target_oid, node_type, status) {
+    var self = this,
+      url_params = {
+        'trans_id': self.trans_id, 'source_sid': self.s_sid,
+        'source_did': self.s_did, 'source_scid': self.s_scid,
+        'target_sid': self.t_sid, 'target_did': self.t_did,
+        'target_scid': self.t_scid, 'source_oid': source_oid,
+        'target_oid': target_oid, 'node_type': node_type,
+        'comp_status': status,
+      },
+      baseUrl = url_for('schema_diff.ddl_compare', url_params);
+
+    return $.ajax({
+      url: baseUrl,
+      method: 'GET',
+      dataType: 'json',
+      contentType: 'application/json',
+    })
+      .done(function (res) {
+        console.warn(res);
+      })
+      .fail(function (xhr) {
+        self.raise_error_on_fail(gettext('ddlCompare fetch error'), xhr);
+      });
   }
 
   render() {

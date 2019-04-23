@@ -16,6 +16,11 @@ class SchemaDiffRegistry(object):
     """
     _registered_nodes = dict()
 
+    SOURCE_ONLY = 'source'
+    TARGET_ONLY = 'target'
+    DIFFERENT = 'different'
+    IDENTICAL = 'identical'
+
     def __init__(self, node_name, node_view):
         if node_name not in SchemaDiffRegistry._registered_nodes:
             SchemaDiffRegistry._registered_nodes[node_name] = node_view
@@ -43,6 +48,6 @@ class SchemaDiffRegistry(object):
         :param node_name: Name of the node ex: Database, Schema, etc..
         :return:
         """
-        cmd = {"cmd": "nodes, compare"}
+        cmd = {"cmd": "nodes, compare, get_ddl"}
         module = SchemaDiffRegistry.get_registered_nodes(node_name)
         return module(**cmd)
