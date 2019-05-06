@@ -1265,7 +1265,7 @@ define([
               newRow = self.grid.body.rows[idx].$el;
 
             newRow.addClass('new');
-            $(newRow).pgMakeVisible('backform-tab');
+            $(newRow).pgMakeBackgridVisible('.backform-tab');
 
             return false;
           }
@@ -1516,7 +1516,7 @@ define([
           newRow.attr('class', 'new').on('click',() => {
             $(this).attr('class', 'editable');
           });
-          $(newRow).pgMakeVisible('backform-tab');
+          $(newRow).pgMakeBackgridVisible('.backform-tab');
           return false;
         }
       });
@@ -2018,13 +2018,6 @@ define([
       if (!data.visible)
         this.$el.addClass(Backform.hiddenClassName);
 
-      // Dropdown body can be render at user given location
-      // If isDropdownParent flag is set to true then, By default we will
-      // display it on the control itself.
-      if (data.select2.isDropdownParent) {
-        select2Opts.dropdownParent = data.select2.dropdownParent || this.$el;
-      }
-
       this.$el.html(this.template(data)).addClass(field.name);
 
       var select2Opts = _.extend({
@@ -2032,6 +2025,13 @@ define([
       }, field.select2, {
         options: (this.field.get('options') || this.defaults.options),
       });
+
+      // Dropdown body can be render at user given location
+      // If isDropdownParent flag is set to true then, By default we will
+      // display it on the control itself.
+      if (data.select2.isDropdownParent) {
+        select2Opts.dropdownParent = data.select2.dropdownParent || this.$el;
+      }
 
       // If disabled then no need to show placeholder
       if (data.disabled || data.mode === 'properties') {
