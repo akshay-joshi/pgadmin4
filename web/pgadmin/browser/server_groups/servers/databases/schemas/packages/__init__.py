@@ -110,21 +110,8 @@ class PackageView(PGChildNodeView):
         'stats': [{'get': 'statistics'}, {'get': 'statistics'}],
         'dependency': [{'get': 'dependencies'}],
         'dependent': [{'get': 'dependents'}],
-        'module.js': [{}, {}, {'get': 'module_js'}],
         'compare': [{'get': 'compare'}, {'get': 'compare'}]
     })
-
-    def module_js(self):
-        """
-        This property defines whether javascript exists for this node.
-        """
-        return make_response(
-            render_template(
-                "package/js/package.js",
-                _=_
-            ),
-            200, {'Content-Type': 'application/x-javascript'}
-        )
 
     def check_precondition(action=None):
         """
@@ -152,7 +139,7 @@ class PackageView(PGChildNodeView):
                             "Connection to the server has been lost."
                         )
                     )
-                self.template_path = 'package/ppas/#{0}#'.format(
+                self.template_path = 'packages/ppas/#{0}#'.format(
                     self.manager.version)
 
                 SQL = render_template(

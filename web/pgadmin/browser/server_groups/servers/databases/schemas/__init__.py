@@ -238,7 +238,7 @@ class SchemaView(PGChildNodeView):
         self.manager = None
         self.conn = None
         self.template_path = None
-        self.template_initial = 'schema'
+        self.template_initial = 'schemas'
 
     @staticmethod
     def ppas_template_path(ver):

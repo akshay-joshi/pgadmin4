@@ -116,21 +116,8 @@ class SequenceView(PGChildNodeView):
         'stats': [{'get': 'statistics'}, {'get': 'statistics'}],
         'dependency': [{'get': 'dependencies'}],
         'dependent': [{'get': 'dependents'}],
-        'module.js': [{}, {}, {'get': 'module_js'}],
         'compare': [{'get': 'compare'}, {'get': 'compare'}]
     })
-
-    def module_js(self):
-        """
-        This property defines whether javascript exists for this node.
-        """
-        return make_response(
-            render_template(
-                "sequence/js/sequence.js",
-                _=_
-            ),
-            200, {'Content-Type': 'application/x-javascript'}
-        )
 
     def check_precondition(action=None):
         """
@@ -153,7 +140,7 @@ class SequenceView(PGChildNodeView):
                 else:
                     self.conn = self.manager.connection()
 
-                self.template_path = 'sequence/sql/#{0}#'.format(
+                self.template_path = 'sequences/sql/#{0}#'.format(
                     self.manager.version
                 )
                 self.acl = ['r', 'w', 'U']

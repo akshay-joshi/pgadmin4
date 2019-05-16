@@ -81,7 +81,7 @@ class TriggerModule(CollectionNodeModule):
             if 'vid' not in kwargs:
                 return True
 
-            template_path = 'trigger/sql/#{0}#'.format(manager.version)
+            template_path = 'triggers/sql/#{0}#'.format(manager.version)
             SQL = render_template("/".join(
                 [template_path, 'backend_support.sql']), vid=kwargs['vid']
             )
@@ -135,7 +135,7 @@ class TriggerModule(CollectionNodeModule):
         """
         snippets = [
             render_template(
-                "trigger/css/trigger.css",
+                "triggers/css/trigger.css",
                 node_type=self.node_type
             )
         ]
@@ -157,10 +157,6 @@ class TriggerView(PGChildNodeView):
     -------
     * __init__(**kwargs)
       - Method is used to initialize the TriggerView and it's base view.
-
-    * module_js()
-      - This property defines (if javascript) exists for this node.
-        Override this property for your own logic
 
     * check_precondition()
       - This function will behave as a decorator which will checks
@@ -251,7 +247,6 @@ class TriggerView(PGChildNodeView):
         'stats': [{'get': 'statistics'}],
         'dependency': [{'get': 'dependencies'}],
         'dependent': [{'get': 'dependents'}],
-        'module.js': [{}, {}, {'get': 'module_js'}],
         'get_triggerfunctions': [{'get': 'get_trigger_functions'},
                                  {'get': 'get_trigger_functions'}],
         'enable': [{'put': 'enable_disable_trigger'}]
@@ -281,11 +276,11 @@ class TriggerView(PGChildNodeView):
 
             # we will set template path for sql scripts
             self.table_template_path = compile_template_path(
-                'table/sql',
+                'tables/sql',
                 self.manager.server_type,
                 self.manager.version
             )
-            self.template_path = 'trigger/sql/#{0}#'.format(
+            self.template_path = 'triggersql/#{0}#'.format(
                 self.manager.version)
             # Store server type
             self.server_type = self.manager.server_type
