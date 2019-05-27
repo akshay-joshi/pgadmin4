@@ -24,7 +24,6 @@ from pgadmin.utils.ajax import make_json_response, bad_request, \
 from pgadmin.model import Server
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 from pgadmin.tools.schema_diff.model import SchemaDiffModel
-from pgadmin.browser.server_groups.servers import server_icon_and_background
 from config import PG_DEFAULT_DRIVER
 from pgadmin.utils.driver import get_driver
 
@@ -64,7 +63,9 @@ class SchemaDiffModule(PgAdminModule):
             'schema_diff.schemas',
             'schema_diff.compare',
             'schema_diff.poll',
-            'schema_diff.ddl_compare'
+            'schema_diff.ddl_compare',
+            'schema_diff.connect_server',
+            'schema_diff.connect_database',
         ]
 
 
@@ -219,17 +220,19 @@ def servers():
         """Return a JSON document listing the server groups for the user"""
         driver = get_driver(PG_DEFAULT_DRIVER)
 
+        from pgadmin.browser.server_groups.servers import server_icon_and_background
+
         for server in Server.query.filter_by(user_id=current_user.id):
             manager = driver.connection_manager(server.id)
             conn = manager.connection()
             connected = conn.connected()
 
             res.append({
-                "id": server.id,
-                "gid": server.servergroup_id,
+                "value": server.id,
                 "label": server.name,
-                "icon": server_icon_and_background(connected, manager, server),
+                "image": server_icon_and_background(connected, manager, server),
                 "_id": server.id,
+                "connected": connected,
             })
 
     except Exception as e:
@@ -239,33 +242,70 @@ def servers():
 
 
 @blueprint.route(
-    '/databases/<int:gid>/<int:sid>',
+    '/server/connect/<int:sid>',
+    methods=["POST"],
+    endpoint="connect_server"
+)
+@login_required
+def connect_server(sid):
+    server = Server.query.filter_by(id=sid).first()
+    view = SchemaDiffRegistry.get_node_view('server')
+    return view.connect(server.servergroup_id, sid)
+
+
+@blueprint.route(
+    '/database/connect/<int:sid>/<int:did>',
+    methods=["POST"],
+    endpoint="connect_database"
+)
+@login_required
+def connect_database(sid, did):
+    server = Server.query.filter_by(id=sid).first()
+    view = SchemaDiffRegistry.get_node_view('database')
+    return view.connect(server.servergroup_id, sid, did)
+
+
+@blueprint.route(
+    '/databases/<int:sid>',
     methods=["GET"],
     endpoint="databases"
 )
 @login_required
-def databases(gid, sid):
+def databases(sid):
     """
     This function will return the list of databases for the specified
     server id.
     """
-    res = None
+    res = []
     try:
         view = SchemaDiffRegistry.get_node_view('database')
-        res = view.nodes(gid=gid, sid=sid)
+
+        server = Server.query.filter_by(id=sid).first()
+        response = view.nodes(gid=server.servergroup_id, sid=sid)
+        databases = json.loads(response.data)['data']
+        for db in databases:
+            res.append({
+                "value": db['_id'],
+                "label": db['label'],
+                "_id": db['_id'],
+                "connected": db['connected'],
+                "allowConn": db['allowConn'],
+                "image": db['icon'],
+            })
+
     except Exception as e:
         app.logger.exception(e)
 
-    return res
+    return make_json_response(data=res)
 
 
 @blueprint.route(
-    '/schemas/<int:gid>/<int:sid>/<int:did>',
+    '/schemas/<int:sid>/<int:did>',
     methods=["GET"],
     endpoint="schemas"
 )
 @login_required
-def schemas(gid, sid, did):
+def schemas(sid, did):
     """
     This function will return the list of schemas for the specified
     server id and database id.
@@ -273,7 +313,8 @@ def schemas(gid, sid, did):
     res = None
     try:
         view = SchemaDiffRegistry.get_node_view('schema')
-        res = view.nodes(gid=gid, sid=sid, did=did)
+        server = Server.query.filter_by(id=sid).first()
+        res = view.nodes(gid=server.servergroup_id, sid=sid, did=did)
     except Exception as e:
         app.logger.exception(e)
 

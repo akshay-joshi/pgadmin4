@@ -26,6 +26,7 @@ import config
 from config import PG_DEFAULT_DRIVER
 from pgadmin.model import db, Server, ServerGroup, User
 from pgadmin.utils.driver import get_driver
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 
 def has_any(data, keys):
@@ -1574,4 +1575,5 @@ class ServerNode(PGChildNodeView):
         )
 
 
+SchemaDiffRegistry('server', ServerNode)
 ServerNode.register_node_view(blueprint)

@@ -54,7 +54,7 @@ define('pgadmin.schemadiff', [
       return this;
     },
     
-    // Callback to draw Backup Dialog for objects
+    // Callback to draw schema diff for objects
     show_schema_diff_tool: function() {
       var self = this,
         baseUrl = url_for('schema_diff.initialize', null);
