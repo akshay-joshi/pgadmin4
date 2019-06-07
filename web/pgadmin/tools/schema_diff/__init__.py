@@ -27,6 +27,7 @@ from pgadmin.tools.schema_diff.model import SchemaDiffModel
 from config import PG_DEFAULT_DRIVER
 from pgadmin.utils.driver import get_driver
 
+
 class SchemaDiffModule(PgAdminModule):
     """
     class SchemaDiffModule(PgAdminModule)
@@ -219,7 +220,8 @@ def servers():
         """Return a JSON document listing the server groups for the user"""
         driver = get_driver(PG_DEFAULT_DRIVER)
 
-        from pgadmin.browser.server_groups.servers import server_icon_and_background
+        from pgadmin.browser.server_groups.servers import\
+            server_icon_and_background
 
         for server in Server.query.filter_by(user_id=current_user.id):
             manager = driver.connection_manager(server.id)
@@ -229,7 +231,8 @@ def servers():
             res.append({
                 "value": server.id,
                 "label": server.name,
-                "image": server_icon_and_background(connected, manager, server),
+                "image": server_icon_and_background(connected, manager,
+                                                    server),
                 "_id": server.id,
                 "connected": connected,
             })

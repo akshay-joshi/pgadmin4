@@ -14,6 +14,7 @@ from pgadmin.tools.schema_diff.model import SchemaDiffModel
 
 count = 1
 
+
 def compare_dictionaries(source_dict, target_dict, node, ignore_keys=None):
     """
     This function will compare the two dictionaries.
@@ -44,7 +45,7 @@ def compare_dictionaries(source_dict, target_dict, node, ignore_keys=None):
             'oid': source_dict[item]['oid'],
             'status': SchemaDiffModel.COMPARISON_STATUS['source_only']
         })
-        count +=1
+        count += 1
 
     target_only = []
     # Keys that are available in target and missing in source.
@@ -57,7 +58,7 @@ def compare_dictionaries(source_dict, target_dict, node, ignore_keys=None):
             'oid': target_dict[item]['oid'],
             'status': SchemaDiffModel.COMPARISON_STATUS['target_only']
         })
-        count +=1
+        count += 1
 
     # Compare the values of duplicates keys.
     identical = []
@@ -91,7 +92,7 @@ def compare_dictionaries(source_dict, target_dict, node, ignore_keys=None):
                 'target_oid': target_dict[key]['oid'],
                 'status': SchemaDiffModel.COMPARISON_STATUS['different']
             })
-        count +=1
+        count += 1
 
     return source_only + target_only + different + identical
 

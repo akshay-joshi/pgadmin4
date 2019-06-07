@@ -296,6 +296,7 @@ def is_utility_exists(file):
                             u" Path in the Preferences dialog" % file)
     return error_msg
 
+
 # Shortcut configuration for Accesskey
 ACCESSKEY_FIELDS = [
     {

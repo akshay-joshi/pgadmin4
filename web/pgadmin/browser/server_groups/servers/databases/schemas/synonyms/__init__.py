@@ -781,6 +781,5 @@ class SynonymView(PGChildNodeView):
                                     self.node_type, ignore_keys)
 
 
-
 SchemaDiffRegistry('Synonyms', SynonymView)
 SynonymView.register_node_view(blueprint)

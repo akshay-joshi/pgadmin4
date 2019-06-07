@@ -1004,6 +1004,5 @@ class FtsConfigurationView(PGChildNodeView):
                                     ignore_keys)
 
 
-
 SchemaDiffRegistry('FTS Configurations', FtsConfigurationView)
 FtsConfigurationView.register_node_view(blueprint)

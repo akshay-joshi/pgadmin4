@@ -217,7 +217,6 @@ class FunctionView(PGChildNodeView, DataTypeReader):
         'compare': [{'get': 'compare'}, {'get': 'compare'}]
     })
 
-
     @property
     def required_args(self):
         """

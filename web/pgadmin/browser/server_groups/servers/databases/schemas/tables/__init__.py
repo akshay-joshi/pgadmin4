@@ -1627,7 +1627,6 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         return compare_dictionaries(source_tables, target_tables,
                                     self.node_type, ignore_keys)
 
-
     def remove_keys_for_comparision(self, data):
         """
         This function is used to

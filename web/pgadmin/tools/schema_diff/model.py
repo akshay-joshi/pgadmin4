@@ -18,7 +18,7 @@ class SchemaDiffModel(object):
         'target_only': 'Target Only',
         'different': 'Different',
         'identical': 'Identical'
-        }
+    }
 
     def __init__(self, **kwargs):
         """

@@ -932,6 +932,5 @@ class FtsDictionaryView(PGChildNodeView):
                                     ignore_keys)
 
 
-
 SchemaDiffRegistry('FTS Dictionaries', FtsDictionaryView)
 FtsDictionaryView.register_node_view(blueprint)
