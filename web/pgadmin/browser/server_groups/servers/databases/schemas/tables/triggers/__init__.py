@@ -22,8 +22,9 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
 from pgadmin.utils.compile_template_name import compile_template_path
-from pgadmin.utils import IS_PY2, compare_dictionaries
+from pgadmin.utils import IS_PY2
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
+from pgadmin.utils.directory_compare import compare_dictionaries
 
 # If we are in Python3
 if not IS_PY2:
@@ -280,7 +281,7 @@ class TriggerView(PGChildNodeView):
                 self.manager.server_type,
                 self.manager.version
             )
-            self.template_path = 'triggersql/#{0}#'.format(
+            self.template_path = 'triggers/sql/#{0}#'.format(
                 self.manager.version)
             # Store server type
             self.server_type = self.manager.server_type
@@ -1203,26 +1204,9 @@ class TriggerView(PGChildNodeView):
 
         ignore_keys = ['oid', 'xmin', 'nspname', 'tfunction', 'tgrelid',
                        'tgfoid']
-        source_only, target_only, different, identical \
-            = compare_dictionaries(source_triggers, target_triggers,
-                                   ignore_keys)
-
-        res = {key: {'oid': source_only[key]['oid'],
-                     'status': SchemaDiffRegistry.SOURCE_ONLY}
-               for key in source_only}
-        res.update({key: {'oid': target_only[key]['oid'],
-                          'status': SchemaDiffRegistry.TARGET_ONLY}
-                    for key in target_only})
-        res.update({key: {'source_oid': different[key][0]['oid'],
-                          'target_oid': different[key][1]['oid'],
-                          'status': SchemaDiffRegistry.DIFFERENT}
-                    for key in different})
-        res.update({key: {'source_oid': identical[key][0]['oid'],
-                          'target_oid': identical[key][1]['oid'],
-                          'status': SchemaDiffRegistry.IDENTICAL}
-                    for key in identical})
-
-        return res
+        return compare_dictionaries(source_triggers, target_triggers,
+                                    self.node_type,
+                                    ignore_keys)
 
 
 SchemaDiffRegistry('Triggers', TriggerView)

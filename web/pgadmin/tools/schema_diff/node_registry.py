@@ -16,11 +16,6 @@ class SchemaDiffRegistry(object):
     """
     _registered_nodes = dict()
 
-    SOURCE_ONLY = 'source'
-    TARGET_ONLY = 'target'
-    DIFFERENT = 'different'
-    IDENTICAL = 'identical'
-
     def __init__(self, node_name, node_view):
         if node_name not in SchemaDiffRegistry._registered_nodes:
             SchemaDiffRegistry._registered_nodes[node_name] = node_view

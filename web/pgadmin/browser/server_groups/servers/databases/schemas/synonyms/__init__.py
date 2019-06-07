@@ -23,8 +23,9 @@ from pgadmin.utils.ajax import make_json_response, \
 from pgadmin.utils.ajax import precondition_required
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
-from pgadmin.utils import IS_PY2, compare_dictionaries
+from pgadmin.utils import IS_PY2
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
+from pgadmin.utils.directory_compare import compare_dictionaries
 
 # If we are in Python3
 if not IS_PY2:
@@ -776,26 +777,9 @@ class SynonymView(PGChildNodeView):
             return None
 
         ignore_keys = ['oid', 'owner', 'schema']
-        source_only, target_only, different, identical \
-            = compare_dictionaries(source_synonyms, target_synonyms,
-                                   ignore_keys)
+        return compare_dictionaries(source_synonyms, target_synonyms,
+                                    self.node_type, ignore_keys)
 
-        res = {key: {'oid': source_only[key]['name'],
-                     'status': SchemaDiffRegistry.SOURCE_ONLY}
-               for key in source_only}
-        res.update({key: {'oid': target_only[key]['name'],
-                          'status': SchemaDiffRegistry.TARGET_ONLY}
-                    for key in target_only})
-        res.update({key: {'source_oid': different[key][0]['name'],
-                          'target_oid': different[key][1]['name'],
-                          'status': SchemaDiffRegistry.DIFFERENT}
-                    for key in different})
-        res.update({key: {'source_oid': identical[key][0]['name'],
-                          'target_oid': identical[key][1]['name'],
-                          'status': SchemaDiffRegistry.IDENTICAL}
-                    for key in identical})
-
-        return res
 
 
 SchemaDiffRegistry('Synonyms', SynonymView)

@@ -13,6 +13,13 @@ class SchemaDiffModel(object):
     SchemaDiffModel
     """
 
+    COMPARISON_STATUS = {
+        'source_only': 'Source Only',
+        'target_only': 'Target Only',
+        'different': 'Different',
+        'identical': 'Identical'
+        }
+
     def __init__(self, **kwargs):
         """
         This method is used to initialize the class and

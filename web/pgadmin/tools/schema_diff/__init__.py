@@ -27,7 +27,6 @@ from pgadmin.tools.schema_diff.model import SchemaDiffModel
 from config import PG_DEFAULT_DRIVER
 from pgadmin.utils.driver import get_driver
 
-
 class SchemaDiffModule(PgAdminModule):
     """
     class SchemaDiffModule(PgAdminModule)
@@ -310,15 +309,23 @@ def schemas(sid, did):
     This function will return the list of schemas for the specified
     server id and database id.
     """
-    res = None
+    res = []
     try:
         view = SchemaDiffRegistry.get_node_view('schema')
         server = Server.query.filter_by(id=sid).first()
-        res = view.nodes(gid=server.servergroup_id, sid=sid, did=did)
+        response = view.nodes(gid=server.servergroup_id, sid=sid, did=did)
+        schemas = json.loads(response.data)['data']
+        for sch in schemas:
+            res.append({
+                "value": sch['_id'],
+                "label": sch['label'],
+                "_id": sch['_id'],
+                "image": sch['icon'],
+            })
     except Exception as e:
         app.logger.exception(e)
 
-    return res
+    return make_json_response(data=res)
 
 
 @blueprint.route(
@@ -340,7 +347,7 @@ def compare(trans_id, source_sid, source_did, source_scid,
     if error_msg == gettext('Transaction ID not found in the session.'):
         return make_json_response(success=0, errormsg=error_msg, status=404)
 
-    comparison_result = dict()
+    comparison_result = []
     try:
         all_registered_nodes = SchemaDiffRegistry.get_registered_nodes()
         node_percent = round(100 / len(all_registered_nodes))
@@ -355,6 +362,7 @@ def compare(trans_id, source_sid, source_did, source_scid,
 
             view = SchemaDiffRegistry.get_node_view(node_name)
             if hasattr(view, 'compare'):
+                from datetime import datetime
                 res = view.compare(source_sid=source_sid,
                                    source_did=source_did,
                                    source_scid=source_scid,
@@ -363,7 +371,7 @@ def compare(trans_id, source_sid, source_did, source_scid,
                                    target_scid=target_scid)
 
                 if res is not None:
-                    comparison_result[node_name] = res
+                    comparison_result = comparison_result + res
             total_percent = total_percent + node_percent
 
         msg = "Successfully compare the specified schemas."

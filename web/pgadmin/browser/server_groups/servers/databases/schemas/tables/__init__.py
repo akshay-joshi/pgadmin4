@@ -22,8 +22,8 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from .utils import BaseTableView
 from pgadmin.utils.preferences import Preferences
-from pgadmin.utils import compare_dictionaries
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
+from pgadmin.utils.directory_compare import compare_dictionaries
 
 
 class TableModule(SchemaChildModule):
@@ -1587,6 +1587,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
 
         for row in tables['rows']:
             status, data = self._fetch_properties(did, scid, row['oid'])
+
             if status:
                 data = super(TableView, self).properties(
                     0, sid, did, scid, row['oid'], data, False
@@ -1614,35 +1615,18 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
 
         source_tables = self.fetch_tables(sid=src_sid, did=src_did,
                                           scid=src_scid)
+
         target_tables = self.fetch_tables(sid=tar_sid, did=tar_did,
                                           scid=tar_scid)
-
         # If both the dict have no items then return None.
         if len(source_tables) <= 0 and len(target_tables) <= 0:
             return None
 
         ignore_keys = ['oid', 'relowner', 'schema', 'vacuum_table',
                        'vacuum_toast']
-        source_only, target_only, different, identical \
-            = compare_dictionaries(source_tables, target_tables,
-                                   ignore_keys)
+        return compare_dictionaries(source_tables, target_tables,
+                                    self.node_type, ignore_keys)
 
-        res = {key: {'oid': source_only[key]['oid'],
-                     'status': SchemaDiffRegistry.SOURCE_ONLY}
-               for key in source_only}
-        res.update({key: {'oid': target_only[key]['oid'],
-                          'status': SchemaDiffRegistry.TARGET_ONLY}
-                    for key in target_only})
-        res.update({key: {'source_oid': different[key][0]['oid'],
-                          'target_oid': different[key][1]['oid'],
-                          'status': SchemaDiffRegistry.DIFFERENT}
-                    for key in different})
-        res.update({key: {'source_oid': identical[key][0]['oid'],
-                          'target_oid': identical[key][1]['oid'],
-                          'status': SchemaDiffRegistry.IDENTICAL}
-                    for key in identical})
-
-        return res
 
     def remove_keys_for_comparision(self, data):
         """

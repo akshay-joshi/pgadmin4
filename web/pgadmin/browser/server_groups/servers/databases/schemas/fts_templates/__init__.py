@@ -20,11 +20,12 @@ from pgadmin.browser.server_groups.servers.databases import DatabaseModule
 from pgadmin.browser.server_groups.servers.databases.schemas.utils import \
     SchemaChildModule
 from pgadmin.browser.utils import PGChildNodeView
-from pgadmin.utils import IS_PY2, compare_dictionaries
+from pgadmin.utils import IS_PY2
 from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.driver import get_driver
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
+from pgadmin.utils.directory_compare import compare_dictionaries
 
 # If we are in Python3
 if not IS_PY2:
@@ -812,26 +813,10 @@ class FtsTemplateView(PGChildNodeView):
             return None
 
         ignore_keys = ['oid', 'owner', 'schema']
-        source_only, target_only, different, identical \
-            = compare_dictionaries(source_fts_templates,
-                                   target_fts_templates, ignore_keys)
-
-        res = {key: {'oid': source_only[key]['oid'],
-                     'status': SchemaDiffRegistry.SOURCE_ONLY}
-               for key in source_only}
-        res.update({key: {'oid': target_only[key]['oid'],
-                          'status': SchemaDiffRegistry.TARGET_ONLY}
-                    for key in target_only})
-        res.update({key: {'source_oid': different[key][0]['oid'],
-                          'target_oid': different[key][1]['oid'],
-                          'status': SchemaDiffRegistry.DIFFERENT}
-                    for key in different})
-        res.update({key: {'source_oid': identical[key][0]['oid'],
-                          'target_oid': identical[key][1]['oid'],
-                          'status': SchemaDiffRegistry.IDENTICAL}
-                    for key in identical})
-
-        return res
+        return compare_dictionaries(source_fts_templates,
+                                    target_fts_templates,
+                                    self.node_type,
+                                    ignore_keys)
 
 
 SchemaDiffRegistry('FTS Templates', FtsTemplateView)

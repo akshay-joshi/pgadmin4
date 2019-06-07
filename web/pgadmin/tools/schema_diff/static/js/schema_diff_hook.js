@@ -32,9 +32,8 @@ define([
         });
       };
 
-      let schemaUi = new SchemaDiffUI($('.schema-diff-content'));
+      let schemaUi = new SchemaDiffUI($('.schema-diff-header'), trans_id);
       schemaUi.render();
-      schemaUi.test_compare_schema(trans_id);
     },
   };
 

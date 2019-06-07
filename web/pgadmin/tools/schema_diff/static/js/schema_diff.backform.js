@@ -89,7 +89,7 @@ let SchemaSelect2Control =
         this.field.get('connect').apply(this, [selVal, this.changeIcon.bind(this)]);
       } else {
         $(this.$sel).trigger('change');
-        setTimeout(function(){ this.onChange.apply(this); }.bind(this), 500);
+        setTimeout(function(){ this.onChange.apply(this); }.bind(this), 200);
       }
     },
     changeIcon: function(data) {
@@ -215,7 +215,7 @@ let SchemaSelect2Control =
   });
 
 
-let SchemaDiffForm = Backform.Form.extend({
+let SchemaDiffHeaderView = Backform.Form.extend({
   label: '',
   className: function() {
     return 'pg-el-sm-12 pg-el-md-12 pg-el-lg-12 pg-el-12';
@@ -230,21 +230,62 @@ let SchemaDiffForm = Backform.Form.extend({
   },
   template: _.template(`
     <div class="row pgadmin-control-group">
-      <div class="col-2 control-label">Select Source</div>
+      <div class="control-label">Select Source</div>
       <div class="col-6 source row"></div>
     </div>
     <div class="row pgadmin-control-group">
-      <div class="col-2 control-label">Select Target</div>
+      <div class="control-label">Select Target</div>
       <div class="col-6 target row"></div>
-      <div class="col-4">
+      <div class="col-5">
           <div class="action-btns d-flex">
               <button class="btn btn-primary mr-auto"><i class="icon-schema-diff-white"></i>&nbsp;Compare</button>
               <button class="btn btn-secondary mr-1"><i class="icon-script"></i>&nbsp;Generate Script</button>
-              <button class="btn btn-secondary"><i class="fa fa-filter"></i>&nbsp;Filter</button>
-          </div>
-        </div>
-    </div>
-  `),
+              <div class="btn-group mr-1" role="group" aria-label="">
+                <button id="btn-filter" type="button" class="btn btn-sm btn-secondary"
+                        title=""
+                        accesskey=""
+                        tabindex="0">
+                    <i class="fa fa-filter sql-icon-lg" aria-hidden="true">&nbsp;Filter</i>
+                </button>
+                <button id="btn-filter-dropdown" type="button" class="btn btn-sm btn-secondary dropdown-toggle dropdown-toggle-split"
+                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                        title=""
+                        accesskey=""
+                        tabindex="0">
+                </button>` +
+      [
+        '<ul class="dropdown-menu filter">',
+        '<li>',
+        '<a class="dropdown-item" id="btn-identical" href="#" tabindex="0">',
+        '<i class="identical fa fa-check" aria-hidden="true"></i>',
+        '<span> ' + gettext('Identical') + ' </span>',
+        '</a>',
+        '</li>',
+        '<li>',
+        '<a class="dropdown-item" id="btn-differentt" href="#" tabindex="0">',
+        '<i class="different fa fa-check" aria-hidden="true"></i>',
+        '<span> ' + gettext('Different') + ' </span>',
+        '</a>',
+        '</li>',
+        '<li>',
+        '<a class="dropdown-item" id="btn-source-only" href="#" tabindex="0">',
+        '<i class="source-only fa fa-check" aria-hidden="true"></i>',
+        '<span> ' + gettext('Source Only') + ' </span>',
+        '</a>',
+        '</li>',
+        '<li>',
+        '<a class="dropdown-item" id="btn-target-only" href="#" tabindex="0">',
+        '<i class="target-only fa fa-check" aria-hidden="true"></i>',
+        '<span> ' + gettext('Target Only') + ' </span>',
+        '</a>',
+        '</li>',
+        '</ul>',
+        '</div>',
+        '</div>',
+        '</div>',
+        '</div>',
+      ].join('\n')
+  ),
   render: function() {
     this.cleanup();
 
@@ -311,5 +352,5 @@ let SchemaDiffForm = Backform.Form.extend({
 
 export {
   SchemaSelect2Control,
-  SchemaDiffForm,
+  SchemaDiffHeaderView,
 };
