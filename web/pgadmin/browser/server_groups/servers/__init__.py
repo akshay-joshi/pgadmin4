@@ -26,6 +26,8 @@ import config
 from config import PG_DEFAULT_DRIVER
 from pgadmin.model import db, Server, ServerGroup, User
 from pgadmin.utils.driver import get_driver
+from pgadmin.utils.master_password import get_crypt_key
+from pgadmin.utils.exception import CryptKeyMissing
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 
 
@@ -118,9 +120,16 @@ class ServerModule(sg.ServerGroupPluginModule):
         driver = get_driver(PG_DEFAULT_DRIVER)
 
         for server in servers:
-            manager = driver.connection_manager(server.id)
-            conn = manager.connection()
-            connected = conn.connected()
+            connected = False
+            manager = None
+            try:
+                manager = driver.connection_manager(server.id)
+                conn = manager.connection()
+                connected = conn.connected()
+            except CryptKeyMissing:
+                # show the nodes at least even if not able to connect.
+                pass
+
             in_recovery = None
             wal_paused = None
 
@@ -724,6 +733,11 @@ class ServerNode(PGChildNodeView):
             request.data, encoding='utf-8'
         )
 
+        # Get enc key
+        crypt_key_present, crypt_key = get_crypt_key()
+        if not crypt_key_present:
+            raise CryptKeyMissing
+
         # Some fields can be provided with service file so they are optional
         if 'service' in data and not data['service']:
             required_args.extend([
@@ -808,7 +822,7 @@ class ServerNode(PGChildNodeView):
                     # login with password
                     have_password = True
                     password = data['password']
-                    password = encrypt(password, current_user.password)
+                    password = encrypt(password, crypt_key)
                 elif 'passfile' in data and data["passfile"] != '':
                     passfile = data['passfile']
                     setattr(server, 'passfile', passfile)
@@ -818,7 +832,7 @@ class ServerNode(PGChildNodeView):
                     have_tunnel_password = True
                     tunnel_password = data['tunnel_password']
                     tunnel_password = \
-                        encrypt(tunnel_password, current_user.password)
+                        encrypt(tunnel_password, crypt_key)
 
                 status, errmsg = conn.connect(
                     password=password,
@@ -999,6 +1013,11 @@ class ServerNode(PGChildNodeView):
         manager = get_driver(PG_DEFAULT_DRIVER).connection_manager(sid)
         conn = manager.connection()
 
+        # Get enc key
+        crypt_key_present, crypt_key = get_crypt_key()
+        if not crypt_key_present:
+            raise CryptKeyMissing
+
         # If server using SSH Tunnel
         if server.use_ssh_tunnel:
             if 'tunnel_password' not in data:
@@ -1015,12 +1034,12 @@ class ServerNode(PGChildNodeView):
                 # Encrypt the password before saving with user's login
                 # password key.
                 try:
-                    tunnel_password = encrypt(tunnel_password, user.password) \
+                    tunnel_password = encrypt(tunnel_password, crypt_key) \
                         if tunnel_password is not None else \
                         server.tunnel_password
                 except Exception as e:
                     current_app.logger.exception(e)
-                    return internal_server_error(errormsg=e.message)
+                    return internal_server_error(errormsg=str(e))
 
         if 'password' not in data:
             conn_passwd = getattr(conn, 'password', None)
@@ -1039,11 +1058,11 @@ class ServerNode(PGChildNodeView):
             # Encrypt the password before saving with user's login
             # password key.
             try:
-                password = encrypt(password, user.password) \
+                password = encrypt(password, crypt_key) \
                     if password is not None else server.password
             except Exception as e:
                 current_app.logger.exception(e)
-                return internal_server_error(errormsg=e.message)
+                return internal_server_error(errormsg=str(e))
 
         # Check do we need to prompt for the database server or ssh tunnel
         # password or both. Return the password template in case password is
@@ -1236,6 +1255,7 @@ class ServerNode(PGChildNodeView):
         """
         try:
             data = json.loads(request.form['data'], encoding='utf-8')
+            crypt_key = get_crypt_key()[1]
 
             # Fetch Server Details
             server = Server.query.filter_by(id=sid).first()
@@ -1293,7 +1313,7 @@ class ServerNode(PGChildNodeView):
 
             # Check against old password only if no pgpass file
             if not is_passfile:
-                decrypted_password = decrypt(manager.password, user.password)
+                decrypted_password = decrypt(manager.password, crypt_key)
 
                 if isinstance(decrypted_password, bytes):
                     decrypted_password = decrypted_password.decode()
@@ -1329,7 +1349,7 @@ class ServerNode(PGChildNodeView):
 
             # Store password in sqlite only if no pgpass file
             if not is_passfile:
-                password = encrypt(data['newPassword'], user.password)
+                password = encrypt(data['newPassword'], crypt_key)
                 # Check if old password was stored in pgadmin4 sqlite database.
                 # If yes then update that password.
                 if server.password is not None and config.ALLOW_SAVE_PASSWORD:
@@ -1473,6 +1493,7 @@ class ServerNode(PGChildNodeView):
 
     def get_response_for_password(self, server, status, prompt_password=False,
                                   prompt_tunnel_password=False, errmsg=None):
+
         if server.use_ssh_tunnel:
             return make_json_response(
                 success=0,
@@ -1499,7 +1520,7 @@ class ServerNode(PGChildNodeView):
                     server_label=server.name,
                     username=server.username,
                     errmsg=errmsg,
-                    _=gettext
+                    _=gettext,
                 )
             )
 
