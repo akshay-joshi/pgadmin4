@@ -14,6 +14,8 @@ import Alertify from 'pgadmin.alertifyjs';
 import Backform from 'pgadmin.backform';
 import Backbone from 'backbone';
 import Slick from 'sources/../bundle/slickgrid';
+import pgAdmin from 'sources/pgadmin';
+import {setPGCSRFToken} from 'sources/csrf';
 
 import {SchemaSelect2Control, SchemaDiffHeaderView} from './schema_diff.backform';
 
@@ -26,6 +28,9 @@ export default class SchemaDiffUI {
     this.sel_filters = ['Identical', 'Different', 'Source Only', 'Target Only'];
     this.dataView = null;
     this.grid = null;
+
+    setPGCSRFToken(pgAdmin.csrf_token_header, pgAdmin.csrf_token);
+
 
     this.model = new Backbone.Model({
       source_sid: undefined,
@@ -110,6 +115,7 @@ export default class SchemaDiffUI {
     var options = {
       enableCellNavigation: true,
       enableColumnReorder: false,
+      enableRowSelection: true,
     };
 
     // Grouping by Schema Object

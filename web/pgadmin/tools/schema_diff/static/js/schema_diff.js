@@ -8,9 +8,10 @@
 //////////////////////////////////////////////////////////////
 
 define('pgadmin.schemadiff', [
-  'sources/gettext', 'sources/url_for', 'jquery', 'underscore', 'sources/pgadmin', 'pgadmin.browser.node',
+  'sources/gettext', 'sources/url_for', 'jquery', 'underscore',
+   'sources/pgadmin', 'sources/csrf', 'pgadmin.browser.node',
 ], function(
-  gettext, url_for, $, _, pgAdmin
+  gettext, url_for, $, _, pgAdmin, csrfToken
 ) {
 
   var wcDocker = window.wcDocker;
@@ -26,6 +27,8 @@ define('pgadmin.schemadiff', [
         return;
 
       this.initialized = true;
+      csrfToken.setPGCSRFToken(pgAdmin.csrf_token_header, pgAdmin.csrf_token);
+
 
       // Define the nodes on which the menus to be appear
       var menus = [{

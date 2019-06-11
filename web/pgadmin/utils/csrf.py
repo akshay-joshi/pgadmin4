@@ -34,6 +34,7 @@ class _PGCSRFProtect(CSRFProtect):
             'pgadmin.tools.datagrid.panel',
             'pgadmin.tools.debugger.initialize_target',
             'pgadmin.tools.debugger.direct_new',
+            'pgadmin.tools.schema_diff.panel',
         ]
 
         for exempt in exempt_views:
