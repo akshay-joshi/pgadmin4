@@ -9,7 +9,7 @@
 
 define('pgadmin.schemadiff', [
   'sources/gettext', 'sources/url_for', 'jquery', 'underscore',
-   'sources/pgadmin', 'sources/csrf', 'pgadmin.browser.node',
+  'sources/pgadmin', 'sources/csrf', 'pgadmin.browser.node',
 ], function(
   gettext, url_for, $, _, pgAdmin, csrfToken
 ) {
