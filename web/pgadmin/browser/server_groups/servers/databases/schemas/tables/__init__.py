@@ -11,6 +11,7 @@
 
 import simplejson as json
 import re
+import copy
 
 import pgadmin.browser.server_groups.servers.databases as database
 from flask import render_template, request, jsonify, url_for
@@ -1823,6 +1824,10 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                                              'schema', 'columns']
             )
 
+            # Column comparison
+            col_diff = self.table_col_ddl_comp(source, target)
+            difference.update(col_diff)
+
             source = self.get_sql_from_table_diff(sid=src_sid, did=src_did,
                                                   scid=src_scid, tid=src_oid,
                                                   json_resp=False)
@@ -1841,7 +1846,50 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                       'diff_ddl': diff}
         )
 
-    def remove_keys_for_comparision(self, data, keys=None):
+    @staticmethod
+    def table_col_ddl_comp(source, target):
+        """
+        Table Column comparison
+        :param source: Source columns
+        :param target: Target columns
+        :return: Difference of the columns
+        """
+        source_cols = source['columns']
+        target_cols = copy.deepcopy(target['columns'])
+        added = []
+        updated = []
+        different = {'columns': {}}
+
+        for source in source_cols:
+            if 'name' in source:
+                if type(target_cols) is list and len(
+                        target_cols) > 0:
+                    tmp = None
+                    for item in target_cols:
+                        if item['name'] == source['name']:
+                            tmp = copy.deepcopy(item)
+                    if tmp and source != tmp:
+                        tmp_updated = copy.deepcopy(source)
+                        # Preserve the column number
+                        tmp_updated['attnum'] = tmp['attnum']
+                        updated.append(tmp_updated)
+                        target_cols.remove(tmp)
+                    elif tmp and source == tmp:
+                        target_cols.remove(tmp)
+                    elif tmp is None:
+                        added.append(source)
+                else:
+                    added.append(source)
+            different['columns']['added'] = added
+            different['columns']['changed'] = updated
+
+        if target_cols and len(target_cols) > 0:
+            different['columns']['deleted'] = target_cols
+
+        return different
+
+    @staticmethod
+    def remove_keys_for_comparision(data, keys=None):
         """
         This function is used to remove specific keys from data
         """

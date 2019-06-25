@@ -244,6 +244,8 @@ def directory_diff(source_dict, target_dict, ignore_keys=[]):
                 else:
                     deleted.append({key: tmp_target[key]})
                 different[key]['deleted'] = deleted
+            elif tmp_target and type(tmp_target) is list:
+                different[key]['deleted'] = tmp_target
 
         else:
             if source_dict[key] != target_dict[key]:
