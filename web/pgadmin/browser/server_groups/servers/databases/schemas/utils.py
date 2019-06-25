@@ -547,10 +547,10 @@ class VacuumSettings:
         * type - table/toast vacuum type
         """
 
-        vacuum_settings = self.fetch_default_vacuum_settings(
+        vacuum_settings_tmp = self.fetch_default_vacuum_settings(
             conn, self.manager.sid, type)
 
-        for row in vacuum_settings:
+        for row in vacuum_settings_tmp:
             row_name = row['name']
             if type is 'toast':
                 row_name = 'toast_{0}'.format(row['name'])
@@ -564,4 +564,4 @@ class VacuumSettings:
                 if 'value' in row:
                     row.pop('value')
 
-        return vacuum_settings
+        return vacuum_settings_tmp

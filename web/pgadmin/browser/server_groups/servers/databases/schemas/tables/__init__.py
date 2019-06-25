@@ -23,7 +23,9 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
 from .utils import BaseTableView
 from pgadmin.utils.preferences import Preferences
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.utils.directory_compare import compare_dictionaries
+from pgadmin.utils.directory_compare import compare_dictionaries,\
+    directory_diff
+from pgadmin.tools.schema_diff.model import SchemaDiffModel
 
 
 class TableModule(SchemaChildModule):
@@ -1292,6 +1294,59 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         return BaseTableView.reset_statistics(self, scid, tid)
 
     @BaseTableView.check_precondition
+    def get_sql_from_table_diff(self, **kwargs):
+        """
+        This function will create sql on the basis the difference of 2 tables
+        """
+        data = dict()
+        res = None
+        sid = kwargs['sid']
+        did = kwargs['did']
+        scid = kwargs['scid']
+        tid = kwargs['tid']
+        diff_data = kwargs['diff_data'] if 'diff_data' in kwargs else None
+        json_resp = kwargs['json_resp'] if 'json_resp' in kwargs else True
+        diff_scid = kwargs['diff_scid'] if 'diff_scid' in kwargs else None
+
+        if diff_data:
+            return self._fetch_sql(did, scid, tid, diff_data, json_resp)
+
+        else:
+            main_sql = []
+
+            SQL = render_template(
+                "/".join([self.table_template_path, 'properties.sql']),
+                did=did, scid=scid, tid=tid,
+                datlastsysoid=self.datlastsysoid
+            )
+            status, res = self.conn.execute_dict(SQL)
+            if not status:
+                return internal_server_error(errormsg=res)
+
+            if len(res['rows']) == 0:
+                return gone(gettext("The specified table could not be found."))
+
+            if status:
+                data = super(TableView, self).properties(
+                    0, sid, did, scid, tid, res, False
+                )
+            if diff_scid:
+                # Fetch schema name
+                status, schema_name = self.conn.execute_scalar(
+                    render_template(
+                        "/".join([self.table_template_path, 'get_schema.sql']),
+                        conn=self.conn, scid=diff_scid
+                    )
+                )
+                if not status:
+                    return internal_server_error(errormsg=schema_name)
+
+                data['schema'] = schema_name
+
+            return BaseTableView.get_reverse_engineered_sql(
+                self, did, scid, tid, main_sql, data, json_resp)
+
+    @BaseTableView.check_precondition
     def msql(self, gid, sid, did, scid, tid=None):
         """
         This function will create modified sql for table object
@@ -1305,6 +1360,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         """
         data = dict()
         res = None
+        SQL = ''
         for k, v in request.args.items():
             try:
                 # comments should be taken as is because if user enters a
@@ -1317,20 +1373,28 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                 data[k] = v
 
         if tid is not None:
-            SQL = render_template(
-                "/".join([self.table_template_path, 'properties.sql']),
-                did=did, scid=scid, tid=tid,
-                datlastsysoid=self.datlastsysoid
-            )
-            status, res = self.conn.execute_dict(SQL)
-            if not status:
-                return internal_server_error(errormsg=res)
+            return self._fetch_sql(did, scid, tid, data)
+
+    def _fetch_sql(self, did, scid, tid, data, json_resp=True):
+        SQL = render_template(
+            "/".join([self.table_template_path, 'properties.sql']),
+            did=did, scid=scid, tid=tid,
+            datlastsysoid=self.datlastsysoid
+        )
+        status, res = self.conn.execute_dict(SQL)
+        if not status:
+            return internal_server_error(errormsg=SQL)
 
         SQL, name = self.get_sql(did, scid, tid, data, res)
         SQL = re.sub('\n{2,}', '\n\n', SQL)
         SQL = SQL.strip('\n')
+
+        if not json_resp:
+            return SQL
+
         if SQL == '':
             SQL = "--modified SQL"
+
         return make_json_response(
             data=SQL,
             status=200
@@ -1626,7 +1690,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         )
 
     @BaseTableView.check_precondition
-    def fetch_tables(self, sid, did, scid):
+    def fetch_tables(self, sid, did, scid, tid=None, keys_to_remove=None):
         """
         This function will fetch the list of all the tables for
         specified schema id.
@@ -1634,27 +1698,39 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         :param sid: Server Id
         :param did: Database Id
         :param scid: Schema Id
+        :param tid: Table Id
         :return:
         """
-        res = dict()
-        SQL = render_template("/".join([self.table_template_path,
-                                        'nodes.sql']), scid=scid)
-        status, tables = self.conn.execute_2darray(SQL)
-        if not status:
-            return internal_server_error(errormsg=tables)
-
-        for row in tables['rows']:
-            status, data = self._fetch_properties(did, scid, row['oid'])
+        if tid:
+            status, data = self._fetch_properties(did, scid, tid)
 
             if status:
                 data = super(TableView, self).properties(
-                    0, sid, did, scid, row['oid'], data, False
+                    0, sid, did, scid, tid, data, False
                 )
+                self.remove_keys_for_comparision(data, keys_to_remove)
+                return data
 
-                self.remove_keys_for_comparision(data)
-                res[row['name']] = data
+        else:
+            res = dict()
+            SQL = render_template("/".join([self.table_template_path,
+                                            'nodes.sql']), scid=scid)
+            status, tables = self.conn.execute_2darray(SQL)
+            if not status:
+                return internal_server_error(errormsg=tables)
 
-        return res
+            for row in tables['rows']:
+                status, data = self._fetch_properties(did, scid, row['oid'])
+
+                if status:
+                    data = super(TableView, self).properties(
+                        0, sid, did, scid, row['oid'], data, False
+                    )
+
+                    self.remove_keys_for_comparision(data, keys_to_remove)
+                    res[row['name']] = data
+
+            return res
 
     def compare(self, **kwargs):
         """
@@ -1685,70 +1761,111 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         return compare_dictionaries(source_tables, target_tables,
                                     self.node_type, ignore_keys)
 
-    def remove_keys_for_comparision(self, data):
+    def ddl_compare(self, **kwargs):
         """
-        This function is used to
-        :param scid: Schema ID
-        :param data:
-        :return:
+        This function will compare 2 table properties and return the
+        source DDL, target DDL and Difference of them
         """
-        if 'columns' in data and len(data['columns']) > 0:
-            for col in data['columns']:
-                # Remove keys that should not be the part of comparision.
-                if 'relname' in col:
-                    col.pop('relname')
-                if 'nspname' in col:
-                    col.pop('nspname')
-                if 'parent_tbl' in col:
-                    col.pop('parent_tbl')
-                if 'edit_types' in col:
-                    col.pop('edit_types')
-                if 'attrelid' in col:
-                    col.pop('attrelid')
 
-        if 'primary_key' in data and data['primary_key'] is not None and \
-                len(data['primary_key']) > 0:
-            for pkey in data['primary_key']:
-                # Remove keys that should not be the part of comparision.
-                if 'oid' in pkey:
-                    pkey.pop('oid')
+        src_sid = kwargs.get('source_sid')
+        src_did = kwargs.get('source_did')
+        src_scid = kwargs.get('source_scid')
+        src_oid = kwargs.get('source_oid')
+        tar_sid = kwargs.get('target_sid')
+        tar_did = kwargs.get('target_did')
+        tar_scid = kwargs.get('target_scid')
+        tar_oid = kwargs.get('target_oid')
+        comp_status = kwargs.get('comp_status')
 
-        if 'unique_constraint' in data and \
-                data['unique_constraint'] is not None and \
-                len(data['unique_constraint']) > 0:
-            for ukey in data['unique_constraint']:
-                # Remove keys that should not be the part of comparision.
-                ukey.pop('oid')
+        source = ''
+        target = ''
+        diff = ''
+        keys = {
+            'columns': ['relname', 'nspname', 'parent_tbl', 'attrelid',
+                        'edit_types'],
+            'primary_key': ['oid'],
+            'unique_constraint': ['oid'],
+            'check_constraint': ['oid', 'nspname'],
+            'foreign_key': ['oid', 'fknsp', 'confrelid'],
+            'exclude_constraint': ['oid'],
+            'partitions': ['oid']
+        }
 
-        if 'check_constraint' in data and \
-                data['check_constraint'] is not None and \
-                len(data['check_constraint']) > 0:
-            for ckey in data['check_constraint']:
-                # Remove keys that should not be the part of comparision.
-                if 'oid' in ckey:
-                    ckey.pop('oid')
-                if 'nspname' in ckey:
-                    ckey.pop('nspname')
+        if comp_status == SchemaDiffModel.COMPARISON_STATUS['source_only']:
+            source = self.get_sql_from_table_diff(sid=src_sid, did=src_did,
+                                                  scid=src_scid, tid=src_oid,
+                                                  json_resp=False)
+            diff = self.get_sql_from_table_diff(sid=src_sid, did=src_did,
+                                                scid=src_scid, tid=src_oid,
+                                                diff_scid=tar_scid,
+                                                json_resp=False)
 
-        if 'foreign_key' in data and data['foreign_key'] is not None \
-                and len(data['foreign_key']) > 0:
-            for fkey in data['foreign_key']:
-                # Remove keys that should not be the part of comparision.
-                if 'oid' in fkey:
-                    fkey.pop('oid')
-                if 'fknsp' in fkey:
-                    fkey.pop('fknsp')
-                if 'confrelid' in fkey:
-                    fkey.pop('confrelid')
+        elif comp_status == SchemaDiffModel.COMPARISON_STATUS['target_only']:
+            target = self.get_sql_from_table_diff(sid=tar_sid, did=tar_did,
+                                                  scid=tar_scid, tid=tar_oid,
+                                                  json_resp=False)
 
-        if 'exclude_constraint' in data and \
-                data['exclude_constraint'] is not None and \
-                len(data['exclude_constraint']) > 0:
-            for ekey in data['exclude_constraint']:
-                # Remove keys that should not be the part of comparision.
-                if 'oid' in ekey:
-                    ekey.pop('oid')
+            diff = self.get_sql_from_table_diff(sid=tar_sid, did=tar_did,
+                                                scid=tar_scid, tid=tar_oid,
+                                                diff_scid=src_scid,
+                                                json_resp=False)
+
+        elif comp_status == SchemaDiffModel.COMPARISON_STATUS['different']:
+            source = self.fetch_tables(sid=src_sid, did=src_did,
+                                       scid=src_scid, tid=src_oid,
+                                       keys_to_remove=keys)
+            target = self.fetch_tables(sid=tar_sid, did=tar_did,
+                                       scid=tar_scid, tid=tar_oid,
+                                       keys_to_remove=keys)
+
+            difference = directory_diff(
+                source, target, ignore_keys=['oid', 'relowner',
+                                             'schema', 'columns']
+            )
+
+            source = self.get_sql_from_table_diff(sid=src_sid, did=src_did,
+                                                  scid=src_scid, tid=src_oid,
+                                                  json_resp=False)
+            target = self.get_sql_from_table_diff(sid=tar_sid, did=tar_did,
+                                                  scid=tar_scid, tid=tar_oid,
+                                                  json_resp=False)
+            diff = self.get_sql_from_table_diff(sid=tar_sid, did=tar_did,
+                                                scid=tar_scid, tid=tar_oid,
+                                                diff_data=difference,
+                                                json_resp=False)
+
+        return ajax_response(
+            status=200,
+            response={'source_ddl': source,
+                      'target_ddl': target,
+                      'diff_ddl': diff}
+        )
+
+    def remove_keys_for_comparision(self, data, keys=None):
+        """
+        This function is used to remove specific keys from data
+        """
+
+        keys_to_remove = keys if keys else {
+            'columns': ['relname', 'nspname', 'parent_tbl', 'edit_types',
+                        'attrelid'],
+            'primary_key': ['oid'],
+            'unique_constraint': ['oid'],
+            'check_constraint': ['oid', 'nspname'],
+            'foreign_key': ['oid', 'fknsp', 'confrelid'],
+            'exclude_constraint': ['oid'],
+            'partitions': ['oid']
+        }
+
+        for p_key, p_val in keys_to_remove.items():
+            if p_key in data and data[p_key] is not None \
+                    and len(data[p_key]) > 0:
+                for item in data[p_key]:
+                    # Remove keys that should not be the part of comparision.
+                    for key in p_val:
+                        if key in item:
+                            item.pop(key)
 
 
-SchemaDiffRegistry('Tables', TableView)
+SchemaDiffRegistry('table', TableView)
 TableView.register_node_view(blueprint)

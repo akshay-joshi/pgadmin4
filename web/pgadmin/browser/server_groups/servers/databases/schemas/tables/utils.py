@@ -10,6 +10,7 @@
 """ Implements Utility class for Table and Partitioned Table. """
 
 import re
+import copy
 from functools import wraps
 import simplejson as json
 from flask import render_template, jsonify, request
@@ -598,8 +599,10 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 data[row['deftype']] = [priv]
 
         # We will add Auto vacuum defaults with out result for grid
-        data['vacuum_table'] = self.parse_vacuum_data(self.conn, data, 'table')
-        data['vacuum_toast'] = self.parse_vacuum_data(self.conn, data, 'toast')
+        data['vacuum_table'] = copy.deepcopy(
+            self.parse_vacuum_data(self.conn, data, 'table'))
+        data['vacuum_toast'] = copy.deepcopy(
+            self.parse_vacuum_data(self.conn, data, 'toast'))
 
         # Fetch columns for the table logic
         #
@@ -834,7 +837,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             status=200
         )
 
-    def get_reverse_engineered_sql(self, did, scid, tid, main_sql, data):
+    def get_reverse_engineered_sql(self, did, scid, tid, main_sql, data,
+                                   json_resp=True):
         """
         This function will creates reverse engineered sql for
         the table object
@@ -1155,6 +1159,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
         sql = '\n'.join(main_sql)
 
+        if not json_resp:
+            return sql
         return ajax_response(response=sql.strip('\n'))
 
     def reset_statistics(self, scid, tid):
@@ -1900,7 +1906,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                             conn=self.conn).strip('\n') + '\n\n'
 
                 # If partition(s) is/are added
-                if 'added' in partitions:
+                if 'added' in partitions and 'partition_scheme' in old_data\
+                        and old_data['partition_scheme'] != '':
                     temp_data = dict()
                     temp_data['schema'] = data['schema']
                     temp_data['name'] = data['name']

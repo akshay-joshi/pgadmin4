@@ -98,7 +98,7 @@ COMMENT ON COLUMN {{conn|qtIdent(data.schema, data.table, o_data.name)}}
 
 {% endif %}
 {### Update column variables ###}
-{% if 'attoptions' in data and data.attoptions|length > 0 %}
+{% if 'attoptions' in data and data.attoptions and data.attoptions|length > 0 %}
 {% set variables = data.attoptions %}
 {% if 'deleted' in variables and variables.deleted|length > 0 %}
 ALTER TABLE {{conn|qtIdent(data.schema, data.table)}}

@@ -32,7 +32,7 @@ define([
         });
       };
 
-      let schemaUi = new SchemaDiffUI($('.schema-diff-header'), trans_id);
+      let schemaUi = new SchemaDiffUI($('#schema-diff-container'), trans_id);
       schemaUi.render();
     },
   };

@@ -734,7 +734,7 @@ define([
     },
   });
 
-  Backform.Accordian = Backform.Dialog.extend({
+  Backform.Accordian   = Backform.Dialog.extend({
     className: function() {
       return 'set-group pg-el-12';
     },

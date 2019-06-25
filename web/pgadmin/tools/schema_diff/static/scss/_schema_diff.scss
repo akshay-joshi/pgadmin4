@@ -6,7 +6,7 @@
   bottom: 0;
 }
 
-.schema-diff-header {
+#schema-diff-header {
   background: $negative-bg;
 }
 
@@ -61,7 +61,6 @@
   border-top: none;
 }
 
-
 #schema-diff-grid .different {
   background-color: $schemadiff-diff-row-color !important;
 }
@@ -72,3 +71,13 @@
   background-color: $schemadiff-target-row-color !important;
 }
 
+#schema-diff-grid .slick-row.active {
+    background-color: $table-bg-selected !important;
+}
+
+#schema-diff-ddl-comp {
+  position: absolute;
+  width: 99%;
+  bottom: 10px;
+  background-color: $color-bg !important;
+}

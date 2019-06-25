@@ -17,7 +17,8 @@ import Slick from 'sources/../bundle/slickgrid';
 import pgAdmin from 'sources/pgadmin';
 import {setPGCSRFToken} from 'sources/csrf';
 
-import {SchemaSelect2Control, SchemaDiffHeaderView} from './schema_diff.backform';
+import {SchemaDiffSelect2Control, SchemaDiffHeaderView,
+  SchemaDiffFooterView, SchemaDiffSqlControl} from './schema_diff.backform';
 
 export default class SchemaDiffUI {
   constructor(container, trans_id) {
@@ -29,9 +30,6 @@ export default class SchemaDiffUI {
     this.dataView = null;
     this.grid = null;
 
-    setPGCSRFToken(pgAdmin.csrf_token_header, pgAdmin.csrf_token);
-
-
     this.model = new Backbone.Model({
       source_sid: undefined,
       source_did: undefined,
@@ -39,7 +37,12 @@ export default class SchemaDiffUI {
       target_sid: undefined,
       target_did: undefined,
       target_scid: undefined,
+      source_ddl: undefined,
+      target_ddl: undefined,
+      diff_ddl: undefined,
     });
+
+    setPGCSRFToken(pgAdmin.csrf_token_header, pgAdmin.csrf_token);
   }
 
   raise_error_on_fail(alert_title, xhr) {
@@ -181,10 +184,25 @@ export default class SchemaDiffUI {
       'height': grid_height + 'px',
     });
 
-    grid = new Slick.Grid($data_grid, self.dataView, columns, options);
+    grid = this.grid = new Slick.Grid($data_grid, self.dataView, columns, options);
     grid.registerPlugin(groupItemMetadataProvider);
     grid.setSelectionModel(new Slick.RowSelectionModel({selectActiveRow: false}));
     grid.registerPlugin(checkboxSelector);
+
+    grid.onClick.subscribe(function(e, args) {
+      if (args.row) {
+        data = args.grid.getData().getItem(args.row);
+        this.ddlCompare(data);
+      }
+    }.bind(self));
+
+    $('#schema-diff-grid').on('keyup', function() {
+      if ((event.keyCode == 38 || event.keyCode ==40) && this.grid.getActiveCell().row) {
+        data = this.grid.getData().getItem(this.grid.getActiveCell().row);
+        this.ddlCompare(data);
+      }
+    }.bind(self));
+
 
     self.dataView.beginUpdate();
     self.dataView.setItems(data);
@@ -231,41 +249,47 @@ export default class SchemaDiffUI {
 
   }
 
-  ddlCompare(source_oid, target_oid, node_type, status) {
+  ddlCompare(data) {
     var self = this,
-      url_params = {
-        'trans_id': self.trans_id, 'source_sid': self.s_sid,
-        'source_did': self.s_did, 'source_scid': self.s_scid,
-        'target_sid': self.t_sid, 'target_did': self.t_did,
-        'target_scid': self.t_scid, 'source_oid': source_oid,
-        'target_oid': target_oid, 'node_type': node_type,
-        'comp_status': status,
-      },
-      baseUrl = url_for('schema_diff.ddl_compare', url_params);
+      node_type = data.type,
+      source_oid = data.oid,
+      target_oid = data.oid,
+      url_params = self.model.toJSON();
 
-    return $.ajax({
-      url: baseUrl,
-      method: 'GET',
-      dataType: 'json',
-      contentType: 'application/json',
-    })
-      .done(function (res) {
-        console.warn(res);
-      })
-      .fail(function (xhr) {
-        self.raise_error_on_fail(gettext('ddlCompare fetch error'), xhr);
-      });
+    if(data.status.toLowerCase() == 'different') {
+      target_oid = data.target_oid;
+    }
+
+    url_params['trans_id'] = self.trans_id;
+    url_params['source_oid'] = source_oid;
+    url_params['target_oid'] = target_oid;
+    url_params['comp_status'] = data.status;
+    url_params['node_type'] = node_type;
+
+    _.each(url_params, function(key, val) {
+      url_params[key] = parseInt(val, 10);
+    });
+
+
+    var baseUrl = url_for('schema_diff.ddl_compare', url_params);
+    self.model.url = baseUrl;
+
+    self.model.fetch({
+      success: function() {
+        self.footer.render();
+      },
+    });
   }
 
   render() {
     let self = this;
 
     self.header  = new SchemaDiffHeaderView({
-      el: self.$container,
+      el: self.$container.find('#schema-diff-header'),
       model: this.model,
       fields: [{
         name: 'source_sid', label: false,
-        control: SchemaSelect2Control,
+        control: SchemaDiffSelect2Control,
         url: url_for('schema_diff.servers'),
         select2: {
           allowClear: true,
@@ -282,7 +306,7 @@ export default class SchemaDiffUI {
         name: 'source_did',
         group: 'source',
         deps: ['source_sid'],
-        control: SchemaSelect2Control,
+        control: SchemaDiffSelect2Control,
         url: function() {
           return url_for('schema_diff.databases', {'sid': this.get('source_sid')});
         },
@@ -300,7 +324,7 @@ export default class SchemaDiffUI {
         },
       }, {
         name: 'source_scid',
-        control: SchemaSelect2Control,
+        control: SchemaDiffSelect2Control,
         group: 'source',
         deps: ['source_sid', 'source_did'],
         url: function() {
@@ -317,7 +341,7 @@ export default class SchemaDiffUI {
         },
       }, {
         name: 'target_sid', label: false,
-        control: SchemaSelect2Control.extend({
+        control: SchemaDiffSelect2Control.extend({
           onSelect: function () {
             if(this.$el.find('option:selected').attr('data-connected') !== 'true') {
               self.connect_server(this.$el.find('select').val());
@@ -338,7 +362,7 @@ export default class SchemaDiffUI {
         },
       }, {
         name: 'target_did',
-        control: SchemaSelect2Control.extend({
+        control: SchemaDiffSelect2Control.extend({
           onSelect: function () {
             if(this.$el.find('option:selected').attr('data-connected') !== 'true') {
               self.connect_database(this.model.get('target_sid'), this.$el.find('select').val());
@@ -365,7 +389,7 @@ export default class SchemaDiffUI {
         },
       }, {
         name: 'target_scid',
-        control: SchemaSelect2Control,
+        control: SchemaDiffSelect2Control,
         group: 'target',
         deps: ['target_sid', 'target_did'],
         url: function() {
@@ -383,12 +407,32 @@ export default class SchemaDiffUI {
       }],
     });
 
-  
+
+    self.footer  = new SchemaDiffFooterView({
+      el: self.$container.find('#schema-diff-ddl-comp'),
+      model: this.model,
+      fields: [{
+        name: 'source_ddl', label: false,
+        control: SchemaDiffSqlControl,
+        group: 'ddl-source',
+      }, {
+        name: 'target_ddl', label: false,
+        control: SchemaDiffSqlControl,
+        group: 'ddl-target',
+      }, {
+        name: 'diff_ddl', label: false,
+        control: SchemaDiffSqlControl,
+        group: 'ddl-diff',
+      }],
+    });
+
     self.header.render();
 
     self.header.$el.find('button.btn-primary').on('click', self.compare_schemas.bind(self));
 
     self.header.$el.find('ul.filter a.dropdown-item').on('click', self.refresh_filters.bind(self));
+
+    self.footer.render();
 
   }
 

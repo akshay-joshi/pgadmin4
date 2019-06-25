@@ -41,7 +41,7 @@
   display: none !important;
 }
 
-.schema-diff-header .control-label {
+#schema-diff-header .control-label {
   min-width: 120px !important;
 }
 
@@ -121,4 +121,35 @@
 .slick-group-toggle {
   margin-right: 0px !important;
   height: 11px !important;
+}
+
+#schema-diff-ddl-comp .badge .caret {
+    display: inline-block;
+    margin-left: 2px;
+    margin-right: 4px;
+    width: 0.7rem;
+}
+
+#schema-diff-ddl-comp .badge .caret::before {
+  font-family: "FontAwesome";
+  content: "\f078";
+  font-size: 0.7rem;
+  margin-left: 0rem;
+}
+
+#schema-diff-ddl-comp .badge {
+  font-size: inherit;
+  padding: 7px;
+}
+#schema-diff-ddl-comp #ddl_comp {
+  border-top: 1px solid #dde0e6 !important;
+}
+
+#schema-diff-ddl-comp .accordian-group {
+  padding: 0px;
+}
+
+
+#schema-diff-ddl-comp .sql_field_layout {
+  max-height: 145px;
 }

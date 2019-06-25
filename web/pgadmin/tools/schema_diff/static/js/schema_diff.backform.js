@@ -30,8 +30,23 @@ var formatNode = function (opt) {
   }
 };
 
+let SchemaDiffSqlControl =
+  Backform.SqlFieldControl.extend({
+    template: _.template([
+      '<div class="pgadmin-controls pg-el-9 pg-el-12 sql_field_layout <%=extraClasses.join(\' \')%>">',
+      '  <textarea ',
+      '    class="<%=Backform.controlClassName%> " name="<%=name%>"',
+      '    maxlength="<%=maxlength%>" placeholder="<%-placeholder%>" <%=disabled ? "disabled" : ""%>',
+      '    rows=<%=rows%>',
+      '    <%=required ? "required" : ""%>><%-value%></textarea>',
+      '  <% if (helpMessage && helpMessage.length) { %>',
+      '    <span class="<%=Backform.helpMessageClassName%>"><%=helpMessage%></span>',
+      '  <% } %>',
+      '</div>',
+    ].join('\n')),
+  });
 
-let SchemaSelect2Control =
+let SchemaDiffSelect2Control =
   Backform.Select2Control.extend({
     defaults: _.extend(Backform.Select2Control.prototype.defaults, {
       url: undefined,
@@ -349,8 +364,82 @@ let SchemaDiffHeaderView = Backform.Form.extend({
   },
 });
 
+let SchemaDiffFooterView = Backform.Form.extend({
+  className: function() {
+    return 'set-group pg-el-12';
+  },
+  tabPanelClassName: function() {
+    return Backform.tabClassName;
+  },
+  legendClass: 'badge',
+  contentClass: Backform.accordianContentClassName + ' collapse show',
+  template: {
+    'header': _.template([
+      '<div class="<%=Backform.accordianGroupClassName%>">',
+      '  <div class="<%=legendClass%>" data-toggle="collapse" data-target="#ddl_comp"><span class=\'caret\'></span>DDL Comparison</legend>',
+      '</div>',
+    ].join('\n')),
+    'content': _.template(`
+       <div id="ddl_comp" class="<%=contentClass%>">
+       <div class="pg-el-sm-12 row">
+                  <div class="pg-el-sm-4 ddl-source">Source</div>
+                  <div class="pg-el-sm-4 ddl-target">Target</div>
+                  <div class="pg-el-sm-4 ddl-diff">Difference</div>
+              </div>
+      </div>
+    `),
+  },
+  initialize: function(opts) {
+    this.label = opts.label;
+    Backform.Form.prototype.initialize.apply(this, arguments);
+  },
+  render: function() {
+    this.cleanup();
 
+    var m = this.model,
+      $el = this.$el,
+      tmpl = this.template,
+      controls = this.controls,
+      data = {
+        'className': _.result(this, 'className'),
+        'legendClass': _.result(this, 'legendClass'),
+        'contentClass': _.result(this, 'contentClass'),
+        'collapse': _.result(this, 'collapse'),
+      },
+      idx = (this.tabIndex * 100);
+
+    this.$el.empty();
+
+    var h = $((tmpl['header'])(data)).appendTo($el),
+      el = $((tmpl['content'])(data)).appendTo(h);
+
+    this.fields.each(function(f) {
+      var cntr = new(f.get('control'))({
+        field: f,
+        model: m,
+        dialog: self,
+        tabIndex: idx,
+        name: f.get('name'),
+      });
+
+      if (f.get('group') && f.get('group') == 'ddl-source') {
+        el.find('.ddl-source').append(cntr.render().$el);
+      }
+      else if (f.get('group') && f.get('group') == 'ddl-target') {
+        el.find('.ddl-target').append(cntr.render().$el);
+      }
+      else {
+        el.find('.ddl-diff').append(cntr.render().$el);
+      }
+      controls.push(cntr);
+    });
+
+    return this;
+  },
+});
 export {
-  SchemaSelect2Control,
+  SchemaDiffSelect2Control,
   SchemaDiffHeaderView,
+  SchemaDiffFooterView,
+  SchemaDiffSqlControl,
 };

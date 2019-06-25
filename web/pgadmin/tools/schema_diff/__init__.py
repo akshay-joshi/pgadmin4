@@ -438,14 +438,9 @@ def ddl_compare(trans_id, source_sid, source_did, source_scid,
     target_ddl = ''
     diff_ddl = ''
     view = SchemaDiffRegistry.get_node_view(node_type)
-    if hasattr(view, 'get_ddl'):
-        source_ddl, target_ddl, diff_ddl = \
-            view.get_ddl(source_sid=source_sid, source_did=source_did,
-                         source_scid=source_scid, target_sid=target_sid,
-                         target_did=target_did, target_scid=target_scid,
-                         source_oid=source_oid, target_oid=target_oid,
-                         comp_status=comp_status)
-
-    return make_json_response(data={'source_ddl': source_ddl,
-                                    'target_ddl': target_ddl,
-                                    'diff_ddl': diff_ddl})
+    if hasattr(view, 'ddl_compare'):
+        return view.ddl_compare(source_sid=source_sid, source_did=source_did,
+                                source_scid=source_scid, target_sid=target_sid,
+                                target_did=target_did, target_scid=target_scid,
+                                source_oid=source_oid, target_oid=target_oid,
+                                comp_status=comp_status)
