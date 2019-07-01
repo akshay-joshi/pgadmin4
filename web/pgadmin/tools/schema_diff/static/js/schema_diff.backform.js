@@ -251,7 +251,7 @@ let SchemaDiffHeaderView = Backform.Form.extend({
     <div class="row pgadmin-control-group">
       <div class="control-label">Select Target</div>
       <div class="col-6 target row"></div>
-      <div class="col-5">
+      <div class="col-4">
           <div class="action-btns d-flex">
               <button class="btn btn-primary mr-auto"><i class="icon-schema-diff-white"></i>&nbsp;Compare</button>
               <button class="btn btn-secondary mr-1"><i class="icon-script"></i>&nbsp;Generate Script</button>

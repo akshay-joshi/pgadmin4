@@ -11,7 +11,6 @@ import url_for from 'sources/url_for';
 import $ from 'jquery';
 import gettext from 'sources/gettext';
 import Alertify from 'pgadmin.alertifyjs';
-import Backform from 'pgadmin.backform';
 import Backbone from 'backbone';
 import Slick from 'sources/../bundle/slickgrid';
 import pgAdmin from 'sources/pgadmin';
@@ -308,7 +307,9 @@ export default class SchemaDiffUI {
         deps: ['source_sid'],
         control: SchemaDiffSelect2Control,
         url: function() {
-          return url_for('schema_diff.databases', {'sid': this.get('source_sid')});
+          if (this.get('source_sid'))
+            return url_for('schema_diff.databases', {'sid': this.get('source_sid')});
+          return false;
         },
         select2: {
           allowClear: true,
@@ -328,7 +329,9 @@ export default class SchemaDiffUI {
         group: 'source',
         deps: ['source_sid', 'source_did'],
         url: function() {
-          return url_for('schema_diff.schemas', {'sid': this.get('source_sid'), 'did': this.get('source_did')});
+          if (this.get('source_sid') && this.get('source_did'))
+            return url_for('schema_diff.schemas', {'sid': this.get('source_sid'), 'did': this.get('source_did')});
+          return false;
         },
         select2: {
           allowClear: true,
@@ -341,14 +344,8 @@ export default class SchemaDiffUI {
         },
       }, {
         name: 'target_sid', label: false,
-        control: SchemaDiffSelect2Control.extend({
-          onSelect: function () {
-            if(this.$el.find('option:selected').attr('data-connected') !== 'true') {
-              self.connect_server(this.$el.find('select').val());
-            }
-            return Backform.Select2Control.prototype.onSelect.apply(this, arguments);
-          },
-        }), group: 'target',
+        control: SchemaDiffSelect2Control,
+        group: 'target',
         url: url_for('schema_diff.servers'),
         select2: {
           allowClear: true,
@@ -362,18 +359,13 @@ export default class SchemaDiffUI {
         },
       }, {
         name: 'target_did',
-        control: SchemaDiffSelect2Control.extend({
-          onSelect: function () {
-            if(this.$el.find('option:selected').attr('data-connected') !== 'true') {
-              self.connect_database(this.model.get('target_sid'), this.$el.find('select').val());
-            }
-            return Backform.Select2Control.prototype.onSelect.apply(this, arguments);
-          },
-        }),
+        control: SchemaDiffSelect2Control,
         group: 'target',
         deps: ['target_sid'],
         url: function() {
-          return url_for('schema_diff.databases', {'sid': this.get('target_sid')});
+          if (this.get('target_sid'))
+            return url_for('schema_diff.databases', {'sid': this.get('target_sid')});
+          return false;
         },
         select2: {
           allowClear: true,
@@ -393,7 +385,9 @@ export default class SchemaDiffUI {
         group: 'target',
         deps: ['target_sid', 'target_did'],
         url: function() {
-          return url_for('schema_diff.schemas', {'sid': this.get('target_sid'), 'did': this.get('target_did')});
+          if (this.get('target_sid') && this.get('target_did'))
+            return url_for('schema_diff.schemas', {'sid': this.get('target_sid'), 'did': this.get('target_did')});
+          return false;
         },
         select2: {
           allowClear: true,
@@ -471,18 +465,20 @@ export default class SchemaDiffUI {
 
   connect_server(server_id, callback) {
     var  onFailure = function(
-        xhr, status, error
+        xhr, status, error, server_id, callback
       ) {
         Alertify.pgNotifier('error', xhr, error, function(msg) {
           setTimeout(function() {
             Alertify.dlgServerPass(
               gettext('Connect to Server'),
-              msg
+              msg,
+              server_id,
+              callback
             ).resizeTo();
           }, 100);
         });
       },
-      onSuccess = function(res) {
+      onSuccess = function(res, callback) {
         if (res && res.data) {
           // We're not reconnecting
           callback(res.data);
@@ -495,10 +491,12 @@ export default class SchemaDiffUI {
       Alertify.dialog('dlgServerPass', function factory() {
         return {
           main: function(
-            title, message, _onSuccess, _onFailure, _onCancel
+            title, message, server_id, success_callback, _onSuccess, _onFailure, _onCancel
           ) {
             this.set('title', title);
             this.message = message;
+            this.server_id = server_id;
+            this.success_callback = success_callback;
             this.onSuccess = _onSuccess || onSuccess;
             this.onFailure = _onFailure || onFailure;
             this.onCancel = _onCancel || onCancel;
@@ -524,11 +522,12 @@ export default class SchemaDiffUI {
           callback: function(closeEvent) {
             var _onFailure = this.onFailure,
               _onSuccess = this.onSuccess,
-              _onCancel = this.onCancel;
+              _onCancel = this.onCancel,
+              _success_callback = this.success_callback;
 
             if (closeEvent.button.text == gettext('OK')) {
 
-              var _url = url_for('schema_diff.connect_server', {'sid': server_id});
+              var _url = url_for('schema_diff.connect_server', {'sid': this.server_id});
 
               $.ajax({
                 type: 'POST',
@@ -538,12 +537,12 @@ export default class SchemaDiffUI {
               })
                 .done(function(res) {
                   if (res.success == 1) {
-                    return _onSuccess(res);
+                    return _onSuccess(res, _success_callback);
                   }
                 })
                 .fail(function(xhr, status, error) {
                   return _onFailure(
-                    xhr, status, error
+                    xhr, status, error, this.server_id, _success_callback
                   );
                 });
             } else {
@@ -568,7 +567,7 @@ export default class SchemaDiffUI {
       })
       .fail(function(xhr, status, error) {
         return onFailure(
-          xhr, status, error
+          xhr, status, error, server_id, callback
         );
       });
   }
