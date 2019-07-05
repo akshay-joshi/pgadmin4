@@ -36,6 +36,7 @@ define('tools.querytool', [
   'sources/sqleditor/call_render_after_poll',
   'sources/sqleditor/query_tool_preferences',
   'sources/csrf',
+  'tools/datagrid/static/js/datagrid_panel_title',
   'sources/../bundle/slickgrid',
   'pgadmin.file_manager',
   'backgrid.sizeable.columns',
@@ -50,7 +51,7 @@ define('tools.querytool', [
   XCellSelectionModel, setStagedRows, SqlEditorUtils, ExecuteQuery, httpErrorHandler, FilterHandler,
   GeometryViewer, historyColl, queryHist,
   keyboardShortcuts, queryToolActions, queryToolNotifications, Datagrid,
-  modifyAnimation, calculateQueryRunTime, callRenderAfterPoll, queryToolPref, csrfToken) {
+  modifyAnimation, calculateQueryRunTime, callRenderAfterPoll, queryToolPref, csrfToken, panelTitleFunc) {
   /* Return back, this has been called more than once */
   if (pgAdmin.SqlEditor)
     return pgAdmin.SqlEditor;
@@ -80,6 +81,7 @@ define('tools.querytool', [
       this.handler.preferences = this.preferences;
       this.connIntervalId = null;
       this.layout = opts.layout;
+      this.set_server_version(opts.server_ver);
     },
 
     // Bind all the events
@@ -120,6 +122,8 @@ define('tools.querytool', [
       'click #btn-explain-costs': 'on_explain_costs',
       'click #btn-explain-buffers': 'on_explain_buffers',
       'click #btn-explain-timing': 'on_explain_timing',
+      'click #btn-explain-summary': 'on_explain_summary',
+      'click #btn-explain-settings': 'on_explain_settings',
       'change .limit': 'on_limit_change',
       'keydown': 'keyAction',
       // Comment options
@@ -163,6 +167,22 @@ define('tools.querytool', [
       docker.addPanel('explain', wcDocker.DOCK.STACKED, data_output_panel);
       docker.addPanel('messages', wcDocker.DOCK.STACKED, data_output_panel);
       docker.addPanel('notifications', wcDocker.DOCK.STACKED, data_output_panel);
+    },
+
+    set_server_version: function(server_ver) {
+      let self = this;
+      self.server_ver = server_ver;
+
+      this.$el.find('*[data-min-ver]').map(function() {
+        let minVer = 0,
+          ele = $(this);
+        minVer = parseInt(ele.attr('data-min-ver'));
+        if(minVer > self.server_ver) {
+          ele.addClass('d-none');
+        } else {
+          ele.removeClass('d-none');
+        }
+      });
     },
 
     // This function is used to render the template.
@@ -340,7 +360,36 @@ define('tools.querytool', [
         gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
         extraKeys: pgBrowser.editor_shortcut_keys,
         scrollbarStyle: 'simple',
+        dragDrop: false,
       });
+
+      if(self.handler.is_query_tool) {
+        self.query_tool_obj.setOption('dragDrop', true);
+        self.query_tool_obj.on('drop', (editor, e) => {
+          /* Stop firefox from redirecting */
+          if(e.preventDefault) {
+            e.preventDefault();
+          }
+          if (e.stopPropagation) {
+            e.stopPropagation();
+          }
+          var cursor = editor.coordsChar({
+            left: e.x,
+            top: e.y,
+          });
+          var dropDetails = JSON.parse(e.dataTransfer.getData('text'));
+          e.codemirrorIgnore = true;
+          editor.replaceRange(dropDetails.text, cursor);
+          editor.focus();
+          editor.setSelection({
+            ...cursor,
+            ch: cursor.ch + dropDetails.cur.from,
+          },{
+            ...cursor,
+            ch: cursor.ch +dropDetails.cur.to,
+          });
+        });
+      }
 
       pgBrowser.Events.on('pgadmin:query_tool:sql_panel:focus', ()=>{
         self.query_tool_obj.focus();
@@ -560,8 +609,6 @@ define('tools.querytool', [
         };
       });
 
-      pgBrowser.bind_beforeunload();
-
       /* If the screen width is small and we hover over the Explain Options,
         * the submenu goes behind the screen on the right side.
         * Below logic will make it appear on the left.
@@ -607,6 +654,7 @@ define('tools.querytool', [
        * instead, a poller is set up who will check
        */
       if(self.preferences.new_browser_tab) {
+        pgBrowser.bind_beforeunload();
         setInterval(()=>{
           if(window.opener.pgAdmin) {
             self.reflectPreferences();
@@ -1832,6 +1880,31 @@ define('tools.querytool', [
       );
     },
 
+    on_explain_summary: function(ev) {
+      var self = this;
+
+      this._stopEventPropogation(ev);
+
+      self.handler.trigger(
+        'pgadmin-sqleditor:button:explain-summary',
+        self,
+        self.handler
+      );
+    },
+
+    on_explain_settings: function(ev) {
+      var self = this;
+
+      this._stopEventPropogation(ev);
+
+      self.handler.trigger(
+        'pgadmin-sqleditor:button:explain-settings',
+        self,
+        self.handler
+      );
+    },
+
+
     do_not_close_menu: function(ev) {
       ev.stopPropagation();
     },
@@ -2094,7 +2167,7 @@ define('tools.querytool', [
        * header and loading icon and start execution of the sql query.
        */
       start: function(transId, is_query_tool, editor_title, script_type_url,
-        server_type, url_params, layout
+        server_type, url_params, layout, server_ver
       ) {
         var self = this;
 
@@ -2117,6 +2190,7 @@ define('tools.querytool', [
           el: self.container,
           handler: self,
           layout: layout,
+          server_ver: server_ver,
         });
         self.transId = self.gridView.transId = transId;
 
@@ -2210,6 +2284,8 @@ define('tools.querytool', [
         self.on('pgadmin-sqleditor:button:explain-costs', self._explain_costs, self);
         self.on('pgadmin-sqleditor:button:explain-buffers', self._explain_buffers, self);
         self.on('pgadmin-sqleditor:button:explain-timing', self._explain_timing, self);
+        self.on('pgadmin-sqleditor:button:explain-summary', self._explain_summary, self);
+        self.on('pgadmin-sqleditor:button:explain-settings', self._explain_settings, self);
         // Indentation related
         self.on('pgadmin-sqleditor:indent_selected_code', self._indent_selected_code, self);
         self.on('pgadmin-sqleditor:unindent_selected_code', self._unindent_selected_code, self);
@@ -3046,7 +3122,7 @@ define('tools.querytool', [
       },
 
       // Set panel title.
-      setTitle: function(title, unsafe) {
+      setTitle: function(title, is_file) {
         var self = this;
 
         if (self.preferences.new_browser_tab) {
@@ -3054,10 +3130,7 @@ define('tools.querytool', [
         } else {
           _.each(window.top.pgAdmin.Browser.docker.findPanels('frm_datagrid'), function(p) {
             if (p.isVisible()) {
-              if(unsafe) {
-                title = _.escape(title);
-              }
-              p.title(title);
+              panelTitleFunc.setQueryToolDockerTitle(p, self.is_query_tool, title, is_file);
             }
           });
         }
@@ -3868,108 +3941,37 @@ define('tools.querytool', [
 
       },
 
-      explainPreferenceUpdate:  function(subItem, data, caller) {
-        let self = this;
-        $.ajax({
-          url: url_for('sqleditor.query_tool_preferences', {
-            'trans_id': self.transId,
-          }),
-          method: 'PUT',
-          contentType: 'application/json',
-          data: JSON.stringify(data),
-        })
-          .done(function(res) {
-            if (res.success == undefined || !res.success) {
-              alertify.alert(gettext('Explain options error'),
-                gettext('Error occurred while setting %(subItem)s option in explain.',
-                  {subItem : subItem})
-              );
-            }
-            else
-              self.call_cache_preferences();
-          })
-          .fail(function(e) {
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, caller, [], true
-            );
-            alertify.alert(gettext('Explain options error'), msg);
-          });
+      _toggle_explain_option: function(type) {
+        let selector = `.explain-${type}`;
+        $(selector).toggleClass('visibility-hidden');
       },
 
       // This function will toggle "verbose" option in explain
       _explain_verbose: function() {
-        var self = this;
-        let explain_verbose = false;
-        if ($('.explain-verbose').hasClass('visibility-hidden') === true) {
-          $('.explain-verbose').removeClass('visibility-hidden');
-          explain_verbose = true;
-        } else {
-          $('.explain-verbose').addClass('visibility-hidden');
-          explain_verbose = false;
-        }
-
-        self.explainPreferenceUpdate(
-          'verbose', {
-            'explain_verbose': explain_verbose,
-          }, '_explain_verbose'
-        );
+        this._toggle_explain_option('verbose');
       },
 
       // This function will toggle "costs" option in explain
       _explain_costs: function() {
-        var self = this;
-        let explain_costs = false;
-        if ($('.explain-costs').hasClass('visibility-hidden') === true) {
-          $('.explain-costs').removeClass('visibility-hidden');
-          explain_costs = true;
-        } else {
-          $('.explain-costs').addClass('visibility-hidden');
-          explain_costs = false;
-        }
-
-        self.explainPreferenceUpdate(
-          'costs', {
-            'explain_costs': explain_costs,
-          }, '_explain_costs'
-        );
+        this._toggle_explain_option('costs');
       },
 
       // This function will toggle "buffers" option in explain
       _explain_buffers: function() {
-        var self = this;
-        let explain_buffers = false;
-        if ($('.explain-buffers').hasClass('visibility-hidden') === true) {
-          $('.explain-buffers').removeClass('visibility-hidden');
-          explain_buffers = true;
-        } else {
-          $('.explain-buffers').addClass('visibility-hidden');
-          explain_buffers = false;
-        }
-
-        self.explainPreferenceUpdate(
-          'buffers', {
-            'explain_buffers': explain_buffers,
-          }, '_explain_buffers'
-        );
+        this._toggle_explain_option('buffers');
       },
 
       // This function will toggle "timing" option in explain
       _explain_timing: function() {
-        var self = this;
-        let explain_timing = false;
-        if ($('.explain-timing').hasClass('visibility-hidden') === true) {
-          $('.explain-timing').removeClass('visibility-hidden');
-          explain_timing = true;
-        } else {
-          $('.explain-timing').addClass('visibility-hidden');
-          explain_timing = false;
-        }
+        this._toggle_explain_option('timing');
+      },
 
-        self.explainPreferenceUpdate(
-          'timing', {
-            'explain_timing': explain_timing,
-          }, '_explain_timing'
-        );
+      _explain_summary: function() {
+        this._toggle_explain_option('summary');
+      },
+
+      _explain_settings: function() {
+        this._toggle_explain_option('settings');
       },
 
       /*

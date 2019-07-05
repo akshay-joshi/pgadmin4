@@ -30,6 +30,8 @@ from pgadmin.utils.driver import get_driver
 from pgadmin.utils.exception import ConnectionLost, SSHTunnelConnectionLost
 from pgadmin.utils.preferences import Preferences
 from pgadmin.settings import get_setting
+from pgadmin.browser.utils import underscore_escape
+
 
 query_tool_close_session_lock = Lock()
 
@@ -232,6 +234,11 @@ def panel(trans_id, is_query_tool, editor_title):
     else:
         server_type = None
 
+    if request.args and 'server_ver' in request.args:
+        server_ver = request.args['server_ver']
+    else:
+        server_ver = 0
+
     # If title has slash(es) in it then replace it
     if request.args and request.args['fslashes'] != '':
         try:
@@ -304,11 +311,12 @@ def panel(trans_id, is_query_tool, editor_title):
         _=gettext,
         uniqueId=trans_id,
         is_query_tool=is_query_tool,
-        editor_title=editor_title,
+        editor_title=underscore_escape(editor_title),
         script_type_url=sURL,
         is_desktop_mode=app.PGADMIN_RUNTIME,
         is_linux=is_linux_platform,
         server_type=server_type,
+        server_ver=server_ver,
         client_platform=user_agent.platform,
         bgcolor=bgcolor,
         fgcolor=fgcolor,
@@ -406,7 +414,8 @@ def initialize_query_tool(sgid, sid, did=None):
 
     return make_json_response(
         data={
-            'gridTransId': trans_id
+            'gridTransId': trans_id,
+            'serverVersion': manager.version,
         }
     )
 

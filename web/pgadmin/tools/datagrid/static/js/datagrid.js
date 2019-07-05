@@ -13,10 +13,10 @@ define('pgadmin.datagrid', [
   'sources/sqleditor_utils', 'backbone',
   'tools/datagrid/static/js/show_data',
   'tools/datagrid/static/js/show_query_tool', 'pgadmin.browser.toolbar',
-  'wcdocker',
+  'tools/datagrid/static/js/datagrid_panel_title', 'wcdocker',
 ], function(
   gettext, url_for, $, _, alertify, pgAdmin, codemirror, sqlEditorUtils,
-  Backbone, showData, showQueryTool, toolBar
+  Backbone, showData, showQueryTool, toolBar, panelTitleFunc
 ) {
   // Some scripts do export their object in the window only.
   // Generally the one, which do no have AMD support.
@@ -263,21 +263,7 @@ define('pgadmin.datagrid', [
       launch_grid: function(trans_obj) {
         var self = this,
           panel_title = trans_obj.panel_title,
-          grid_title = trans_obj.panel_title,
-          panel_icon = '',
-          panel_tooltip = '';
-
-        if (trans_obj.is_query_tool == 'false') {
-          // Edit grid titles
-          panel_tooltip = gettext('View/Edit Data - ') + grid_title;
-          panel_title = grid_title;
-          panel_icon = 'fa fa-table';
-        } else {
-          // Query tool titles
-          panel_tooltip = gettext('Query Tool - ') + grid_title;
-          panel_title = grid_title;
-          panel_icon = 'fa fa-bolt';
-        }
+          grid_title = trans_obj.panel_title;
 
         // Open the panel if frame is initialized
         let titileForURLObj = sqlEditorUtils.removeSlashInTheString(grid_title);
@@ -289,6 +275,7 @@ define('pgadmin.datagrid', [
           baseUrl = url_for('datagrid.panel', url_params) +
             '?' + 'query_url=' + encodeURI(trans_obj.sURL) +
             '&server_type=' + encodeURIComponent(trans_obj.server_type) +
+            '&server_ver=' + trans_obj.serverVersion+
             '&fslashes=' + titileForURLObj.slashLocations;
 
         if (self.preferences.new_browser_tab) {
@@ -297,12 +284,6 @@ define('pgadmin.datagrid', [
           // add a load listener to the window so that the title gets changed on page load
           newWin.addEventListener('load', function() {
             newWin.document.title = panel_title;
-
-            /* Set the initial version of pref cache the new window is having
-             * This will be used by the poller to compare with window openers
-             * pref cache version
-             */
-            //newWin.pgAdmin.Browser.preference_version(pgBrowser.preference_version());
           });
 
         } else {
@@ -313,8 +294,7 @@ define('pgadmin.datagrid', [
           var queryToolPanel = pgBrowser.docker.addPanel('frm_datagrid', wcDocker.DOCK.STACKED, propertiesPanel[0]);
 
           // Set panel title and icon
-          queryToolPanel.title('<span title="'+panel_tooltip+'">'+panel_title+'</span>');
-          queryToolPanel.icon(panel_icon);
+          panelTitleFunc.setQueryToolDockerTitle(queryToolPanel, trans_obj.is_query_tool, panel_title);
           queryToolPanel.focus();
 
           // Listen on the panel closed event.
