@@ -1204,10 +1204,8 @@ class TriggerView(PGChildNodeView):
 
         ignore_keys = ['oid', 'xmin', 'nspname', 'tfunction', 'tgrelid',
                        'tgfoid']
+
         return compare_dictionaries(source_triggers, target_triggers,
                                     self.node_type,
-                                    ignore_keys)
-
-
-SchemaDiffRegistry('Triggers', TriggerView)
-TriggerView.register_node_view(blueprint)
+                                    ignore_keys,
+                                    'table')

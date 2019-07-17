@@ -21,6 +21,7 @@ def compare_dictionaries(source_dict, target_dict, node, ignore_keys=None):
 
     :param source_dict: First Dictionary
     :param target_dict: Second Dictionary
+    :param node: node type
     :param ignore_keys: List of keys that will be ignored while comparing
     :return:
     """
@@ -164,7 +165,7 @@ def are_dictionaries_identical(source_dict, target_dict):
     return True
 
 
-def directory_diff(source_dict, target_dict, ignore_keys=[]):
+def directory_diff(source_dict, target_dict, ignore_keys=[], difference={}):
     """
     This function is used to recursively compare two dictionaries and
     return the difference.
@@ -182,8 +183,6 @@ def directory_diff(source_dict, target_dict, ignore_keys=[]):
     # Keys that are available in target and missing in source.
     tar_only = tar_keys - src_keys
 
-    different = {}
-
     for key in source_dict.keys():
         added = []
         deleted = []
@@ -196,14 +195,15 @@ def directory_diff(source_dict, target_dict, ignore_keys=[]):
         elif key in tar_only:
             target_only[key] = target_dict[key]
             # Target only values in deleted list
-            different[key]['deleted'] = target_dict[key]
+            difference[key]['deleted'] = target_dict[key]
         elif key in src_only:
             # Source only values in the newly added list
             if type(source_dict[key]) is list:
-                different[key] = {}
-                different[key]['added'] = source_dict[key]
+                difference[key] = {}
+                difference[key]['added'] = source_dict[key]
         elif type(source_dict[key]) is dict:
-            directory_diff(source_dict[key], target_dict[key])
+            directory_diff(source_dict[key], target_dict[key],
+                           ignore_keys, difference)
         elif type(source_dict[key]) is list:
             tmp_target = None
             for index in range(len(source_dict[key])):
@@ -212,13 +212,16 @@ def directory_diff(source_dict, target_dict, ignore_keys=[]):
                     # TODO
                     pass
                 elif type(source) is dict:
-                    if 'name' in source:
+                    if 'name' in source or 'colname' in source:
                         if type(target_dict[key]) is list and len(
                                 target_dict[key]) > 0:
                             tmp = None
                             tmp_target = copy.deepcopy(target_dict[key])
                             for item in tmp_target:
-                                if item['name'] == source['name']:
+                                if ('name ' in item and item['name'] == source['name']) or (
+                                        'colname' in item and
+                                        item['colname'] == source['colname']
+                                ):
                                     tmp = copy.deepcopy(item)
                             if tmp and source != tmp:
                                 updated.append(copy.deepcopy(source))
@@ -229,12 +232,12 @@ def directory_diff(source_dict, target_dict, ignore_keys=[]):
                                 added.append(source)
                         else:
                             added.append(source)
-                    different[key] = {}
-                    different[key]['added'] = added
-                    different[key]['changed'] = updated
+                    difference[key] = {}
+                    difference[key]['added'] = added
+                    difference[key]['changed'] = updated
                 elif target_dict[key] is None or \
                         source != target_dict[key][index]:
-                    different[key] = source
+                    difference[key] = source
 
             if type(source) is dict and tmp_target and key in tmp_target and \
                     tmp_target[key] and len(tmp_target[key]) > 0:
@@ -243,12 +246,12 @@ def directory_diff(source_dict, target_dict, ignore_keys=[]):
                     deleted = deleted + tmp_target[key]
                 else:
                     deleted.append({key: tmp_target[key]})
-                different[key]['deleted'] = deleted
+                difference[key]['deleted'] = deleted
             elif tmp_target and type(tmp_target) is list:
-                different[key]['deleted'] = tmp_target
+                difference[key]['deleted'] = tmp_target
 
         else:
             if source_dict[key] != target_dict[key]:
-                different[key] = source_dict[key]
+                difference[key] = source_dict[key]
 
-    return different
+    return difference

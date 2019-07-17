@@ -20,7 +20,7 @@ from flask_security import current_user, login_required
 from flask_babelex import gettext
 from pgadmin.utils import PgAdminModule
 from pgadmin.utils.ajax import make_json_response, bad_request, \
-    internal_server_error, gone
+    internal_server_error, gone, make_response as ajax_response
 from pgadmin.model import Server
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 from pgadmin.tools.schema_diff.model import SchemaDiffModel
@@ -437,10 +437,18 @@ def ddl_compare(trans_id, source_sid, source_did, source_scid,
     source_ddl = ''
     target_ddl = ''
     diff_ddl = ''
+
     view = SchemaDiffRegistry.get_node_view(node_type)
     if hasattr(view, 'ddl_compare'):
-        return view.ddl_compare(source_sid=source_sid, source_did=source_did,
-                                source_scid=source_scid, target_sid=target_sid,
-                                target_did=target_did, target_scid=target_scid,
-                                source_oid=source_oid, target_oid=target_oid,
-                                comp_status=comp_status)
+        sql = view.ddl_compare(source_sid=source_sid, source_did=source_did,
+                               source_scid=source_scid, target_sid=target_sid,
+                               target_did=target_did, target_scid=target_scid,
+                               source_oid=source_oid, target_oid=target_oid,
+                               comp_status=comp_status)
+
+    return ajax_response(
+        status=200,
+        response={'source_ddl': sql['source_ddl'],
+                  'target_ddl': sql['target_ddl'],
+                  'diff_ddl': sql['diff_ddl']}
+    )

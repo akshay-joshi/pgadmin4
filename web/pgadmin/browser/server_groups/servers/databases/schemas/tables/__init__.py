@@ -14,7 +14,7 @@ import re
 import copy
 
 import pgadmin.browser.server_groups.servers.databases as database
-from flask import render_template, request, jsonify, url_for
+from flask import render_template, request, jsonify, url_for, current_app
 from flask_babelex import gettext
 from pgadmin.browser.server_groups.servers.databases.schemas.utils \
     import SchemaChildModule, DataTypeReader, VacuumSettings
@@ -1759,13 +1759,14 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
 
         ignore_keys = ['oid', 'relowner', 'schema', 'vacuum_table',
                        'vacuum_toast']
+
         return compare_dictionaries(source_tables, target_tables,
                                     self.node_type, ignore_keys)
 
     def ddl_compare(self, **kwargs):
         """
-        This function will compare 2 table properties and return the
-        source DDL, target DDL and Difference of them
+        This function will compare properties of 2 tables and return the
+        source DDL, target DDL and Difference of them.
         """
 
         src_sid = kwargs.get('source_sid')
@@ -1839,12 +1840,46 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                                                 diff_data=difference,
                                                 json_resp=False)
 
-        return ajax_response(
-            status=200,
-            response={'source_ddl': source,
-                      'target_ddl': target,
-                      'diff_ddl': diff}
-        )
+        # Get the difference of all the table submodes
+        # TODO: implement one by one modules, and the implemented
+        # modules should be removed from the ignore_sub_modules list
+        ignore_sub_modules = ['column', 'constraints', 'partition',
+                              'rule', 'trigger']
+        for module in self.blueprint.submodules:
+            if module.NODE_TYPE not in ignore_sub_modules:
+                module_view = SchemaDiffRegistry.get_node_view(module.NODE_TYPE)
+                result = module_view.compare(
+                    source_sid=src_sid, source_did=src_did,
+                    source_scid=src_scid, source_tid=src_oid,
+                    target_sid=tar_sid, target_did=tar_did,
+                    target_scid=tar_scid, target_tid=tar_oid
+                )
+                if result:
+                    index_diff = ''
+                    for res in result:
+                        if res['status'] == \
+                                SchemaDiffModel.COMPARISON_STATUS['different']:
+                            source_oid=res['source_oid']
+                            target_oid=res['target_oid']
+                        else:
+                            source_oid=res['oid']
+                            target_oid=res['oid']
+
+                        return_diff = module_view.ddl_compare(
+                            source_sid=src_sid, source_did=src_did,
+                            source_scid=src_scid, source_oid=source_oid,
+                            source_tid=src_oid, target_sid=tar_sid,
+                            target_did=tar_did, target_scid=tar_scid,
+                            target_tid=tar_oid, target_oid=target_oid,
+                            comp_status=res['status']
+
+                        )
+                        diff += index_diff
+
+        return {'source_ddl': source,
+                'target_ddl': target,
+                'diff_ddl': diff
+                }
 
     @staticmethod
     def table_col_ddl_comp(source, target):

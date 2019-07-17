@@ -16,12 +16,15 @@ class SchemaDiffRegistry(object):
     """
     _registered_nodes = dict()
 
-    def __init__(self, node_name, node_view):
+    def __init__(self, node_name, node_view, parent_node='schema'):
         if node_name not in SchemaDiffRegistry._registered_nodes:
-            SchemaDiffRegistry._registered_nodes[node_name] = node_view
+            SchemaDiffRegistry._registered_nodes[node_name] = {
+                'view': node_view,
+                'parent': parent_node
+            }
 
     @classmethod
-    def get_registered_nodes(cls, node_name=None):
+    def get_registered_nodes(cls, node_name=None, parent_node='schema'):
         """
         This function will return the node's view object if node name
         is specified or return the complete list of registered nodes.
@@ -30,9 +33,14 @@ class SchemaDiffRegistry(object):
         :return:
         """
         if node_name is not None:
-            return cls._registered_nodes[node_name]
+            return cls._registered_nodes[node_name]['view']
 
-        return cls._registered_nodes
+        registered_nodes = {}
+        for key, value in cls._registered_nodes.items():
+            if value['parent'] == parent_node:
+                registered_nodes[key] = value['view']
+
+        return registered_nodes
 
     @classmethod
     def get_node_view(cls, node_name):
