@@ -13,7 +13,7 @@ import simplejson as json
 
 from pgadmin.utils.route import BaseTestGenerator
 from regression import parent_node_dict
-from pgadmin.utils import server_utils as server_utils, is_utility_exists
+from pgadmin.utils import server_utils as server_utils, does_utility_exist
 from pgadmin.browser.server_groups.servers.databases.tests import utils as \
     database_utils
 
@@ -26,7 +26,7 @@ else:
 class MaintenanceCreateJobTest(BaseTestGenerator):
     """Test the BackupCreateJob class"""
     scenarios = [
-        ('When maintenance object with default options',
+        ('When maintaining object with default options',
          dict(
              class_params=dict(
                  sid=1,
@@ -46,7 +46,7 @@ class MaintenanceCreateJobTest(BaseTestGenerator):
              url='/maintenance/job/{0}/{1}',
              expected_cmd_opts=['VACUUM VERBOSE;\n'],
          )),
-        ('When maintenance object with VACUUM FULL',
+        ('When maintaining object with VACUUM FULL',
          dict(
              class_params=dict(
                  sid=1,
@@ -66,7 +66,7 @@ class MaintenanceCreateJobTest(BaseTestGenerator):
              url='/maintenance/job/{0}/{1}',
              expected_cmd_opts=['VACUUM FULL VERBOSE;\n'],
          )),
-        ('When maintenance object with the ANALYZE',
+        ('When maintaining object with ANALYZE',
          dict(
              class_params=dict(
                  sid=1,
@@ -141,7 +141,11 @@ class MaintenanceCreateJobTest(BaseTestGenerator):
 
         binary_path = os.path.join(
             self.server['default_binary_paths'][self.server['type']], 'psql')
-        retVal = is_utility_exists(binary_path)
+
+        if os.name == 'nt':
+            binary_path = binary_path + '.exe'
+
+        retVal = does_utility_exist(binary_path)
         if retVal is not None:
             self.skipTest(retVal)
 

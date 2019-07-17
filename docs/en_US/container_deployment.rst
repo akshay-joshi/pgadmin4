@@ -149,3 +149,167 @@ Run a TLS secured container using a shared config/storage directory in
         -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
         -e "PGADMIN_ENABLE_TLS=True" \
         -d dpage/pgadmin4
+
+Reverse Proxying
+****************
+
+Sometimes it's desirable to have users connect to pgAdmin through a reverse
+proxy rather than directly to the container it's running in. The following
+examples show how this can be achieved. With traditional reverse proxy servers
+such as `Nginx <https://www.nginx.com/>`_, pgAdmin is running in a container on
+the same host, with port 5050 on the host mapped to port 80 on the container,
+for example:
+
+.. code-block:: bash
+
+    docker pull dpage/pgadmin4
+    docker run -p 5050:80 \
+        -e "PGADMIN_DEFAULT_EMAIL=user@domain.com" \
+        -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
+        -d dpage/pgadmin4
+
+HTTP via Nginx
+--------------
+
+A configuration similar to the following can be used to create a simple HTTP
+reverse proxy listening for all hostnames with `Nginx
+<https://www.nginx.com/>`_:
+
+.. code-block:: nginx
+
+    server {
+        listen 80;
+        server_name _;
+
+        location / {
+            proxy_set_header Host $host;
+            proxy_pass http://localhost:5050/;
+            proxy_redirect off;
+        }
+    }
+
+If you wish to host pgAdmin under a subdirectory rather than on the root of the
+server, you must specify the location and set the *X-Script-Name* header which
+tells the pgAdmin container how to rewrite paths:
+
+.. code-block:: nginx
+
+    server {
+        listen 80;
+        server_name _;
+
+        location /pgadmin4/ {
+            proxy_set_header X-Script-Name /pgadmin4;
+            proxy_set_header Host $host;
+            proxy_pass http://localhost:5050/;
+            proxy_redirect off;
+        }
+    }
+
+If Nginx is also running in a container, there is no need to map the pgAdmin
+port to the host, provided the two containers are running in the same Docker
+network. In such a configuration, the *proxy_pass* option would be changed to
+point to the pgAdmin container within the Docker network.
+
+HTTPS via Nginx
+---------------
+
+The following configuration can be used to serve pgAdmin over HTTPS to the user
+whilst the backend container is serving plain HTTP to the proxy server. In this
+configuration we not only set *X-Script-Name*, but also *X-Scheme* to tell the
+pgAdmin server to generate any URLs using the correct scheme. A redirect from
+HTTP to HTTPS is also included. The certificate and key paths may need to be
+adjusted as appropriate to the specific deployment:
+
+.. code-block:: nginx
+
+    server {
+        listen 80;
+        return 301 https://$host$request_uri;
+    }
+
+    server {
+        listen 443;
+        server_name _;
+
+        ssl_certificate /etc/nginx/server.crt;
+        ssl_certificate_key /etc/nginx/server.key;
+
+        ssl on;
+        ssl_session_cache builtin:1000 shared:SSL:10m;
+        ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+        ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
+        ssl_prefer_server_ciphers on;
+
+        location /pgadmin4/ {
+            proxy_set_header X-Script-Name /pgadmin4;
+            proxy_set_header X-Scheme $scheme;
+            proxy_set_header Host $host;
+            proxy_pass http://localhost:5050/;
+            proxy_redirect off;
+        }
+    }
+
+Traefik
+-------
+
+Configuring `Traefik <https://traefik.io/>`_ is straightforward for either HTTP
+or HTTPS when running pgAdmin in a container as it will automatically configure
+itself to serve content from containers that are running on the local machine,
+virtual hosting them at *<container_name>.<domain_name>*, where the domain
+name is that specified in the Traefik configuration. The container is typically
+launched per the example below:
+
+.. code-block:: bash
+
+    docker pull dpage/pgadmin4
+    docker run --name "pgadmin4" \
+        -e "PGADMIN_DEFAULT_EMAIL=user@domain.com" \
+        -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
+        -d dpage/pgadmin4
+
+Note that the TCP/IP port has not been mapped to the host as it was in the
+Nginx example, and the container name has been set to a known value as it will
+be used as the hostname and may need to be added to the DNS zone file.
+
+The following configuration will listen on ports 80 and 443, redirecting 80 to
+443, using the default certificate shipped with Traefik. See the Traefik
+documentation for options to use certificates from LetsEncrypt or other issuers.
+
+.. code-block:: ini
+
+    defaultEntryPoints = ["http", "https"]
+
+    [entryPoints]
+      [entryPoints.http]
+        address = ":80"
+          [entryPoints.http.redirect]
+            entryPoint = "https"
+      [entryPoints.https]
+        address = ":443"
+          [entryPoints.https.tls]
+
+    [docker]
+    domain = "domain_name"
+    watch = true
+
+If you wish to host pgAdmin under a subdirectory using Traefik, the
+configuration changes are typically made to the way the container is launched
+and not to Traefik itself. For example, to host pgAdmin under */pgadmin4/*
+instead of at the root directory, the Traefik configuration above may be used if
+the container is launched like this:
+
+.. code-block:: bash
+
+    docker pull dpage/pgadmin4
+    docker run --name "pgadmin4" \
+        -e "PGADMIN_DEFAULT_EMAIL=user@domain.com" \
+        -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
+        -e "SCRIPT_NAME=/pgadmin4" \
+        -l "traefik.frontend.rule=PathPrefix:/pgadmin4" \
+        -d dpage/pgadmin4
+
+The *SCRIPT_NAME* environment variable has been set to tell the container it is
+being hosted under a subdirectory (in the same way as the *X-Script-Name* header
+is used with Nginx), and a label has been added to tell Traefik to route
+requests under the subdirectory to this container.
