@@ -32,7 +32,7 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.utils.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
 
 
 class FunctionModule(SchemaChildModule):

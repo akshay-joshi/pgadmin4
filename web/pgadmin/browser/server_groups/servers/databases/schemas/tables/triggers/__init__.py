@@ -24,7 +24,7 @@ from config import PG_DEFAULT_DRIVER
 from pgadmin.utils.compile_template_name import compile_template_path
 from pgadmin.utils import IS_PY2
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.utils.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
 
 # If we are in Python3
 if not IS_PY2:

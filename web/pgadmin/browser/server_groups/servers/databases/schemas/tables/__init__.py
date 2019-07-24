@@ -24,7 +24,7 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
 from .utils import BaseTableView
 from pgadmin.utils.preferences import Preferences
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.utils.directory_compare import compare_dictionaries,\
+from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries,\
     directory_diff
 from pgadmin.tools.schema_diff.model import SchemaDiffModel
 
@@ -1852,10 +1852,11 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         # TODO: implement one by one modules, and the implemented
         # modules should be removed from the ignore_sub_modules list
         ignore_sub_modules = ['column', 'constraints', 'partition',
-                              'rule', 'trigger']
+                              'trigger']
         for module in self.blueprint.submodules:
             if module.NODE_TYPE not in ignore_sub_modules:
-                module_view = SchemaDiffRegistry.get_node_view(module.NODE_TYPE)
+                module_view = SchemaDiffRegistry.get_node_view(
+                    module.NODE_TYPE)
                 result = module_view.compare(
                     source_sid=src_sid, source_did=src_did,
                     source_scid=src_scid, source_tid=src_oid,
@@ -1863,17 +1864,18 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                     target_scid=tar_scid, target_tid=tar_oid
                 )
                 if result:
-                    index_diff = ''
+                    child_diff = ''
                     for res in result:
                         if res['status'] == \
-                                SchemaDiffModel.COMPARISON_STATUS['different']:
-                            source_oid=res['source_oid']
-                            target_oid=res['target_oid']
+                                SchemaDiffModel.COMPARISON_STATUS[
+                                    'different']:
+                            source_oid = res['source_oid']
+                            target_oid = res['target_oid']
                         else:
-                            source_oid=res['oid']
-                            target_oid=res['oid']
+                            source_oid = res['oid']
+                            target_oid = res['oid']
 
-                        return_diff = module_view.ddl_compare(
+                        child_diff = module_view.ddl_compare(
                             source_sid=src_sid, source_did=src_did,
                             source_scid=src_scid, source_oid=source_oid,
                             source_tid=src_oid, target_sid=tar_sid,
@@ -1882,7 +1884,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                             comp_status=res['status']
 
                         )
-                        diff += index_diff
+                        diff += child_diff
 
         return {'source_ddl': source,
                 'target_ddl': target,

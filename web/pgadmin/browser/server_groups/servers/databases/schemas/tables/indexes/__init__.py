@@ -26,8 +26,8 @@ from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
 from pgadmin.utils import IS_PY2
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.utils.directory_compare import compare_dictionaries
-from pgadmin.utils.directory_compare import compare_dictionaries,\
+from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries,\
     directory_diff
 from pgadmin.tools.schema_diff.model import SchemaDiffModel
 
@@ -1007,10 +1007,12 @@ class IndexesView(PGChildNodeView):
             if not status:
                 return internal_server_error(errormsg=res)
             if len(res['rows']) == 0:
-                return gone(gettext("""Could not find the index in the table."""))
+                return gone(gettext(
+                    """Could not find the index in the table."""))
 
             data = dict(res['rows'][0])
-            # Adding parent into data dict, will be using it while creating sql
+            # Adding parent into data dict,
+            # will be using it while creating sql
             data['schema'] = self.schema
             data['table'] = self.table
 
@@ -1025,7 +1027,8 @@ class IndexesView(PGChildNodeView):
                 # Fetch schema name
                 status, schema_name = self.conn.execute_scalar(
                     render_template(
-                        "/".join([self.table_template_path, 'get_schema.sql']),
+                        "/".join([self.table_template_path,
+                                  'get_schema.sql']),
                         conn=self.conn, scid=diff_scid
                     )
                 )
@@ -1045,8 +1048,7 @@ class IndexesView(PGChildNodeView):
             data=data, conn=self.conn
         )
 
-        return  sql_header + '\n\n' + SQL
-
+        return sql_header + '\n\n' + SQL
 
     @check_precondition
     def dependents(self, gid, sid, did, scid, tid, idx):
@@ -1199,7 +1201,6 @@ class IndexesView(PGChildNodeView):
             status, data = self._fetch_properties(did, tid,
                                                   idx)
             if status:
-
                 res = data
 
         return res
@@ -1259,19 +1260,17 @@ class IndexesView(PGChildNodeView):
         diff = ''
 
         if comp_status == SchemaDiffModel.COMPARISON_STATUS['source_only']:
-
-            diff = self.get_sql_from_index_diff(sid= src_sid,
+            diff = self.get_sql_from_index_diff(sid=src_sid,
                                                 did=src_did, scid=src_scid,
                                                 tid=src_tid, idx=src_oid,
                                                 diff_scid=tar_scid)
 
         elif comp_status == SchemaDiffModel.COMPARISON_STATUS['target_only']:
-            diff = self.get_sql_from_index_diff(sid= tar_sid,
+            diff = self.get_sql_from_index_diff(sid=tar_sid,
                                                 did=tar_did, scid=tar_scid,
                                                 tid=tar_tid, idx=tar_oid,
                                                 diff_scid=src_scid)
         else:
-
             source = self.fetch_indexes(sid=src_sid, did=src_did,
                                         scid=src_scid, tid=src_tid,
                                         idx=src_oid)
@@ -1285,7 +1284,7 @@ class IndexesView(PGChildNodeView):
                 difference={}
             )
 
-            diff = self.get_sql_from_index_diff(sid= tar_sid, did=tar_did,
+            diff = self.get_sql_from_index_diff(sid=tar_sid, did=tar_did,
                                                 scid=tar_scid, tid=tar_tid,
                                                 idx=tar_oid, data=difference)
 
