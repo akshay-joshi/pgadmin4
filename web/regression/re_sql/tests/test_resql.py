@@ -90,6 +90,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
             BaseTestGenerator.exclude_pkgs)
 
         for module in resql_module_list:
+            self.table_id = None
             module_path = resql_module_list[module]
             # Get the folder name based on server version number and
             # their existence.
@@ -159,6 +160,8 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                     options['did'] = int(self.server_information['db_id'])
                 elif arg == 'scid':
                     options['scid'] = int(self.schema_id)
+                elif arg == 'tid' and self.table_id:
+                    options['tid'] = int(self.table_id)
                 else:
                     if object_id is not None:
                         options[arg] = int(object_id)
@@ -178,6 +181,12 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
         object_id = None
 
         for scenario in scenarios:
+            if 'precondition_sql' in scenario and \
+                    not self.check_precondition(scenario['precondition_sql']):
+                print(scenario['name'] +
+                      "... skipped (pre-condition SQL not satisfied)")
+                continue
+
             if 'type' in scenario and scenario['type'] == 'create':
                 # Get the url and create the specific node.
 
@@ -219,6 +228,10 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
 
                 resp_data = json.loads(response.data.decode('utf8'))
                 object_id = resp_data['node']['_id']
+
+                # Table child nodes require table id
+                if 'store_table_id' in scenario:
+                    self.table_id = object_id
 
                 # Compare the reverse engineering SQL
                 if not self.check_re_sql(scenario, object_id):
@@ -329,6 +342,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                                 object_id)
 
         params = urllib.parse.urlencode(scenario['data'])
+        params = params.replace('False', 'false').replace('True', 'true')
         url = msql_url + "?%s" % params
         response = self.tester.get(url,
                                    follow_redirects=True)
@@ -452,3 +466,22 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                 return False
 
         return True
+
+    def check_precondition(self, precondition_sql):
+        """
+        This method executes precondition_sql and returns appropriate result
+        :param precondition_sql: SQL query in format select count(*) from ...
+        :return: True/False depending on precondition_sql result
+        """
+        precondition_flag = False
+        self.get_db_connection()
+        pg_cursor = self.connection.cursor()
+        try:
+            pg_cursor.execute(precondition_sql)
+            precondition_result = pg_cursor.fetchone()
+            if len(precondition_result) >= 1 and precondition_result[0] == '1':
+                precondition_flag = True
+        except Exception as e:
+            traceback.print_exc()
+        pg_cursor.close()
+        return precondition_flag

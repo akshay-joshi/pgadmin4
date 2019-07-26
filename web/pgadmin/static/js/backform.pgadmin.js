@@ -448,11 +448,11 @@ define([
     template: _.template([
       '<label class="<%=controlLabelClassName%>"><%=label%></label>',
       '<div class="<%=controlsClassName%> <%=extraClasses.join(\' \')%>">',
-      ' <div class="btn-group pgadmin-controls-radio-none"  data-toggle="buttons">',
+      ' <div class="btn-group pgadmin-controls-radio-none<% if (disabled) {%> disabled <%}%>"  data-toggle="buttons">',
       '  <% for (var i=0; i < options.length; i++) { %>',
       '  <% var option = options[i]; %>',
-      '  <label class="btn btn-primary<% if (option.value == value) { %> active<%}%>" tabindex="0">',
-      '   <input type="radio" name="<%=name%>" autocomplete="off" value=<%-formatter.fromRaw(option.value)%> <% if (option.value == value) { %> checked<%}%> > <%-option.label%>',
+      '  <label class="btn btn-primary<% if (option.value == value) { %> active<%}%><% if (!option.disabled && !disabled) { %>" tabindex="0"<% } else { %> disabled"<% } %>>',
+      '   <input type="radio" name="<%=name%>" autocomplete="off" value=<%-formatter.fromRaw(option.value)%> <% if (option.value == value) { %> checked<%}%> <% if (option.disabled || disabled) { %> disabled <%}%>> <%-option.label%>',
       '  </label>',
       '  <% } %>',
       ' </div>',
@@ -466,7 +466,37 @@ define([
       return this.formatter.toRaw(this.$el.find('input[type="radio"]:checked').attr('value'), this.model);
     },
     render: function() {
-      Backform.RadioControl.prototype.render.apply(this, arguments);
+      var field = _.defaults(this.field.toJSON(), this.defaults),
+        attributes = this.model.toJSON(),
+        attrArr = field.name.split('.'),
+        name = attrArr.shift(),
+        path = attrArr.join('.'),
+        rawValue = this.keyPathAccessor(attributes[name], path),
+        data = _.extend(field, {
+          rawValue: rawValue,
+          value: this.formatter.fromRaw(rawValue, this.model),
+          attributes: attributes,
+          formatter: this.formatter,
+        }),
+        // Evaluate the disabled, visible, and required option
+        evalF = function evalF(f, d, m) {
+          return _.isFunction(f) ? !!f.apply(d, [m]) : !!f;
+        };
+
+      _.extend(data, {
+        disabled: evalF(data.disabled, data, this.model),
+        visible: evalF(data.visible, data, this.model),
+        required: evalF(data.required, data, this.model),
+      }); // Clean up first
+
+      data.options = _.isFunction(data.options) ?
+        data.options.apply(data, [this.model]) : data.options;
+
+      this.$el.removeClass(Backform.hiddenClassName);
+      if (!data.visible) this.$el.addClass(Backform.hiddenClassName);
+      this.$el.html(this.template(data)).addClass(field.name);
+      this.updateInvalid();
+
       this.$el.find('.btn').on('keyup', (e)=>{
         switch(e.keyCode) {
         case 32: /* Spacebar click */
@@ -1271,12 +1301,19 @@ define([
 
       var $dialog = gridBody.append(subNodeGrid);
 
-      let preferences = pgBrowser.get_preferences_for_module('browser');
-      let addBtn = $dialog.find('.add');
-      // Add title to the buttons
-      $(addBtn)
-        .attr('title',
-          keyboardShortcuts.shortcut_title(gettext('Add new row'),preferences.add_grid_row));
+      let tmp_browser = pgBrowser;
+      if (pgBrowser.preferences_cache.length == 0)
+        tmp_browser = window.opener ? window.opener.pgAdmin.Browser : window.top.pgAdmin.Browser;
+
+      let preferences = tmp_browser.get_preferences_for_module('browser');
+
+      if (preferences) {
+        let addBtn = $dialog.find('.add');
+        // Add title to the buttons
+        $(addBtn)
+          .attr('title',
+            keyboardShortcuts.shortcut_title(gettext('Add new row'),preferences.add_grid_row));
+      }
 
       // Add button callback
       if (!(data.disabled || data.canAdd == false)) {
@@ -1563,12 +1600,19 @@ define([
 
       var $dialog = gridBody.append(subNodeGrid);
 
-      let preferences = pgBrowser.get_preferences_for_module('browser');
-      let addBtn = $dialog.find('.add');
-      // Add title to the buttons
-      $(addBtn)
-        .attr('title',
-          keyboardShortcuts.shortcut_title(gettext('Add new row'),preferences.add_grid_row));
+      let tmp_browser = pgBrowser;
+      if (pgBrowser.preferences_cache.length == 0)
+        tmp_browser = window.opener ? window.opener.pgAdmin.Browser : window.top.pgAdmin.Browser;
+
+      let preferences = tmp_browser.get_preferences_for_module('browser');
+
+      if (preferences) {
+        let addBtn = $dialog.find('.add');
+        // Add title to the buttons
+        $(addBtn)
+          .attr('title',
+            keyboardShortcuts.shortcut_title(gettext('Add new row'),preferences.add_grid_row));
+      }
 
 
       // Add button callback
