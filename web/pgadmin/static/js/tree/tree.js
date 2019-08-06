@@ -134,11 +134,15 @@ export class Tree {
     let dropDetailsFunc = this.getDraggable(data._type);
 
     if(dropDetailsFunc != null) {
+
+      /* addEventListener is used here because import jquery.drag.event
+       * overrides the dragstart event set using element.on('dragstart')
+       * This will avoid conflict.
+       */
       item.find('.aciTreeItem')
-        .attr('draggable', true)
-        .on('dragstart', (e)=> {
+        .attr('draggable', true)[0]
+        .addEventListener('dragstart', (e)=> {
           let dropDetails = dropDetailsFunc(data, item);
-          let origEvent = e.originalEvent;
 
           if(typeof dropDetails == 'string') {
             dropDetails = {
@@ -160,16 +164,16 @@ export class Tree {
             }
           }
 
-          origEvent.dataTransfer.setData('text', JSON.stringify(dropDetails));
+          e.dataTransfer.setData('text', JSON.stringify(dropDetails));
           /* Required by Firefox */
-          if(origEvent.dataTransfer.dropEffect) {
-            origEvent.dataTransfer.dropEffect = 'move';
+          if(e.dataTransfer.dropEffect) {
+            e.dataTransfer.dropEffect = 'move';
           }
 
           /* setDragImage is not supported in IE. We leave it to
            * its default look and feel
            */
-          if(origEvent.dataTransfer.setDragImage) {
+          if(e.dataTransfer.setDragImage) {
             let dragItem = $(`
               <div class="drag-tree-node">
                 <span>${_.escape(dropDetails.text)}</span>
@@ -179,7 +183,7 @@ export class Tree {
             $('body .drag-tree-node').remove();
             $('body').append(dragItem);
 
-            origEvent.dataTransfer.setDragImage(dragItem[0], 0, 0);
+            e.dataTransfer.setDragImage(dragItem[0], 0, 0);
           }
         });
     }
@@ -246,11 +250,14 @@ export class Tree {
   register($treeJQuery) {
     $treeJQuery.on('acitree', function (event, api, item, eventName) {
       if (api.isItem(item)) {
-        if (eventName === 'added') {
+        /* If the id of node is changed, the path should also be changed */
+        if (eventName === 'added' || eventName === 'idset') {
           const id = api.getId(item);
           const data = api.itemData(item);
 
-          this.prepareDraggable(data, item);
+          if(eventName === 'added') {
+            this.prepareDraggable(data, item);
+          }
 
           const parentId = this.translateTreeNodeIdFromACITree(api.parent(item));
           this.addNewNode(id, data, item, parentId);

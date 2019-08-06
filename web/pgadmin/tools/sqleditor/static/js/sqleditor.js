@@ -367,19 +367,27 @@ define('tools.querytool', [
       if(self.handler.is_query_tool) {
         self.query_tool_obj.setOption('dragDrop', true);
         self.query_tool_obj.on('drop', (editor, e) => {
-          /* Stop firefox from redirecting */
-          if(e.preventDefault) {
-            e.preventDefault();
+          var dropDetails = null;
+          try {
+            JSON.parse(e.dataTransfer.getData('text'));
+
+            /* Stop firefox from redirecting */
+
+            if(e.preventDefault) {
+              e.preventDefault();
+            }
+            if (e.stopPropagation) {
+              e.stopPropagation();
+            }
+          } catch(error) {
+            /* if parsing fails, it must be the drag internal of codemirror text */
+            return;
           }
-          if (e.stopPropagation) {
-            e.stopPropagation();
-          }
+
           var cursor = editor.coordsChar({
             left: e.x,
             top: e.y,
           });
-          var dropDetails = JSON.parse(e.dataTransfer.getData('text'));
-          e.codemirrorIgnore = true;
           editor.replaceRange(dropDetails.text, cursor);
           editor.focus();
           editor.setSelection({
@@ -716,8 +724,6 @@ define('tools.querytool', [
       self.handler.rows_to_disable = new Array();
       // Temporarily hold new rows added
       self.handler.temp_new_rows = new Array();
-      self.handler.has_more_rows = false;
-      self.handler.fetching_rows = false;
 
       // To store primary keys before they gets changed
       self.handler.primary_keys_data = {};
@@ -752,12 +758,15 @@ define('tools.querytool', [
       column_size[table_name] = column_size[table_name] || {};
 
       _.each(columns, function(c) {
+        c.display_name = _.escape(c.display_name);
+        c.column_type = _.escape(c.column_type);
+
         var options = {
           id: c.name,
           pos: c.pos,
           field: c.name,
           name: c.label,
-          display_name: _.escape(c.display_name),
+          display_name: c.display_name,
           column_type: c.column_type,
           column_type_internal: c.column_type_internal,
           not_null: c.not_null,
@@ -2244,8 +2253,8 @@ define('tools.querytool', [
         self.on('pgadmin-sqleditor:unindent_selected_code', self._unindent_selected_code, self);
       },
 
-      // This function checks if there is any dirty data in the grid before
-      // it executes the sql query
+      // Checks if there is any dirty data in the grid before
+      // it executes the sql query in View Data mode
       execute_data_query: function() {
         var self = this;
 
@@ -2274,7 +2283,7 @@ define('tools.querytool', [
         }
       },
 
-      // This function makes the ajax call to execute the sql query.
+      // This function makes the ajax call to execute the sql query in View Data mode
       _run_query: function() {
         var self = this,
           url = url_for('sqleditor.view_data_start', {
@@ -2284,6 +2293,9 @@ define('tools.querytool', [
         self.query_start_time = new Date();
         self.rows_affected = 0;
         self._init_polling_flags();
+
+        self.has_more_rows = false;
+        self.fetching_rows = false;
 
         self.trigger(
           'pgadmin-sqleditor:loading-icon:show',
@@ -2464,8 +2476,8 @@ define('tools.querytool', [
             var explain_data_array = [],
               explain_data_json = null;
 
-
-            if(self.colinfo[0].name == 'QUERY PLAN' && data.result
+            if(data.result && !_.isEmpty(self.colinfo)
+             && self.colinfo[0].name == 'QUERY PLAN' && !_.isEmpty(data.types)
              && data.types[0] && data.types[0].typname === 'json') {
               /* json is sent as text, parse it */
               explain_data_json = JSON.parse(data.result[0][0]);
@@ -3662,8 +3674,8 @@ define('tools.querytool', [
         }
       },
 
-      // This function will fetch the sql query from the text box
-      // and execute the query.
+      // Checks if there is any dirty data in the grid before
+      // it executes the sql query in Query Tool mode
       execute: function(explain_prefix, shouldReconnect=false) {
         var self = this;
 
@@ -3692,6 +3704,7 @@ define('tools.querytool', [
         }
       },
 
+      // Executes sql query in the editor in Query Tool mode
       _execute_sql_query: function(explain_prefix, shouldReconnect) {
         var self = this, sql = '';
 

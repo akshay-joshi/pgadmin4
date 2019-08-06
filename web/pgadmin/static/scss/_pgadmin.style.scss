@@ -518,6 +518,15 @@ fieldset.inline-fieldset > div {
   }
 }
 
+.tab-pane.sql-code-control {
+  @extend .tab-pane.SQL;
+  & .pgadmin-control-group{
+    margin: 0px;
+    padding: 0px;
+    height: 100%;
+  }
+}
+
 .pgadmin-controls input[type="checkbox"]{
   margin-left: 0 !important;
   margin-top: 10px !important;
@@ -917,6 +926,16 @@ table.table-empty-rows{
     height: 28px;
     background-size: 28px 28px;
   }
+}
+
+.login_banner {
+    position: fixed;
+    width: 80%;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 100;
 }
 
 .change_pass {

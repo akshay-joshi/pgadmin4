@@ -863,6 +863,7 @@ class QueryToolCommand(BaseCommand, FetchedRowTracker):
         self.is_updatable_resultset = False
         self.primary_keys = None
         self.pk_names = None
+        self.table_has_oids = False
 
     def get_sql(self, default_conn=None):
         return None
@@ -873,13 +874,16 @@ class QueryToolCommand(BaseCommand, FetchedRowTracker):
     def get_primary_keys(self):
         return self.pk_names, self.primary_keys
 
+    def has_oids(self):
+        return self.table_has_oids
+
     def can_edit(self):
         return self.is_updatable_resultset
 
     def can_filter(self):
         return False
 
-    def check_updatable_results_pkeys(self):
+    def check_updatable_results_pkeys_oids(self):
         """
             This function is used to check whether the last successful query
             produced updatable results and sets the necessary flags and
@@ -892,11 +896,18 @@ class QueryToolCommand(BaseCommand, FetchedRowTracker):
         manager = driver.connection_manager(self.sid)
         conn = manager.connection(did=self.did, conn_id=self.conn_id)
 
+        # Get the driver version as a float
+        driver_version = float('.'.join(driver.Version().split('.')[:2]))
+
+        # Checking for updatable resultsets uses features in psycopg 2.8
+        if driver_version < 2.8:
+            return False
+
         # Get the path to the sql templates
         sql_path = 'sqleditor/sql/#{0}#'.format(manager.version)
 
-        self.is_updatable_resultset, self.primary_keys, pk_names, table_oid = \
-            is_query_resultset_updatable(conn, sql_path)
+        self.is_updatable_resultset, self.table_has_oids, self.primary_keys, \
+            pk_names, table_oid = is_query_resultset_updatable(conn, sql_path)
 
         # Create pk_names attribute in the required format
         if pk_names is not None:
@@ -914,6 +925,7 @@ class QueryToolCommand(BaseCommand, FetchedRowTracker):
             self.__set_updatable_results_attrs(sql_path=sql_path,
                                                table_oid=table_oid,
                                                conn=conn)
+        return self.is_updatable_resultset
 
     def save(self,
              changed_data,
