@@ -140,8 +140,12 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 'indexes/sql', server_type, ver)
 
             # Template for trigger node
-            self.trigger_template_path = compile_template_path(
-                'triggers/sql', server_type, ver)
+            self.trigger_template_path = \
+                'triggers/sql/{0}/#{1}#'.format(server_type, ver)
+
+            # Template for compound trigger node
+            self.compound_trigger_template_path = \
+                'compound_triggers/sql/{0}/#{1}#'.format(server_type, ver)
 
             # Template for rules node
             self.rules_template_path = 'rules/sql'
@@ -1018,8 +1022,6 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             return internal_server_error(errormsg=rset)
 
         for row in rset['rows']:
-            trigger_sql = ''
-
             SQL = render_template("/".join([self.trigger_template_path,
                                             'properties.sql']),
                                   tid=tid, trid=row['oid'],
@@ -1089,8 +1091,89 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             main_sql.append(trigger_sql)
 
         """
+        #################################################
+        # 4) Reverse engineered sql for COMPOUND TRIGGERS
+        #################################################
+        """
+
+        if self.manager.server_type == 'ppas' \
+                and self.manager.version >= 120000:
+            SQL = render_template("/".join(
+                [self.compound_trigger_template_path, 'nodes.sql']), tid=tid)
+
+            status, rset = self.conn.execute_2darray(SQL)
+            if not status:
+                return internal_server_error(errormsg=rset)
+
+            for row in rset['rows']:
+                SQL = render_template("/".join(
+                    [self.compound_trigger_template_path, 'properties.sql']),
+                    tid=tid, trid=row['oid'],
+                    datlastsysoid=self.datlastsysoid)
+
+                status, res = self.conn.execute_dict(SQL)
+                if not status:
+                    return internal_server_error(errormsg=res)
+
+                if len(res['rows']) == 0:
+                    continue
+                data = dict(res['rows'][0])
+                # Adding parent into data dict, will be using it while
+                # creating sql
+                data['schema'] = schema
+                data['table'] = table
+
+                if len(data['tgattr']) >= 1:
+                    columns = ', '.join(data['tgattr'].split(' '))
+
+                    SQL = render_template("/".join(
+                        [self.compound_trigger_template_path,
+                         'get_columns.sql']), tid=tid, clist=columns)
+
+                    status, rset = self.conn.execute_2darray(SQL)
+                    if not status:
+                        return internal_server_error(errormsg=rset)
+                    # 'tgattr' contains list of columns from table
+                    # used in trigger
+                    columns = []
+
+                    for col_row in rset['rows']:
+                        columns.append(col_row['name'])
+
+                    data['columns'] = columns
+
+                data = trigger_definition(data)
+                sql_header = \
+                    u"\n-- Compound Trigger: {0}\n\n-- ".format(data['name'])
+
+                sql_header += render_template("/".join(
+                    [self.compound_trigger_template_path, 'delete.sql']),
+                    data=data, conn=self.conn)
+
+                # If the request for new object which do not have did
+                compound_trigger_sql = render_template("/".join(
+                    [self.compound_trigger_template_path, 'create.sql']),
+                    data=data, conn=self.conn)
+
+                compound_trigger_sql = \
+                    sql_header + '\n\n' + compound_trigger_sql.strip('\n')
+
+                # If trigger is disabled then add sql code for the same
+                if not data['is_enable_trigger']:
+                    compound_trigger_sql += '\n\n'
+                    compound_trigger_sql += render_template("/".join(
+                        [self.compound_trigger_template_path,
+                         'enable_disable_trigger.sql']),
+                        data=data, conn=self.conn)
+
+                # Add into main sql
+                compound_trigger_sql = \
+                    re.sub('\n{2,}', '\n\n', compound_trigger_sql)
+                main_sql.append(compound_trigger_sql)
+
+        """
         #####################################
-        # 4) Reverse engineered sql for RULES
+        # 5) Reverse engineered sql for RULES
         #####################################
         """
 
@@ -1122,7 +1205,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
         """
         ##########################################
-        # 5) Reverse engineered sql for PARTITIONS
+        # 6) Reverse engineered sql for PARTITIONS
         ##########################################
         """
         if is_partitioned:
@@ -1138,8 +1221,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 partition_sql = ''
                 for row in rset['rows']:
                     part_data = dict()
-                    part_data['partitioned_table_name'] = data['name']
-                    part_data['parent_schema'] = data['schema']
+                    part_data['partitioned_table_name'] = table
+                    part_data['parent_schema'] = schema
                     part_data['schema'] = row['schema_name']
                     part_data['relispartition'] = True
                     part_data['name'] = row['name']
@@ -1331,6 +1414,10 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                             return internal_server_error(errormsg=res)
 
                         old_data = res['rows'][0]
+
+                        # If changes are from table node
+                        if 'name' not in c:
+                            c['name'] = old_data['name']
                         # Sql to update object
                         sql.append(
                             render_template("/".join([

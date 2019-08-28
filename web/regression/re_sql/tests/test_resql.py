@@ -22,13 +22,14 @@ from pgadmin.utils.versioned_template_loader import \
     get_version_mapping_directories
 
 
-def create_resql_module_list(all_modules, exclude_pkgs):
+def create_resql_module_list(all_modules, exclude_pkgs, for_modules):
     """
     This function is used to create the module list for reverse engineered
     SQL by iterating all the modules.
 
     :param all_modules: List of all the modules
     :param exclude_pkgs: List of exclude packages
+    :param for_modules: Module list
     :return:
     """
     resql_module_list = dict()
@@ -41,7 +42,13 @@ def create_resql_module_list(all_modules, exclude_pkgs):
             module_name_list = complete_module_name[0].split(".")
             module_name = module_name_list[len(module_name_list) - 1]
 
-            resql_module_list[module_name] = os.path.join(*module_name_list)
+            if len(for_modules) > 0:
+                if module_name in for_modules:
+                    resql_module_list[module_name] = \
+                        os.path.join(*module_name_list)
+            else:
+                resql_module_list[module_name] = \
+                    os.path.join(*module_name_list)
 
     return resql_module_list
 
@@ -83,11 +90,13 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
         # Schema ID placeholder in JSON file which needs to be replaced
         # while running the test cases
         self.JSON_PLACEHOLDERS = {'schema_id': '<SCHEMA_ID>',
-                                  'owner': '<OWNER>'}
+                                  'owner': '<OWNER>',
+                                  'timestamptz': '<TIMESTAMPTZ>'}
 
         resql_module_list = create_resql_module_list(
             BaseTestGenerator.re_sql_module_list,
-            BaseTestGenerator.exclude_pkgs)
+            BaseTestGenerator.exclude_pkgs,
+            getattr(BaseTestGenerator, 'for_modules', []))
 
         for module in resql_module_list:
             self.table_id = None
@@ -187,32 +196,23 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                       "... skipped (pre-condition SQL not satisfied)")
                 continue
 
+            # Check precondition for schema
+            self.check_schema_precondition(scenario)
+
+            # If msql_endpoint exists then validate the modified sql
+            if 'msql_endpoint' in scenario\
+                    and scenario['msql_endpoint']:
+                if not self.check_msql(scenario, object_id):
+                    print_msg = scenario['name']
+                    if 'expected_msql_file' in scenario:
+                        print_msg += "  Expected MSQL File:" + scenario[
+                            'expected_msql_file']
+                    print_msg = print_msg + "... FAIL"
+                    print(print_msg)
+                    continue
+
             if 'type' in scenario and scenario['type'] == 'create':
                 # Get the url and create the specific node.
-
-                if 'data' in scenario and 'schema' in scenario['data']:
-                    # If schema is already exist then fetch the oid
-                    self.get_db_connection()
-                    schema = regression.schema_utils.verify_schemas(
-                        self.server, self.db_name,
-                        scenario['data']['schema']
-                    )
-
-                    if schema:
-                        self.schema_id = schema[0]
-                    else:
-                        # If schema doesn't exist then create it
-                        schema = regression.schema_utils.create_schema(
-                            self.connection,
-                            scenario['data']['schema'])
-                        self.schema_id = schema[0]
-                else:
-                    self.schema_id = self.server_information['schema_id']
-
-                if 'data' in scenario and 'schema_id' in scenario['data'] and \
-                        scenario['data']['schema_id'] == \
-                        self.JSON_PLACEHOLDERS['schema_id']:
-                    scenario['data']['schema'] = self.schema_id
 
                 create_url = self.get_url(scenario['endpoint'])
                 response = self.tester.post(create_url,
@@ -245,18 +245,6 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                     continue
             elif 'type' in scenario and scenario['type'] == 'alter':
                 # Get the url and create the specific node.
-
-                # If msql_endpoint exists then validate the modified sql
-                if 'msql_endpoint' in scenario\
-                        and scenario['msql_endpoint']:
-                    if not self.check_msql(scenario, object_id):
-                        print_msg = scenario['name']
-                        if 'expected_msql_file' in scenario:
-                            print_msg += "  Expected MSQL File:" + scenario[
-                                'expected_msql_file']
-                        print_msg = print_msg + "... FAIL"
-                        print(print_msg)
-                        continue
 
                 alter_url = self.get_url(scenario['endpoint'], object_id)
                 response = self.tester.put(alter_url,
@@ -352,6 +340,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
             self.final_test_status = False
             print(scenario['name'] + "... FAIL")
             traceback.print_exc()
+            return False
         try:
             if type(response.data) == bytes:
                 response_data = response.data.decode('utf8')
@@ -361,6 +350,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
             resp_sql = resp['data']
         except Exception:
             print("Unable to decode the response data from url: ", url)
+            return False
 
         # Remove first and last double quotes
         if resp_sql.startswith('"') and resp_sql.endswith('"'):
@@ -382,6 +372,9 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                 if 'username' in self.server:
                     sql = sql.replace(self.JSON_PLACEHOLDERS['owner'],
                                       self.server['username'])
+                # Convert timestamp with timezone from json file to the
+                # database server's correct timestamp
+                sql = self.convert_timestamptz(scenario, sql)
                 try:
                     self.assertEquals(sql, resp_sql)
                 except Exception as e:
@@ -390,7 +383,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                     return False
             else:
                 try:
-                    self.assertFalse("Expected SQL File not found")
+                    self.assertFalse("Expected Modified SQL File not found")
                 except Exception as e:
                     self.final_test_status = False
                     traceback.print_exc()
@@ -438,6 +431,9 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                 if 'username' in self.server:
                     sql = sql.replace(self.JSON_PLACEHOLDERS['owner'],
                                       self.server['username'])
+                # Convert timestamp with timezone from json file to the
+                # database server's correct timestamp
+                sql = self.convert_timestamptz(scenario, sql)
                 try:
                     self.assertEquals(sql, resp_sql)
                 except Exception as e:
@@ -458,6 +454,9 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
             if 'username' in self.server:
                 exp_sql = exp_sql.replace(self.JSON_PLACEHOLDERS['owner'],
                                           self.server['username'])
+            # Convert timestamp with timezone from json file to the
+            # database server's correct timestamp
+            sql = self.convert_timestamptz(scenario, exp_sql)
             try:
                 self.assertEquals(exp_sql, resp_sql)
             except Exception as e:
@@ -485,3 +484,66 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
             traceback.print_exc()
         pg_cursor.close()
         return precondition_flag
+
+    def check_schema_precondition(self, scenario):
+        """
+        This function will check the given schema is exist or not. If exist
+        then fetch the oid and if not then create it.
+
+        :param scenario:
+        :return:
+        """
+        if 'type' in scenario and scenario['type'] == 'create':
+            # Get the url and create the specific node.
+
+            if 'data' in scenario and 'schema' in scenario['data']:
+                # If schema is already exist then fetch the oid
+                self.get_db_connection()
+                schema = regression.schema_utils.verify_schemas(
+                    self.server, self.db_name,
+                    scenario['data']['schema']
+                )
+
+                if schema:
+                    self.schema_id = schema[0]
+                else:
+                    # If schema doesn't exist then create it
+                    schema = regression.schema_utils.create_schema(
+                        self.connection,
+                        scenario['data']['schema'])
+                    self.schema_id = schema[0]
+            else:
+                self.schema_id = self.server_information['schema_id']
+
+            if 'data' in scenario and 'schema_id' in scenario['data'] and \
+                scenario['data']['schema_id'] == \
+                    self.JSON_PLACEHOLDERS['schema_id']:
+                scenario['data']['schema'] = self.schema_id
+
+    def convert_timestamptz(self, scenario, sql):
+        """
+        This function will convert the given timestamptz with database
+        servers timestamptz and replace that in given sql.
+        :param scenario:
+        :param sql:
+        :return:
+        """
+        if 'convert_timestamp_columns' in scenario:
+            for col in scenario['convert_timestamp_columns']:
+                if 'data' in scenario and col in scenario['data']:
+                    self.get_db_connection()
+                    pg_cursor = self.connection.cursor()
+                    try:
+                        query = "SELECT timestamp with time zone '" \
+                                + scenario['data'][col] + "'"
+                        pg_cursor.execute(query)
+                        converted_tz = pg_cursor.fetchone()
+                        if len(converted_tz) >= 1:
+                            sql = sql.replace(
+                                self.JSON_PLACEHOLDERS['timestamptz'],
+                                converted_tz[0])
+                    except Exception as e:
+                        traceback.print_exc()
+                    pg_cursor.close()
+
+        return sql

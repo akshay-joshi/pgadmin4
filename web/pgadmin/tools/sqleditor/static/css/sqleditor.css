@@ -291,7 +291,11 @@ input.editor-checkbox:focus {
   background-image: url('../img/disconnect.svg');
 }
 
-.icon-commit, .icon-rollback, .icon-save-data-changes {
+.connection_status .obtaining-conn {
+  background-image: url('../img/loading.gif') !important;
+}
+
+.icon-commit, .icon-rollback, .icon-save-data-changes, .icon-view-data {
   display: inline-block;
   align-content: center;
   vertical-align: middle;
@@ -313,6 +317,10 @@ input.editor-checkbox:focus {
 
 .icon-save-data-changes {
   background-image: url('../img/save_data_changes.svg') !important;
+}
+
+.icon-view-data {
+  background-image: url('../img/view_data.svg') !important;
 }
 
 .ajs-body .warn-header {
@@ -377,13 +385,13 @@ input.editor-checkbox:focus {
 
 
 /* For geometry column button */
-.div-view-geometry-column {
+.div-view-geometry-column, .editable-column-header-icon {
   float: right;
   height: 100%;
   display: flex;
   display: -webkit-flex;
   align-items: center;
-  padding-right: 4px;
+  padding-right: 6px;
 }
 
 /* For leaflet popup */

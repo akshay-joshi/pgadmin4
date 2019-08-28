@@ -27,6 +27,7 @@ define('tools.querytool', [
   'sources/sqleditor/geometry_viewer',
   'sources/sqleditor/history/history_collection.js',
   'sources/sqleditor/history/query_history',
+  'sources/sqleditor/history/query_sources',
   'sources/keyboard_shortcuts',
   'sources/sqleditor/query_tool_actions',
   'sources/sqleditor/query_tool_notifications',
@@ -49,7 +50,7 @@ define('tools.querytool', [
   babelPollyfill, gettext, url_for, $, jqueryui, jqueryui_position, _, S, alertify, pgAdmin, Backbone, codemirror,
   pgExplain, GridSelector, ActiveCellCapture, clipboard, copyData, RangeSelectionHelper, handleQueryOutputKeyboardEvent,
   XCellSelectionModel, setStagedRows, SqlEditorUtils, ExecuteQuery, httpErrorHandler, FilterHandler,
-  GeometryViewer, historyColl, queryHist,
+  GeometryViewer, historyColl, queryHist, querySources,
   keyboardShortcuts, queryToolActions, queryToolNotifications, Datagrid,
   modifyAnimation, calculateQueryRunTime, callRenderAfterPoll, queryToolPref, csrfToken, panelTitleFunc) {
   /* Return back, this has been called more than once */
@@ -63,7 +64,8 @@ define('tools.querytool', [
     CodeMirror = codemirror.default,
     Slick = window.Slick,
     HistoryCollection = historyColl.default,
-    QueryHistory = queryHist.default;
+    QueryHistory = queryHist.default,
+    QuerySources = querySources.QuerySources;
 
   csrfToken.setPGCSRFToken(pgAdmin.csrf_token_header, pgAdmin.csrf_token);
 
@@ -81,7 +83,6 @@ define('tools.querytool', [
       this.handler.preferences = this.preferences;
       this.connIntervalId = null;
       this.layout = opts.layout;
-      this.set_server_version(opts.server_ver);
     },
 
     // Bind all the events
@@ -186,11 +187,13 @@ define('tools.querytool', [
       });
     },
 
+    set_editor_title: function(title) {
+      this.$el.find('.editor-title').text(title);
+    },
+
     // This function is used to render the template.
     render: function() {
       var self = this;
-
-      $('.editor-title').text(_.unescape(self.editor_title));
 
       // Updates connection status flag
       self.gain_focus = function() {
@@ -204,7 +207,6 @@ define('tools.querytool', [
           SqlEditorUtils.updateConnectionStatusFlag('hidden');
         }, 100);
       };
-
 
       // Create main wcDocker instance
       self.docker = new wcDocker(
@@ -336,6 +338,10 @@ define('tools.querytool', [
       });
 
       self.render_history_grid();
+      pgBrowser.Events.on('pgadmin:query_tool:connected:'+self.handler.transId, ()=>{
+        self.fetch_query_history();
+      });
+
       queryToolNotifications.renderNotificationsGrid(self.notifications_panel);
 
       var text_container = $('<textarea id="sql_query_tool" tabindex="-1"></textarea>');
@@ -369,7 +375,7 @@ define('tools.querytool', [
         self.query_tool_obj.on('drop', (editor, e) => {
           var dropDetails = null;
           try {
-            JSON.parse(e.dataTransfer.getData('text'));
+            dropDetails = JSON.parse(e.dataTransfer.getData('text'));
 
             /* Stop firefox from redirecting */
 
@@ -713,7 +719,7 @@ define('tools.querytool', [
      */
 
     // This function is responsible to create and render the SlickGrid.
-    render_grid: function(collection, columns, is_editable, client_primary_key, rows_affected, is_explain_plan) {
+    render_grid: function(collection, columns, is_editable, client_primary_key, rows_affected) {
       var self = this;
 
       self.handler.numberOfModifiedCells = 0;
@@ -772,6 +778,7 @@ define('tools.querytool', [
           not_null: c.not_null,
           has_default_val: c.has_default_val,
           is_array: c.is_array,
+          can_edit: c.can_edit,
         };
 
         // Get the columns width based on longer string among data type or
@@ -789,17 +796,17 @@ define('tools.querytool', [
         if (c.cell == 'oid' && c.name == 'oid') {
           options['editor'] = null;
         } else if (c.cell == 'Json') {
-          options['editor'] = is_editable ? Slick.Editors.JsonText :
+          options['editor'] = c.can_edit ? Slick.Editors.JsonText :
             Slick.Editors.ReadOnlyJsonText;
           options['formatter'] = Slick.Formatters.JsonString;
         } else if (c.cell == 'number' || c.cell == 'oid' ||
           $.inArray(c.type, ['xid', 'real']) !== -1
         ) {
-          options['editor'] = is_editable ? Slick.Editors.CustomNumber :
+          options['editor'] = c.can_edit ? Slick.Editors.CustomNumber :
             Slick.Editors.ReadOnlyText;
           options['formatter'] = Slick.Formatters.Numbers;
         } else if (c.cell == 'boolean') {
-          options['editor'] = is_editable ? Slick.Editors.Checkbox :
+          options['editor'] = c.can_edit ? Slick.Editors.Checkbox :
             Slick.Editors.ReadOnlyCheckbox;
           options['formatter'] = Slick.Formatters.Checkmark;
         } else if (c.cell == 'binary') {
@@ -808,10 +815,24 @@ define('tools.querytool', [
         } else if (c.cell == 'geometry' || c.cell == 'geography') {
           // increase width to add 'view' button
           options['width'] += 28;
+          options['can_edit'] = false;
         } else {
-          options['editor'] = is_editable ? Slick.Editors.pgText :
+          options['editor'] = c.can_edit ? Slick.Editors.pgText :
             Slick.Editors.ReadOnlypgText;
           options['formatter'] = Slick.Formatters.Text;
+        }
+
+        if(!_.isUndefined(c.can_edit)) {
+          // Increase width for editable/read-only icon
+          options['width'] += 12;
+
+          let tooltip = '';
+          if(c.can_edit)
+            tooltip = gettext('Editable column');
+          else
+            tooltip = gettext('Read-only column');
+
+          options['toolTip'] = tooltip;
         }
 
         grid_columns.push(options);
@@ -820,10 +841,14 @@ define('tools.querytool', [
       var gridSelector = new GridSelector();
       grid_columns = self.grid_columns = gridSelector.getColumnDefinitions(grid_columns);
 
-      // add 'view' button in geometry and geography type column header
       _.each(grid_columns, function (c) {
+        // Add 'view' button in geometry and geography type column headers
         if (c.column_type_internal == 'geometry' || c.column_type_internal == 'geography') {
           GeometryViewer.add_header_button(c);
+        }
+        // Add editable/read-only icon to columns
+        if (!_.isUndefined(c.can_edit)) {
+          SqlEditorUtils.addEditableIcon(c, c.can_edit);
         }
       });
 
@@ -833,7 +858,7 @@ define('tools.querytool', [
       }
 
       var grid_options = {
-        editable: is_editable || is_explain_plan,
+        editable: true,
         enableAddRow: is_editable,
         enableCellNavigation: true,
         enableColumnReorder: false,
@@ -1325,6 +1350,24 @@ define('tools.querytool', [
       }
     },
 
+    fetch_query_history: function() {
+      let self = this;
+      $.ajax({
+        url: url_for('sqleditor.get_query_history', {
+          'trans_id': self.handler.transId,
+        }),
+        method: 'GET',
+        contentType: 'application/json',
+      }).done(function(res) {
+        res.data.result.map((entry) => {
+          let newEntry = JSON.parse(entry);
+          newEntry.start_time = new Date(newEntry.start_time);
+          self.history_collection.add(newEntry);
+        });
+      }).fail(function() {
+      /* history fetch fail should not affect query tool */
+      });
+    },
     /* This function is responsible to create and render the
      * new backgrid for the history tab.
      */
@@ -1361,26 +1404,7 @@ define('tools.querytool', [
         });
       }
 
-      // Make ajax call to get history data except view/edit data
-      if(self.handler.is_query_tool) {
-        $.ajax({
-          url: url_for('sqleditor.get_query_history', {
-            'trans_id': self.handler.transId,
-          }),
-          method: 'GET',
-          contentType: 'application/json',
-        })
-          .done(function(res) {
-            res.data.result.map((entry) => {
-              let newEntry = JSON.parse(entry);
-              newEntry.start_time = new Date(newEntry.start_time);
-              self.history_collection.add(newEntry);
-            });
-          })
-          .fail(function() {
-          /* history fetch fail should not affect query tool */
-          });
-      } else {
+      if(!self.handler.is_query_tool) {
         self.historyComponent.setEditorPref({'copy_to_editor':false});
       }
     },
@@ -1611,11 +1635,15 @@ define('tools.querytool', [
 
     // Callback function for Save Data Changes button click.
     on_save_data: function() {
+      this.handler.history_query_source = QuerySources.SAVE_DATA;
+
       queryToolActions.saveDataChanges(this.handler);
     },
 
     // Callback function for the flash button click.
     on_flash: function() {
+      this.handler.history_query_source = QuerySources.EXECUTE;
+
       queryToolActions.executeQuery(this.handler);
     },
 
@@ -1771,6 +1799,7 @@ define('tools.querytool', [
       this._stopEventPropogation(event);
       this._closeDropDown(event);
 
+      this.handler.history_query_source = QuerySources.EXPLAIN;
       queryToolActions.explain(this.handler);
     },
 
@@ -1779,6 +1808,7 @@ define('tools.querytool', [
       this._stopEventPropogation(event);
       this._closeDropDown(event);
 
+      this.handler.history_query_source = QuerySources.EXPLAIN_ANALYZE;
       queryToolActions.explainAnalyze(this.handler);
     },
 
@@ -1903,12 +1933,16 @@ define('tools.querytool', [
     // Callback function for the commit button click.
     on_commit_transaction: function() {
       this.handler.close_on_idle_transaction = false;
+      this.handler.history_query_source = QuerySources.COMMIT;
+
       queryToolActions.executeCommit(this.handler);
     },
 
     // Callback function for the rollback button click.
     on_rollback_transaction: function() {
       this.handler.close_on_idle_transaction = false;
+      this.handler.history_query_source = QuerySources.ROLLBACK;
+
       queryToolActions.executeRollback(this.handler);
     },
   });
@@ -2004,13 +2038,13 @@ define('tools.querytool', [
       },
 
       initTransaction: function() {
-        var url_endpoint;
-        if (this.is_query_tool) {
+        var self = this, url_endpoint;
+        if (self.is_query_tool) {
           url_endpoint = 'datagrid.initialize_query_tool';
 
           // If database not present then use Maintenance database
           // We will handle this at server side
-          if (this.url_params.did) {
+          if (self.url_params.did) {
             url_endpoint = 'datagrid.initialize_query_tool_with_did';
           }
 
@@ -2018,10 +2052,25 @@ define('tools.querytool', [
           url_endpoint = 'datagrid.initialize_datagrid';
         }
 
-        var baseUrl = url_for(url_endpoint, this.url_params);
+        var baseUrl = url_for(url_endpoint, {
+          ...self.url_params,
+          'trans_id': self.transId,
+        });
 
-        Datagrid.create_transaction(baseUrl, this, this.is_query_tool,
-          this.server_type, '', '', '', true);
+        $.ajax({
+          url: baseUrl,
+          type: 'POST',
+          data: self.is_query_tool?null:JSON.stringify(self.url_params.sql_filter),
+          contentType: 'application/json',
+        }).done((res)=>{
+          pgBrowser.Events.trigger(
+            'pgadmin:query_tool:connected:' + self.transId, res.data
+          );
+        }).fail((xhr, status, error)=>{
+          pgBrowser.Events.trigger(
+            'pgadmin:query_tool:connected_fail:' + self.transId, xhr, error
+          );
+        });
       },
 
       handle_connection_lost: function(create_transaction, xhr) {
@@ -2126,12 +2175,10 @@ define('tools.querytool', [
        * call the render method of the grid view to render the backgrid
        * header and loading icon and start execution of the sql query.
        */
-      start: function(transId, is_query_tool, editor_title, script_type_url,
-        server_type, url_params, layout, server_ver
-      ) {
+      start: function(transId, url_params, layout) {
         var self = this;
 
-        self.is_query_tool = is_query_tool;
+        self.is_query_tool = url_params.is_query_tool==='true'?true:false;
         self.rows_affected = 0;
         self.marked_line_no = 0;
         self.has_more_rows = false;
@@ -2139,9 +2186,8 @@ define('tools.querytool', [
         self.close_on_save = false;
         self.close_on_idle_transaction = false;
         self.last_transaction_status = -1;
-        self.server_type = server_type;
+        self.server_type = url_params.server_type;
         self.url_params = url_params;
-        self.script_type_url = script_type_url;
         self.is_transaction_buttons_disabled = true;
 
         // We do not allow to call the start multiple times.
@@ -2152,15 +2198,47 @@ define('tools.querytool', [
           el: self.container,
           handler: self,
           layout: layout,
-          server_ver: server_ver,
         });
         self.transId = self.gridView.transId = transId;
 
-        self.gridView.editor_title = _.unescape(editor_title);
         self.gridView.current_file = undefined;
 
         // Render the header
         self.gridView.render();
+
+        self.trigger('pgadmin-sqleditor:loading-icon:hide');
+
+        self.gridView.set_editor_title(`(${gettext('Obtaining connection...')} ${_.unescape(url_params.title)}`);
+
+        let afterConn = function() {
+          let enableBtns = [];
+
+          if(self.is_query_tool){
+            enableBtns = ['#btn-flash', '#btn-explain', '#btn-explain-analyze'];
+          } else {
+            enableBtns = ['#btn-flash'];
+          }
+
+          enableBtns.forEach((selector)=>{
+            $(selector).prop('disabled', false);
+          });
+
+          $('#btn-conn-status i').removeClass('obtaining-conn');
+          self.gridView.set_editor_title(_.unescape(url_params.title));
+        };
+
+        pgBrowser.Events.on('pgadmin:query_tool:connected:' + transId, afterConn);
+        pgBrowser.Events.on('pgadmin:query_tool:connected_fail:' + transId, afterConn);
+
+        pgBrowser.Events.on('pgadmin:query_tool:connected:' + transId, (res_data)=>{
+          self.gridView.set_server_version(res_data.serverVersion);
+        });
+
+        pgBrowser.Events.on('pgadmin:query_tool:connected_fail:' + transId, (xhr, error)=>{
+          alertify.pgRespErrorNotify(xhr, error);
+        });
+
+        self.initTransaction();
 
         /* wcDocker focuses on window always, and all our shortcuts are
          * bind to editor-panel. So when we use wcDocker focus, editor-panel
@@ -2175,9 +2253,9 @@ define('tools.querytool', [
         if (self.is_query_tool) {
           // Fetch the SQL for Scripts (eg: CREATE/UPDATE/DELETE/SELECT)
           // Call AJAX only if script type url is present
-          if (script_type_url) {
+          if (url_params.query_url) {
             $.ajax({
-              url: script_type_url,
+              url: url_params.query_url,
               type:'GET',
             })
               .done(function(res) {
@@ -2212,7 +2290,9 @@ define('tools.querytool', [
             cm.className += ' bg-gray-lighter opacity-5 hide-cursor-workaround';
           }
           self.disable_tool_buttons(true);
-          self.execute_data_query();
+          pgBrowser.Events.on('pgadmin:query_tool:connected:'+ transId,()=>{
+            self.check_data_changes_to_execute_query();
+          });
         }
       },
 
@@ -2253,9 +2333,8 @@ define('tools.querytool', [
         self.on('pgadmin-sqleditor:unindent_selected_code', self._unindent_selected_code, self);
       },
 
-      // Checks if there is any dirty data in the grid before
-      // it executes the sql query in View Data mode
-      execute_data_query: function() {
+      // Checks if there is any dirty data in the grid before executing a query
+      check_data_changes_to_execute_query: function(explain_prefix=null, shouldReconnect=false) {
         var self = this;
 
         // Check if the data grid has any changes before running query
@@ -2267,8 +2346,13 @@ define('tools.querytool', [
           alertify.confirm(gettext('Unsaved changes'),
             gettext('The data has been modified, but not saved. Are you sure you wish to discard the changes?'),
             function() {
-              // Do nothing as user do not want to save, just continue
-              self._run_query();
+              // The user does not want to save, just continue
+              if(self.is_query_tool) {
+                self._execute_sql_query(explain_prefix, shouldReconnect);
+              }
+              else {
+                self._execute_view_data_query();
+              }
             },
             function() {
               // Stop, User wants to save
@@ -2279,12 +2363,17 @@ define('tools.querytool', [
             cancel: gettext('No'),
           });
         } else {
-          self._run_query();
+          if(self.is_query_tool) {
+            self._execute_sql_query(explain_prefix, shouldReconnect);
+          }
+          else {
+            self._execute_view_data_query();
+          }
         }
       },
 
-      // This function makes the ajax call to execute the sql query in View Data mode
-      _run_query: function() {
+      // Makes the ajax call to execute the sql query in View Data mode
+      _execute_view_data_query: function() {
         var self = this,
           url = url_for('sqleditor.view_data_start', {
             'trans_id': self.transId,
@@ -2361,10 +2450,34 @@ define('tools.querytool', [
           .fail(function(e) {
             self.trigger('pgadmin-sqleditor:loading-icon:hide');
             let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_run_query', [], true
+              pgAdmin, self, e, '_execute_view_data_query', [], true
             );
             self.update_msg_history(false, msg);
           });
+      },
+
+      // Executes sql query in the editor in Query Tool mode
+      _execute_sql_query: function(explain_prefix, shouldReconnect) {
+        var self = this, sql = '';
+
+        self.has_more_rows = false;
+        self.fetching_rows = false;
+
+        if (!_.isUndefined(self.special_sql)) {
+          sql = self.special_sql;
+        } else {
+          /* If code is selected in the code mirror then execute
+           * the selected part else execute the complete code.
+           */
+          var selected_code = self.gridView.query_tool_obj.getSelection();
+          if (selected_code.length > 0)
+            sql = selected_code;
+          else
+            sql = self.gridView.query_tool_obj.getValue();
+        }
+
+        const executeQuery = new ExecuteQuery.ExecuteQuery(this, pgAdmin.Browser.UserManagement);
+        executeQuery.execute(sql, explain_prefix, shouldReconnect);
       },
 
       // This is a wrapper to call_render function
@@ -2481,7 +2594,6 @@ define('tools.querytool', [
              && data.types[0] && data.types[0].typname === 'json') {
               /* json is sent as text, parse it */
               explain_data_json = JSON.parse(data.result[0][0]);
-              self.is_explain_plan = true;
             }
 
             if (explain_data_json && explain_data_json[0] &&
@@ -2497,7 +2609,7 @@ define('tools.querytool', [
                 function() {
                   self.gridView.render_grid(
                     explain_data_array, self.columns, self.can_edit,
-                    self.client_primary_key, 0, self.is_explain_plan
+                    self.client_primary_key, 0
                   );
                   // Make sure - the 'Explain' panel is visible, before - we
                   // start rendering the grid.
@@ -2541,10 +2653,11 @@ define('tools.querytool', [
 
         // Create columns required by slick grid to render
         _.each(colinfo, function(c) {
-          var is_primary_key = false;
+          var is_primary_key = false,
+            is_editable = self.can_edit && (!self.is_query_tool || c.is_editable);
 
-          // Check whether table have primary key
-          if (_.size(primary_keys) > 0) {
+          // Check whether this column is a primary key
+          if (is_editable && _.size(primary_keys) > 0) {
             _.each(primary_keys, function(value, key) {
               if (key === c.name)
                 is_primary_key = true;
@@ -2645,7 +2758,7 @@ define('tools.querytool', [
               'pos': c.pos,
               'label': column_label,
               'cell': col_cell,
-              'can_edit': (c.name == 'oid') ? false : self.can_edit,
+              'can_edit': (c.name == 'oid') ? false : is_editable,
               'type': type,
               'not_null': c.not_null,
               'has_default_val': c.has_default_val,
@@ -2711,34 +2824,46 @@ define('tools.querytool', [
               new Date());
           }
 
-          let hist_entry = {
+          if(_.isUndefined(self.history_query_source)) {
+            self.history_query_source = QuerySources.VIEW_DATA;
+          }
+
+          let history_entry = {
             'status': status,
             'start_time': self.query_start_time,
             'query': self.query,
             'row_affected': self.rows_affected,
             'total_time': self.total_time,
             'message': msg,
+            'query_source': self.history_query_source,
+            'is_pgadmin_query': !self.is_query_tool,
           };
 
-          /* Make ajax call to save the history data
-           * Do not bother query tool if failed to save
-           * Not applicable for view/edit data
-           */
-          if(self.is_query_tool) {
-            $.ajax({
-              url: url_for('sqleditor.add_query_history', {
-                'trans_id': self.transId,
-              }),
-              method: 'POST',
-              contentType: 'application/json',
-              data: JSON.stringify(hist_entry),
-            })
-              .done(function() {})
-              .fail(function() {});
+          if(!self.is_query_tool) {
+            var info_msg = gettext('This query was generated by pgAdmin as part of a "View/Edit Data" operation');
+            history_entry.info = info_msg;
           }
 
-          self.gridView.history_collection.add(hist_entry);
+          self.add_to_history(history_entry);
         }
+      },
+
+      /* Make ajax call to save the history data */
+      add_to_history: function(history_entry) {
+        var self = this;
+
+        $.ajax({
+          url: url_for('sqleditor.add_query_history', {
+            'trans_id': self.transId,
+          }),
+          method: 'POST',
+          contentType: 'application/json',
+          data: JSON.stringify(history_entry),
+        })
+          .done(function() {})
+          .fail(function() {});
+
+        self.gridView.history_collection.add(history_entry);
       },
 
       /* This function is used to check whether cell
@@ -2753,15 +2878,14 @@ define('tools.querytool', [
       },
 
       rows_to_delete: function(data) {
-        var self = this,
-          tmp_keys = self.primary_keys;
+        let self = this;
+        let tmp_keys = self.primary_keys;
 
         // re-calculate rows with no primary keys
         self.temp_new_rows = [];
         data.forEach(function(d, idx) {
-          var p_keys_list = _.pick(d, tmp_keys),
-            is_primary_key = Object.keys(p_keys_list).length ?
-              p_keys_list[0] : undefined;
+          let p_keys_list = _.pick(d, _.keys(tmp_keys));
+          let is_primary_key = Object.keys(p_keys_list).length > 0;
 
           if (!is_primary_key) {
             self.temp_new_rows.push(idx);
@@ -2901,7 +3025,7 @@ define('tools.querytool', [
         var req_data = self.data_store, view = self.gridView;
         req_data.columns = view ? view.handler.columns : self.columns;
 
-        var save_successful = false;
+        var save_successful = false, save_start_time = new Date();
 
         // Make ajax call to save the data
         $.ajax({
@@ -2950,7 +3074,7 @@ define('tools.querytool', [
               if(is_added) {
               // Update the rows in a grid after addition
                 dataView.beginUpdate();
-                _.each(res.data.query_result, function(r) {
+                _.each(res.data.query_results, function(r) {
                   if (!_.isNull(r.row_added)) {
                   // Fetch temp_id returned by server after addition
                     var row_id = Object.keys(r.row_added)[0];
@@ -2994,7 +3118,6 @@ define('tools.querytool', [
                   dataView.endUpdate();
                 }
                 self.rows_to_delete.apply(self, [data]);
-                grid.setSelectedRows([]);
               }
 
               grid.setSelectedRows([]);
@@ -3043,6 +3166,23 @@ define('tools.querytool', [
               }
               grid.gotoCell(_row_index, 1);
             }
+
+            var query_history_info_msg = gettext('This query was generated by pgAdmin as part of a "Save Data" operation');
+
+            _.each(res.data.query_results, function(r) {
+              var history_entry = {
+                'status': r.status,
+                'start_time': save_start_time,
+                'query': r.sql,
+                'row_affected': r.rows_affected,
+                'total_time': null,
+                'message': r.result,
+                'query_source': QuerySources.SAVE_DATA,
+                'is_pgadmin_query': true,
+                'info': query_history_info_msg,
+              };
+              self.add_to_history(history_entry);
+            });
 
             self.trigger('pgadmin-sqleditor:loading-icon:hide');
 
@@ -3572,6 +3712,10 @@ define('tools.querytool', [
             new_row.is_row_copied = true;
             self.temp_new_rows.push(count);
             new_row[self.client_primary_key] = _key;
+            if(self.has_oids && new_row.oid) {
+              new_row.oid = null;
+            }
+
             dataView.addItem(new_row);
             self.data_store.added[_key] = {
               'err': false,
@@ -3636,7 +3780,6 @@ define('tools.querytool', [
           mode_disabled = true;
         }
 
-        $('#btn-clear-dropdown').prop('disabled', mode_disabled);
         $('#btn-explain').prop('disabled', mode_disabled);
         $('#btn-explain-analyze').prop('disabled', mode_disabled);
         $('#btn-explain-options-dropdown').prop('disabled', mode_disabled);
@@ -3672,60 +3815,6 @@ define('tools.querytool', [
           $('#btn-commit').prop('disabled', disabled);
           $('#btn-rollback').prop('disabled', disabled);
         }
-      },
-
-      // Checks if there is any dirty data in the grid before
-      // it executes the sql query in Query Tool mode
-      execute: function(explain_prefix, shouldReconnect=false) {
-        var self = this;
-
-        // Check if the data grid has any changes before running query
-        if (self.can_edit && _.has(self, 'data_store') &&
-          (_.size(self.data_store.added) ||
-            _.size(self.data_store.updated) ||
-            _.size(self.data_store.deleted))
-        ) {
-          alertify.confirm(gettext('Unsaved changes'),
-            gettext('The data has been modified, but not saved. Are you sure you wish to discard the changes?'),
-            function() {
-              // Do nothing as user do not want to save, just continue
-              self._execute_sql_query(explain_prefix, shouldReconnect);
-            },
-            function() {
-              // Stop, User wants to save
-              return true;
-            }
-          ).set('labels', {
-            ok: gettext('Yes'),
-            cancel: gettext('No'),
-          });
-        } else {
-          self._execute_sql_query(explain_prefix, shouldReconnect);
-        }
-      },
-
-      // Executes sql query in the editor in Query Tool mode
-      _execute_sql_query: function(explain_prefix, shouldReconnect) {
-        var self = this, sql = '';
-
-        self.has_more_rows = false;
-        self.fetching_rows = false;
-
-        if (!_.isUndefined(self.special_sql)) {
-          sql = self.special_sql;
-        } else {
-          /* If code is selected in the code mirror then execute
-           * the selected part else execute the complete code.
-           */
-          var selected_code = self.gridView.query_tool_obj.getSelection();
-          if (selected_code.length > 0)
-            sql = selected_code;
-          else
-            sql = self.gridView.query_tool_obj.getValue();
-        }
-
-        const executeQuery = new ExecuteQuery.ExecuteQuery(this, pgAdmin.Browser.UserManagement);
-        executeQuery.execute(sql, explain_prefix, shouldReconnect);
       },
 
       /* This function is used to highlight the error line and

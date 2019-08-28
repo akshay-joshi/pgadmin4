@@ -894,6 +894,83 @@ class ViewNode(PGChildNodeView, VacuumSettings):
                 SQL_data += SQL
         return SQL_data
 
+    def get_compound_trigger_sql(self, vid):
+        """
+        Get all compound trigger nodes associated with view node,
+        generate their sql and render into sql tab
+        """
+        SQL_data = ''
+        if self.manager.server_type == 'ppas' \
+                and self.manager.version >= 120000:
+
+            from pgadmin.browser.server_groups.servers.databases.schemas.utils\
+                import trigger_definition
+
+            # Define template path
+            self.ct_trigger_temp_path = 'compound_triggers'
+
+            SQL = render_template("/".join(
+                [self.ct_trigger_temp_path,
+                 'sql/{0}/#{1}#/nodes.sql'.format(
+                     self.manager.server_type, self.manager.version)]),
+                tid=vid)
+
+            status, data = self.conn.execute_dict(SQL)
+            if not status:
+                return internal_server_error(errormsg=data)
+
+            for trigger in data['rows']:
+                SQL = render_template("/".join(
+                    [self.ct_trigger_temp_path,
+                     'sql/{0}/#{1}#/properties.sql'.format(
+                         self.manager.server_type, self.manager.version)]),
+                    tid=vid,
+                    trid=trigger['oid']
+                )
+
+                status, res = self.conn.execute_dict(SQL)
+                if not status:
+                    return internal_server_error(errormsg=res)
+
+                if len(res['rows']) == 0:
+                    continue
+                res_rows = dict(res['rows'][0])
+                res_rows['table'] = res_rows['relname']
+                res_rows['schema'] = self.view_schema
+
+                if len(res_rows['tgattr']) > 1:
+                    columns = ', '.join(res_rows['tgattr'].split(' '))
+                    SQL = render_template("/".join(
+                        [self.ct_trigger_temp_path,
+                         'sql/{0}/#{1}#/get_columns.sql'.format(
+                             self.manager.server_type,
+                             self.manager.version)]),
+                        tid=trigger['oid'],
+                        clist=columns)
+
+                    status, rset = self.conn.execute_2darray(SQL)
+                    if not status:
+                        return internal_server_error(errormsg=rset)
+                    # 'tgattr' contains list of columns from table
+                    # used in trigger
+                    columns = []
+
+                    for col_row in rset['rows']:
+                        columns.append(col_row['name'])
+
+                    res_rows['columns'] = columns
+
+                res_rows = trigger_definition(res_rows)
+                SQL = render_template("/".join(
+                    [self.ct_trigger_temp_path,
+                     'sql/{0}/#{1}#/create.sql'.format(
+                         self.manager.server_type, self.manager.version)]),
+                    data=res_rows, display_comments=True)
+                SQL_data += '\n'
+                SQL_data += SQL
+
+        return SQL_data
+
     def get_trigger_sql(self, vid):
         """
         Get all trigger nodes associated with view node,
@@ -912,7 +989,8 @@ class ViewNode(PGChildNodeView, VacuumSettings):
         SQL_data = ''
         SQL = render_template("/".join(
             [self.trigger_temp_path,
-             'sql/#{0}#/properties.sql'.format(self.manager.version)]),
+             'sql/{0}/#{1}#/properties.sql'.format(
+                 self.manager.server_type, self.manager.version)]),
             tid=vid)
 
         status, data = self.conn.execute_dict(SQL)
@@ -922,7 +1000,8 @@ class ViewNode(PGChildNodeView, VacuumSettings):
         for trigger in data['rows']:
             SQL = render_template("/".join(
                 [self.trigger_temp_path,
-                 'sql/#{0}#/properties.sql'.format(self.manager.version)]),
+                 'sql/{0}/#{1}#/properties.sql'.format(
+                     self.manager.server_type, self.manager.version)]),
                 tid=vid,
                 trid=trigger['oid']
             )
@@ -952,8 +1031,8 @@ class ViewNode(PGChildNodeView, VacuumSettings):
             # Get trigger function with its schema name
             SQL = render_template("/".join([
                 self.trigger_temp_path,
-                'sql/#{0}#/get_triggerfunctions.sql'.format(
-                    self.manager.version)]),
+                'sql/{0}/#{1}#/get_triggerfunctions.sql'.format(
+                    self.manager.server_type, self.manager.version)]),
                 tgfoid=res_rows['tgfoid'],
                 show_system_objects=self.blueprint.show_system_objects)
 
@@ -961,7 +1040,8 @@ class ViewNode(PGChildNodeView, VacuumSettings):
             if not status:
                 return internal_server_error(errormsg=result)
 
-            # Update the trigger function which we have fetched with schemaname
+            # Update the trigger function which we have fetched with
+            # schemaname
             if (
                 'rows' in result and len(result['rows']) > 0 and
                 'tfunctions' in result['rows'][0]
@@ -976,7 +1056,8 @@ class ViewNode(PGChildNodeView, VacuumSettings):
 
             SQL = render_template("/".join(
                 [self.trigger_temp_path,
-                 'sql/#{0}#/create.sql'.format(self.manager.version)]),
+                 'sql/{0}/#{1}#/create.sql'.format(
+                     self.manager.server_type, self.manager.version)]),
                 data=res_rows, display_comments=True)
             SQL_data += '\n'
             SQL_data += SQL
@@ -1100,6 +1181,7 @@ class ViewNode(PGChildNodeView, VacuumSettings):
         SQL_data += SQL
         SQL_data += self.get_rule_sql(vid)
         SQL_data += self.get_trigger_sql(vid)
+        SQL_data += self.get_compound_trigger_sql(vid)
         SQL_data += self.get_index_sql(did, vid)
 
         return ajax_response(response=SQL_data)

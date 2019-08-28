@@ -15,7 +15,8 @@ from pgadmin.browser.server_groups.servers.databases.tests import utils as \
 from pgadmin.utils.route import BaseTestGenerator
 from regression import parent_node_dict
 from regression.python_test_utils import test_utils as utils
-from pgadmin.tools.sqleditor.tests.execute_query_utils import execute_query
+from pgadmin.tools.sqleditor.tests.execute_query_test_utils \
+    import execute_query
 
 
 class TestSaveChangedData(BaseTestGenerator):
@@ -116,8 +117,9 @@ class TestSaveChangedData(BaseTestGenerator):
                 ]
             },
             save_status=False,
-            check_sql=None,
-            check_result=None
+            check_sql="SELECT * FROM %s "
+                      "WHERE pk_col = 1 AND normal_col = 'four'",
+            check_result='SELECT 0'
         )),
         ('When updating a row in a valid way', dict(
             save_payload={
@@ -171,9 +173,9 @@ class TestSaveChangedData(BaseTestGenerator):
                 "updated": {
                     "1":
                         {"err": False,
-                         "data": {"pk_col": "2"},
+                         "data": {"pk_col": "1"},
                          "primary_keys":
-                             {"pk_col": 1}
+                             {"pk_col": 2}
                          }
                 },
                 "added": {},
@@ -210,8 +212,9 @@ class TestSaveChangedData(BaseTestGenerator):
                 ]
             },
             save_status=False,
-            check_sql=None,
-            check_result=None
+            check_sql="SELECT * FROM %s "
+                      "WHERE pk_col = 1 AND normal_col = 'two'",
+            check_result='SELECT 0'
         )),
         ('When deleting a row', dict(
             save_payload={
@@ -261,16 +264,25 @@ class TestSaveChangedData(BaseTestGenerator):
         self._initialize_urls_and_select_sql()
 
     def runTest(self):
-        # Create test table (unique for each scenario)
         self._create_test_table()
-        # Execute select sql
-        is_success, _ = \
+        self._execute_sql_query(self.select_sql)
+        self._save_changed_data()
+        self._check_saved_data()
+
+    def tearDown(self):
+        # Disconnect the database
+        database_utils.disconnect_database(self, self.server_id, self.db_id)
+
+    def _execute_sql_query(self, query):
+        is_success, response_data = \
             execute_query(tester=self.tester,
-                          query=self.select_sql,
+                          query=query,
                           start_query_tool_url=self.start_query_tool_url,
                           poll_url=self.poll_url)
         self.assertEquals(is_success, True)
+        return response_data
 
+    def _save_changed_data(self):
         # Send a request to save changed data
         response = self.tester.post(self.save_url,
                                     data=json.dumps(self.save_payload),
@@ -283,24 +295,12 @@ class TestSaveChangedData(BaseTestGenerator):
         save_status = response_data['data']['status']
         self.assertEquals(save_status, self.save_status)
 
-        if self.check_sql:
-            # Execute check sql
-            # Add test table name to the query
-            check_sql = self.check_sql % self.test_table_name
-            is_success, response_data = \
-                execute_query(tester=self.tester,
-                              query=check_sql,
-                              start_query_tool_url=self.start_query_tool_url,
-                              poll_url=self.poll_url)
-            self.assertEquals(is_success, True)
-
-            # Check table for updates
-            result = response_data['data']['result']
-            self.assertEquals(result, self.check_result)
-
-    def tearDown(self):
-        # Disconnect the database
-        database_utils.disconnect_database(self, self.server_id, self.db_id)
+    def _check_saved_data(self):
+        check_sql = self.check_sql % self.test_table_name
+        response_data = self._execute_sql_query(check_sql)
+        # Check table for updates
+        result = response_data['data']['result']
+        self.assertEquals(result, self.check_result)
 
     def _initialize_database_connection(self):
         database_info = parent_node_dict["database"][-1]
@@ -323,16 +323,13 @@ class TestSaveChangedData(BaseTestGenerator):
             raise Exception("Could not connect to the database.")
 
     def _initialize_query_tool(self):
-        url = '/datagrid/initialize/query_tool/{0}/{1}/{2}'.format(
-            utils.SERVER_GROUP, self.server_id, self.db_id)
+        self.trans_id = str(random.randint(1, 9999999))
+        url = '/datagrid/initialize/query_tool/{0}/{1}/{2}/{3}'.format(
+            self.trans_id, utils.SERVER_GROUP, self.server_id, self.db_id)
         response = self.tester.post(url)
         self.assertEquals(response.status_code, 200)
 
-        response_data = json.loads(response.data.decode('utf-8'))
-        self.trans_id = response_data['data']['gridTransId']
-
     def _initialize_urls_and_select_sql(self):
-
         self.start_query_tool_url = \
             '/sqleditor/query_tool/start/{0}'.format(self.trans_id)
         self.save_url = '/sqleditor/save/{0}'.format(self.trans_id)

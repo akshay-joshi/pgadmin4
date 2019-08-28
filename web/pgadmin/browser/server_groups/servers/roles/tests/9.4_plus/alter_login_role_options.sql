@@ -7,6 +7,10 @@ CREATE ROLE "Role2_$%{}[]()&*^!@""'`\/#" WITH
   INHERIT
   NOCREATEDB
   CREATEROLE
-  REPLICATION;
+  NOREPLICATION
+  CONNECTION LIMIT 100
+  VALID UNTIL '<TIMESTAMPTZ>';
+
+ALTER ROLE "Role2_$%{}[]()&*^!@""'`\/#" IN DATABASE postgres SET application_name TO 'pg4';
 
 COMMENT ON ROLE "Role2_$%{}[]()&*^!@""'`\/#" IS 'This is detailed description';

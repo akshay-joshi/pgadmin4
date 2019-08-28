@@ -8,8 +8,8 @@
 //////////////////////////////////////////////////////////////////////////
 // This file contains common utilities functions used in sqleditor modules
 
-define(['jquery', 'sources/gettext', 'sources/url_for'],
-  function ($, gettext, url_for) {
+define(['jquery', 'underscore', 'sources/gettext', 'sources/url_for'],
+  function ($, _, gettext, url_for) {
     var sqlEditorUtils = {
       /* Reference link http://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript
        * Modified as per requirement.
@@ -73,6 +73,9 @@ define(['jquery', 'sources/gettext', 'sources/url_for'],
           return;
         }
 
+        if($status_el.hasClass('obtaining-conn')){
+          return;
+        }
         let sqleditor_obj = target;
 
         // Start polling..
@@ -196,20 +199,30 @@ define(['jquery', 'sources/gettext', 'sources/url_for'],
         return '1em';
       },
 
-      removeSlashInTheString: (value) => {
-        let locationList = [];
-        let idx = 0;
-        while (value && value.indexOf('/') !== -1) {
-          locationList.push(value.indexOf('/') + idx);
-          value = value.replace('/', '');
-          // No of slashes already removed, so we need to increment the
-          // index accordingly when adding into location list
-          idx++;
+      addEditableIcon: function(columnDefinition, is_editable) {
+        /* This uses Slickgrid.HeaderButtons plugin to add an icon to the
+        columns headers. Instead of a button, an icon is created */
+        let content = null;
+        if(is_editable) {
+          content = '<i class="fa fa-pencil"></i>';
         }
-        return {
-          'slashLocations': locationList.join(','),
-          'title': encodeURIComponent(value),
+        else {
+          content = '<i class="fa fa-lock"></i>';
+        }
+        let button = {
+          cssClass: 'editable-column-header-icon',
+          content: content,
         };
+        // Check for existing buttons
+        if(!_.isUndefined(columnDefinition.header) &&
+           !_.isUndefined(columnDefinition.header.buttons)) {
+          columnDefinition.header.buttons.push(button);
+        }
+        else {
+          columnDefinition.header = {
+            buttons: [button],
+          };
+        }
       },
     };
     return sqlEditorUtils;

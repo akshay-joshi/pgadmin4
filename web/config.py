@@ -50,7 +50,7 @@ APP_ICON = 'pg-icon'
 
 # Application version number components
 APP_RELEASE = 4
-APP_REVISION = 11
+APP_REVISION = 12
 
 # Application version suffix, e.g. 'beta1', 'dev'. Usually an empty string
 # for GA releases.
@@ -59,7 +59,7 @@ APP_SUFFIX = ''
 # Numeric application version for upgrade checks. Should be in the format:
 # [X]XYYZZ, where X is the release version, Y is the revision, with a leading
 # zero if needed, and Z represents the suffix, with a leading zero if needed
-APP_VERSION_INT = 41100
+APP_VERSION_INT = 41200
 
 # DO NOT CHANGE!
 # The application version string, constructed from the components
@@ -431,6 +431,16 @@ ALLOW_SAVE_TUNNEL_PASSWORD = False
 # Applicable for desktop mode only
 ##########################################################################
 MASTER_PASSWORD_REQUIRED = True
+
+##########################################################################
+# Allows pgAdmin4 to create session cookies based on IP address, so even
+# if a cookie is stolen, the attacker will not be able to connect to the
+# server using that stolen cookie.
+# Note: This can cause problems when the server is deployed in dynamic IP
+# address hosting environments, such as Kubernetes or behind load
+# balancers. In such cases, this option should be set to False.
+##########################################################################
+ENHANCED_COOKIE_PROTECTION = True
 
 ##########################################################################
 # Local config settings
