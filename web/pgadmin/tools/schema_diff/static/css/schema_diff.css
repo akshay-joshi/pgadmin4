@@ -49,7 +49,7 @@
   background: white;
   outline: 0;
   font-size: 9pt;
-  margin-top: 20px;
+  margin-top: 30px;
 }
 
 .slick-header-column.ui-state-default {
@@ -141,15 +141,45 @@
   font-size: inherit;
   padding: 7px;
 }
-#schema-diff-ddl-comp #ddl_comp {
-  border-top: 1px solid #dde0e6 !important;
-}
 
 #schema-diff-ddl-comp .accordian-group {
   padding: 0px;
 }
 
+#ddl_comp_fetching_data.pg-sp-container {
+  min-height: 45%;
+  bottom: 10px;
+
+  .pg-sp-content {
+    position: absolute;
+    width: 100%;
+  }
+}
+
+.ddl-copy {
+  z-index: 10;
+  position: absolute;
+  right: 1px;
+  top: 1px;
+}
+
+#schema-diff-grid .pg-panel-message {
+  font-size: 0.875rem;
+}
+
 
 #schema-diff-ddl-comp .sql_field_layout {
-  max-height: 145px;
+  overflow: auto !important;
+  height: 100%;
+}
+
+#schema-diff-ddl-comp .source_ddl, #schema-diff-ddl-comp .target_ddl, #schema-diff-ddl-comp .diff_ddl {
+  height: 300px;
+  overflow: hidden;
+}
+
+.target-buttons {
+  flex-wrap: wrap;
+  margin-right: -7.5px;
+  margin-left: -7.5px;
 }

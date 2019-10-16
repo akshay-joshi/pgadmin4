@@ -409,6 +409,7 @@
 
     // Get the controller object from pgAdmin.SqlEditor
     var sqlEditorController = pgAdmin.SqlEditor.create(editorPanel);
+    debugger;
 
     // Listen on events to show/hide loading-icon and change messages.
     sqlEditorController.on('pgadmin-sqleditor:loading-icon:message', function(msg) {
@@ -430,5 +431,11 @@
         {{ url_params|safe}},
         '{{ layout|safe }}',
     );
+
+    // If opening from schema diff, set the generated script to the SQL Editor
+    var schema_ddl_diff = window.top.pgAdmin.ddl_diff || window.opener.pgAdmin.ddl_diff;
+    sqlEditorController.set_value_to_editor(schema_ddl_diff);
+    if (window.top !== null) window.top.pgAdmin.ddl_diff = '';
+    if (window.opener !== null) window.opener.pgAdmin.ddl_diff = '';
 });
 {% endblock %}

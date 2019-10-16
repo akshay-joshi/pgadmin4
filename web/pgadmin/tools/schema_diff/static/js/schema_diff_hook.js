@@ -12,6 +12,7 @@ define([
   'underscore.string', 'alertify', 'sources/pgadmin', 'pgadmin.browser',
   'backbone', 'pgadmin.backgrid', 'codemirror', 'pgadmin.backform',
   'pgadmin.tools.schema_diff_ui','wcdocker', 'pgadmin.browser.frame',
+  'pgadmin.datagrid',
 ], function(
   gettext, url_for, $, _, S, Alertify, pgAdmin, pgBrowser, Backbone, Backgrid,
   CodeMirror, Backform, SchemaDiffUIModule

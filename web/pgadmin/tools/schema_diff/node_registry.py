@@ -33,7 +33,10 @@ class SchemaDiffRegistry(object):
         :return:
         """
         if node_name is not None:
-            return cls._registered_nodes[node_name]['view']
+            if node_name in cls._registered_nodes:
+                return cls._registered_nodes[node_name]['view']
+            else:
+                return None
 
         registered_nodes = {}
         for key, value in cls._registered_nodes.items():
@@ -53,4 +56,6 @@ class SchemaDiffRegistry(object):
         """
         cmd = {"cmd": "nodes, compare, ddl_compare"}
         module = SchemaDiffRegistry.get_registered_nodes(node_name)
+        if not module:
+            return None
         return module(**cmd)

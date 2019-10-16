@@ -829,7 +829,7 @@ class PackageView(PGChildNodeView):
 
         ignore_keys = ['oid', 'owner', 'schema', 'xmin']
         return compare_dictionaries(source_packages, target_packages,
-                                    self.node, ignore_keys)
+                                    self.node_type, ignore_keys)
 
 
 SchemaDiffRegistry('Packages', PackageView)

@@ -13,7 +13,7 @@ import simplejson as json
 from functools import wraps
 
 import pgadmin.browser.server_groups.servers.databases as database
-from flask import render_template, request, jsonify
+from flask import render_template, request, jsonify, current_app
 from flask_babelex import gettext
 from pgadmin.browser.collection import CollectionNodeModule
 from pgadmin.browser.utils import PGChildNodeView
@@ -24,7 +24,9 @@ from config import PG_DEFAULT_DRIVER
 from pgadmin.utils.compile_template_name import compile_template_path
 from pgadmin.utils import IS_PY2
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries,\
+    directory_diff
+from pgadmin.tools.schema_diff.model import SchemaDiffModel
 
 # If we are in Python3
 if not IS_PY2:
@@ -693,7 +695,7 @@ class TriggerView(PGChildNodeView):
             return internal_server_error(errormsg=str(e))
 
     @check_precondition
-    def delete(self, gid, sid, did, scid, tid, trid=None):
+    def delete(self, gid, sid, did, scid, tid, trid=None, only_sql=False):
         """
         This function will updates existing the trigger object
 
@@ -751,6 +753,8 @@ class TriggerView(PGChildNodeView):
                                       conn=self.conn,
                                       cascade=cascade
                                       )
+                if only_sql:
+                    return SQL
                 status, res = self.conn.execute_scalar(SQL)
                 if not status:
                     return internal_server_error(errormsg=res)
@@ -1029,6 +1033,80 @@ class TriggerView(PGChildNodeView):
         return ajax_response(response=SQL)
 
     @check_precondition
+    def get_sql_from_trigger_diff(self, sid, did, scid, tid, trid,
+                                  data=None, diff_scid=None):
+        if data:
+            sql, name = self.get_sql(scid, tid, trid, data)
+            if not isinstance(sql, (str, unicode)):
+                return sql
+            sql = sql.strip('\n').strip(' ')
+        else:
+            SQL = render_template("/".join([self.template_path,
+                                            'properties.sql']),
+                                  tid=tid, trid=trid,
+                                  datlastsysoid=self.datlastsysoid)
+
+            status, res = self.conn.execute_dict(SQL)
+            if not status:
+                return internal_server_error(errormsg=res)
+            if len(res['rows']) == 0:
+                return gone(
+                    gettext("""Could not find the trigger in the table."""))
+
+            data = dict(res['rows'][0])
+            # Adding parent into data dict,
+            # will be using it while creating sql
+            data['schema'] = self.schema
+            data['table'] = self.table
+
+            data = self.get_trigger_function_schema(data)
+
+            if len(data['custom_tgargs']) > 1:
+                # We know that trigger has more than 1 argument,
+                # let's join them
+                data['tgargs'] = self._format_args(data['custom_tgargs'])
+
+            if len(data['tgattr']) >= 1:
+                columns = ', '.join(data['tgattr'].split(' '))
+                data['columns'] = self._column_details(tid, columns)
+
+            data = self._trigger_definition(data)
+
+            if diff_scid:
+                # Fetch schema name
+                status, schema_name = self.conn.execute_scalar(
+                    render_template(
+                        "/".join([self.table_template_path,
+                                  'get_schema.sql']),
+                        conn=self.conn, scid=diff_scid
+                    )
+                )
+                if not status:
+                    return internal_server_error(errormsg=schema_name)
+
+                data['schema'] = schema_name
+
+            SQL, name = self.get_sql(scid, tid, None, data)
+
+            sql_header = u"-- Trigger: {0}\n\n-- ".format(data['name'])
+
+            sql_header += render_template("/".join([self.template_path,
+                                                    'delete.sql']),
+                                          data=data, conn=self.conn)
+
+            SQL = sql_header + '\n\n' + SQL.strip('\n')
+
+            # If trigger is disbaled then add sql code for the same
+            if not data['is_enable_trigger']:
+                SQL += '\n\n'
+                SQL += render_template("/".join([
+                    self.template_path,
+                    'enable_disable_trigger.sql']),
+                    data=data, conn=self.conn)
+
+        return SQL
+
+    @check_precondition
     def enable_disable_trigger(self, gid, sid, did, scid, tid, trid):
         """
         This function will enable OR disable the current trigger object
@@ -1144,7 +1222,8 @@ class TriggerView(PGChildNodeView):
         )
 
     @check_precondition
-    def fetch_triggers(self, sid, did, scid, tid):
+    def fetch_to_compare(self, sid, did, scid, tid, oid=None,
+                         ignore_keys=False):
         """
         This function will fetch the list of all the triggers for
         specified schema id.
@@ -1156,24 +1235,30 @@ class TriggerView(PGChildNodeView):
         :return:
         """
         res = dict()
+        keys_to_ignore = ['oid', 'xmin', 'nspname', 'tfunction', 'tgrelid',
+                          'tgfoid']
 
-        # Fetch all the tables
-        SQL = render_template("/".join([self.table_template_path,
-                                        'nodes.sql']), scid=scid)
-        status, tables = self.conn.execute_2darray(SQL)
-        if not status:
-            return internal_server_error(errormsg=tables)
-
-        for table in tables['rows']:
+        if oid:
+            status, data = self._fetch_properties(tid, oid)
+            if not status:
+                current_app.logger.error(data)
+                return False
+            res = data
+        else:
             SQL = render_template("/".join([self.template_path,
-                                            'nodes.sql']), tid=table['oid'])
+                                            'nodes.sql']), tid=tid)
             status, triggers = self.conn.execute_2darray(SQL)
             if not status:
-                return internal_server_error(errormsg=triggers)
+                current_app.logger.error(triggers)
+                return False
 
             for row in triggers['rows']:
-                status, data = self._fetch_properties(table['oid'], row['oid'])
+                status, data = self._fetch_properties(tid, row['oid'])
                 if status:
+                    if ignore_keys:
+                        for key in keys_to_ignore:
+                            if key in data:
+                                del data[key]
                     res[row['name']] = data
 
         return res
@@ -1186,21 +1271,25 @@ class TriggerView(PGChildNodeView):
         :param kwargs:
         :return:
         """
+
         src_sid = kwargs.get('source_sid')
         src_did = kwargs.get('source_did')
         src_scid = kwargs.get('source_scid')
+        src_tid = kwargs.get('source_tid')
         tar_sid = kwargs.get('target_sid')
         tar_did = kwargs.get('target_did')
         tar_scid = kwargs.get('target_scid')
+        tar_tid = kwargs.get('target_tid')
 
-        source_triggers = self.fetch_triggers(sid=src_sid, did=src_did,
-                                              scid=src_scid, tid=0)
+        source_triggers = self.fetch_to_compare(sid=src_sid, did=src_did,
+                                                scid=src_scid, tid=src_tid)
 
-        target_triggers = self.fetch_triggers(sid=tar_sid, did=tar_did,
-                                              scid=tar_scid, tid=0)
+        target_triggers = self.fetch_to_compare(sid=tar_sid, did=tar_did,
+                                                scid=tar_scid, tid=tar_tid)
 
         # If both the dict have no items then return None.
-        if len(source_triggers) <= 0 and len(target_triggers) <= 0:
+        if not (source_triggers or target_triggers) or \
+                (len(source_triggers) <= 0 and len(target_triggers) <= 0):
             return None
 
         ignore_keys = ['oid', 'xmin', 'nspname', 'tfunction', 'tgrelid',
@@ -1208,5 +1297,68 @@ class TriggerView(PGChildNodeView):
 
         return compare_dictionaries(source_triggers, target_triggers,
                                     self.node_type,
-                                    ignore_keys,
-                                    'table')
+                                    ignore_keys)
+
+    def ddl_compare(self, **kwargs):
+        """
+        This function will compare trigger properties and
+         return the difference of SQL
+        """
+
+        src_sid = kwargs.get('source_sid')
+        src_did = kwargs.get('source_did')
+        src_scid = kwargs.get('source_scid')
+        src_tid = kwargs.get('source_tid')
+        src_oid = kwargs.get('source_oid')
+        tar_sid = kwargs.get('target_sid')
+        tar_did = kwargs.get('target_did')
+        tar_scid = kwargs.get('target_scid')
+        tar_tid = kwargs.get('target_tid')
+        tar_oid = kwargs.get('target_oid')
+        comp_status = kwargs.get('comp_status')
+
+        source = ''
+        target = ''
+        diff = ''
+
+        if comp_status == SchemaDiffModel.COMPARISON_STATUS['source_only']:
+            diff = self.get_sql_from_trigger_diff(sid=src_sid,
+                                                  did=src_did, scid=src_scid,
+                                                  tid=src_tid, trid=src_oid,
+                                                  diff_scid=tar_scid)
+
+        elif comp_status == SchemaDiffModel.COMPARISON_STATUS['target_only']:
+            diff = self.delete(gid=1, sid=tar_sid, did=tar_did,
+                               scid=tar_scid, tid=tar_tid,
+                               trid=tar_oid, only_sql=True)
+        else:
+            source = self.fetch_to_compare(sid=src_sid, did=src_did,
+                                           scid=src_scid, tid=src_tid,
+                                           oid=src_oid)
+            target = self.fetch_to_compare(sid=tar_sid, did=tar_did,
+                                           scid=tar_scid, tid=tar_tid,
+                                           oid=tar_oid)
+
+            if not (source_tables or target_tables):
+                return None
+
+            diff_dict = directory_diff(
+                source, target, ignore_keys=[
+                    'oid', 'xmin', 'nspname',
+                    'tfunction', 'tgrelid', 'tgfoid'
+                ],
+                difference={}
+            )
+
+            diff = self.get_sql_from_trigger_diff(sid=tar_sid,
+                                                  did=tar_did,
+                                                  scid=tar_scid,
+                                                  tid=tar_tid,
+                                                  rid=tar_oid,
+                                                  data=diff_dict)
+
+        return diff
+
+
+SchemaDiffRegistry('trigger', TriggerView, 'table')
+TriggerView.register_node_view(blueprint)

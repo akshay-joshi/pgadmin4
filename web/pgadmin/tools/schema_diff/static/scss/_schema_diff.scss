@@ -4,10 +4,8 @@
   right: 0;
   top: 0;
   bottom: 0;
-}
-
-#schema-diff-header {
-  background: $negative-bg;
+  padding-top: 10px;
+  background-color: $color-gray-lighter;
 }
 
 #schema-diff-grid .slick-header .slick-header-columns {
@@ -40,7 +38,7 @@
 
 #schema-diff-grid {
   background: none;
-  background-color: $datagrid-bg;
+  background-color: $color-gray-lighter;
 }
 
 #schema-diff-grid .slick-row .slick-cell.l0.r0.selected {
@@ -76,8 +74,9 @@
 }
 
 #schema-diff-ddl-comp {
-  position: absolute;
   width: 99%;
+  height: 100%;
   bottom: 10px;
   background-color: $color-bg !important;
+  overflow-y: hidden;
 }

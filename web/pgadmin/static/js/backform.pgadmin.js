@@ -2399,7 +2399,7 @@ define([
         self.sqlCtrl.setOption('autoCloseBrackets', sqlEditPreferences.insert_pair_brackets);
         self.sqlCtrl.setOption('matchBrackets', sqlEditPreferences.brace_matching);
         setTimeout(function() {
-          self.sqlCtrl.refresh();
+          if (self.sqlCtrl) self.sqlCtrl.refresh();
         }, 500);
       }
     },

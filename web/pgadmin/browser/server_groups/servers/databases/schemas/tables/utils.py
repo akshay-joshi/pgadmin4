@@ -842,7 +842,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         )
 
     def get_reverse_engineered_sql(self, did, scid, tid, main_sql, data,
-                                   json_resp=True):
+                                   json_resp=True, diff_partition_sql=False):
         """
         This function will creates reverse engineered sql for
         the table object
@@ -853,6 +853,9 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
            tid: Table ID
            main_sql: List contains all the reversed engineered sql
            data: Table's Data
+           json_resp: Json response or plain SQL
+           diff_partition_sql: In Schema diff, the Partition sql should be return
+           separately to perform further task
         """
         """
         #####################################
@@ -864,6 +867,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         schema = data['schema']
         table = data['name']
         is_partitioned = 'is_partitioned' in data and data['is_partitioned']
+        sql_header = ''
 
         data = self._formatter(did, scid, tid, data)
 
@@ -881,18 +885,20 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     c['cltype'], c['hasSqrBracket'] = \
                         self._cltype_formatter(c['cltype'])
 
-        sql_header = u"-- Table: {0}\n\n-- ".format(
-            self.qtIdent(self.conn, data['schema'], data['name']))
+        if json_resp:
+            sql_header = u"-- Table: {0}\n\n-- ".format(
+                self.qtIdent(self.conn, data['schema'], data['name']))
 
-        sql_header += render_template("/".join([self.table_template_path,
-                                                'delete.sql']),
-                                      data=data, conn=self.conn)
+            sql_header += render_template("/".join([self.table_template_path,
+                                                    'delete.sql']),
+                                          data=data, conn=self.conn)
 
-        sql_header = sql_header.strip('\n')
-        sql_header += '\n'
+            sql_header = sql_header.strip('\n')
+            sql_header += '\n'
 
-        # Add into main sql
-        main_sql.append(sql_header)
+            # Add into main sql
+            main_sql.append(sql_header)
+        partition_main_sql = ""
 
         # Parse privilege data
         if 'relacl' in data:
@@ -1008,7 +1014,10 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
             # Add into main sql
             index_sql = re.sub('\n{2,}', '\n\n', index_sql)
-            main_sql.append(sql_header + '\n\n' + index_sql.strip('\n'))
+            if json_resp:
+                main_sql.append(sql_header + '\n\n' + index_sql.strip('\n'))
+            else:
+                main_sql.append(index_sql.strip('\n'))
 
         """
         ########################################
@@ -1076,7 +1085,10 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                                                     'create.sql']),
                                           data=data, conn=self.conn)
 
-            trigger_sql = sql_header + '\n\n' + trigger_sql.strip('\n')
+            if json_resp:
+                trigger_sql = sql_header + '\n\n' + trigger_sql.strip('\n')
+            else:
+                trigger_sql.strip('\n')
 
             # If trigger is disabled then add sql code for the same
             if not data['is_enable_trigger']:
@@ -1155,8 +1167,11 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     [self.compound_trigger_template_path, 'create.sql']),
                     data=data, conn=self.conn)
 
-                compound_trigger_sql = \
-                    sql_header + '\n\n' + compound_trigger_sql.strip('\n')
+                if json_resp:
+                    compound_trigger_sql = \
+                        sql_header + '\n\n' + compound_trigger_sql.strip('\n')
+                else:
+                    compound_trigger_sql = compound_trigger_sql.strip('\n')
 
                 # If trigger is disabled then add sql code for the same
                 if not data['is_enable_trigger']:
@@ -1194,10 +1209,13 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             if not status:
                 return internal_server_error(errormsg=res)
 
+            display_comments = True
+            if not json_resp:
+                display_comments = False
             res_data = parse_rule_definition(res)
             rules_sql += render_template("/".join(
                 [self.rules_template_path, 'create.sql']),
-                data=res_data, display_comments=True)
+                data=res_data, display_comments=display_comments)
 
             # Add into main sql
             rules_sql = re.sub('\n{2,}', '\n\n', rules_sql)
@@ -1217,13 +1235,17 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 return internal_server_error(errormsg=rset)
 
             if len(rset['rows']):
-                sql_header = u"\n-- Partitions SQL"
+                if json_resp:
+                    sql_header = u"\n-- Partitions SQL"
                 partition_sql = ''
                 for row in rset['rows']:
                     part_data = dict()
-                    part_data['partitioned_table_name'] = table
-                    part_data['parent_schema'] = schema
-                    part_data['schema'] = row['schema_name']
+                    part_data['partitioned_table_name'] = data['name']
+                    part_data['parent_schema'] = data['schema']
+                    if json_resp:
+                        part_data['schema'] = data['schema']
+                    else:
+                        part_data['schema'] = row['schema_name']
                     part_data['relispartition'] = True
                     part_data['name'] = row['name']
                     part_data['partition_value'] = row['partition_value']
@@ -1235,15 +1257,18 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                         data=part_data, conn=self.conn)
 
                 # Add into main sql
-                partition_sql = re.sub('\n{2,}', '\n\n', partition_sql)
-                main_sql.append(
-                    sql_header + '\n\n' + partition_sql.strip('\n')
-                )
+                partition_sql = re.sub('\n{2,}', '\n\n', partition_sql
+                                       ).strip('\n')
+                partition_main_sql = partition_sql.strip('\n')
+                if not diff_partition_sql:
+                    main_sql.append(
+                        sql_header + '\n\n' + partition_main_sql
+                    )
 
         sql = '\n'.join(main_sql)
 
         if not json_resp:
-            return sql
+            return sql, partition_main_sql
         return ajax_response(response=sql.strip('\n'))
 
     def reset_statistics(self, scid, tid):
@@ -1413,18 +1438,17 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                         if not status:
                             return internal_server_error(errormsg=res)
 
-                        old_data = res['rows'][0]
-
-                        # If changes are from table node
-                        if 'name' not in c:
-                            c['name'] = old_data['name']
-                        # Sql to update object
-                        sql.append(
-                            render_template("/".join([
-                                self.index_constraint_template_path,
-                                'update.sql']), data=c, o_data=old_data,
-                                conn=self.conn).strip('\n')
-                        )
+                        if len(res['rows']) > 0:
+                            old_data = res['rows'][0]
+                            if 'name' not in c:
+                                c['name'] = old_data['name']
+                            # Sql to update object
+                            sql.append(
+                                render_template("/".join([
+                                    self.index_constraint_template_path,
+                                    'update.sql']), data=c, o_data=old_data,
+                                    conn=self.conn).strip('\n')
+                            )
 
                 if 'added' in constraint:
                     for c in constraint['added']:
@@ -1500,14 +1524,15 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     if not status:
                         return internal_server_error(errormsg=res)
 
-                    old_data = res['rows'][0]
-                    # Sql to update object
-                    sql.append(
-                        render_template("/".join([
-                            self.foreign_key_template_path,
-                            'update.sql']), data=c, o_data=old_data,
-                            conn=self.conn).strip('\n')
-                    )
+                    if len(res['rows']) > 0:
+                        old_data = res['rows'][0]
+                        # Sql to update object
+                        sql.append(
+                            render_template("/".join([
+                                self.foreign_key_template_path,
+                                'update.sql']), data=c, o_data=old_data,
+                                conn=self.conn).strip('\n')
+                        )
 
                     if not self.validate_constrains('foreign_key', c):
                         sql.append(
@@ -1633,14 +1658,15 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     if not status:
                         return internal_server_error(errormsg=res)
 
-                    old_data = res['rows'][0]
-                    # Sql to update object
-                    sql.append(
-                        render_template("/".join([
-                            self.check_constraint_template_path,
-                            'update.sql']), data=c, o_data=old_data,
-                            conn=self.conn).strip('\n')
-                    )
+                    if len(res['rows']) > 0:
+                        old_data = res['rows'][0]
+                        # Sql to update object
+                        sql.append(
+                            render_template("/".join([
+                                self.check_constraint_template_path,
+                                'update.sql']), data=c, o_data=old_data,
+                                conn=self.conn).strip('\n')
+                        )
 
             if 'added' in constraint:
                 for c in constraint['added']:
@@ -1710,14 +1736,15 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     if not status:
                         return internal_server_error(errormsg=res)
 
-                    old_data = res['rows'][0]
-                    # Sql to update object
-                    sql.append(
-                        render_template("/".join([
-                            self.exclusion_constraint_template_path,
-                            'update.sql']), data=c, o_data=old_data,
-                            conn=self.conn).strip('\n')
-                    )
+                    if len(res['rows']) > 0:
+                        old_data = res['rows'][0]
+                        # Sql to update object
+                        sql.append(
+                            render_template("/".join([
+                                self.exclusion_constraint_template_path,
+                                'update.sql']), data=c, o_data=old_data,
+                                conn=self.conn).strip('\n')
+                        )
 
             if 'added' in constraint:
                 for c in constraint['added']:
@@ -2446,6 +2473,22 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             }
         )
 
+    def get_delete_sql(self, res):
+        # Below will decide if it's simple drop or drop with cascade call
+        if self.cmd == 'delete':
+            # This is a cascade operation
+            cascade = True
+        else:
+            cascade = False
+
+        data = res['rows'][0]
+
+        return render_template(
+            "/".join([self.table_template_path, 'delete.sql']),
+            data=data, cascade=cascade,
+            conn=self.conn
+        )
+
     def delete(self, gid, sid, did, scid, tid, res):
         """
         This function will delete the table object
@@ -2458,20 +2501,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
            tid: Table ID
         """
 
-        # Below will decide if it's simple drop or drop with cascade call
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+        SQL = self.get_delete_sql(res)
 
-        data = res['rows'][0]
-
-        SQL = render_template(
-            "/".join([self.table_template_path, 'delete.sql']),
-            data=data, cascade=cascade,
-            conn=self.conn
-        )
         status, res = self.conn.execute_scalar(SQL)
         if not status:
             return status, res

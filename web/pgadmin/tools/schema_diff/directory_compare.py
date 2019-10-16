@@ -219,7 +219,7 @@ def directory_diff(source_dict, target_dict, ignore_keys=[], difference={}):
                             tmp_target = copy.deepcopy(target_dict[key])
                             for item in tmp_target:
                                 if (
-                                        'name ' in item and
+                                        'name' in item and
                                         item['name'] == source['name']
                                 ) or (
                                         'colname' in item and
@@ -239,7 +239,12 @@ def directory_diff(source_dict, target_dict, ignore_keys=[], difference={}):
                     difference[key]['added'] = added
                     difference[key]['changed'] = updated
                 elif target_dict[key] is None or \
-                        source != target_dict[key][index]:
+                        (type(target_dict[key]) is list and
+                         len(target_dict[key]) < index and
+                         source != target_dict[key][index]):
+                    difference[key] = source
+                elif type(target_dict[key]) is list and\
+                        len(target_dict[key]) > index:
                     difference[key] = source
 
             if type(source) is dict and tmp_target and key in tmp_target and \

@@ -11,6 +11,7 @@ import $ from 'jquery';
 import Backbone from 'backbone';
 import Backform from 'pgadmin.backform';
 import gettext from 'sources/gettext';
+import clipboard from 'sources/selection/clipboard';
 
 var formatNode = function (opt) {
   if (!opt.id) {
@@ -32,7 +33,17 @@ var formatNode = function (opt) {
 
 let SchemaDiffSqlControl =
   Backform.SqlFieldControl.extend({
+    defaults: {
+      label: '',
+      extraClasses: [], // Add default control height
+      helpMessage: null,
+      maxlength: 4096,
+      rows: undefined,
+      copyRequired: false,
+    },
+
     template: _.template([
+      '<% if (copyRequired) { %><button class="btn btn-secondary ddl-copy d-none">Copy</button> <% } %>',
       '<div class="pgadmin-controls pg-el-9 pg-el-12 sql_field_layout <%=extraClasses.join(\' \')%>">',
       '  <textarea ',
       '    class="<%=Backform.controlClassName%> " name="<%=name%>"',
@@ -44,6 +55,37 @@ let SchemaDiffSqlControl =
       '  <% } %>',
       '</div>',
     ].join('\n')),
+    initialize: function() {
+      Backform.TextareaControl.prototype.initialize.apply(this, arguments);
+      this.sqlCtrl = null;
+
+      _.bindAll(this, 'onFocus', 'onBlur', 'refreshTextArea', 'copyData',);
+    },
+    render: function() {
+      let obj = Backform.SqlFieldControl.prototype.render.apply(this, arguments);
+      if(this.$el.find('.ddl-copy')) this.$el.find('.ddl-copy').on('click', this.copyData);
+      return obj;
+    },
+    copyData() {
+      event.stopPropagation();
+      clipboard.copyTextToClipboard(this.model.get('diff_ddl'));
+      return false;
+    },
+    onFocus: function() {
+      let $ctrl = this.$el.find('.pgadmin-controls').first(),
+        $copy = this.$el.find('.ddl-copy');
+      if (!$ctrl.hasClass('focused')) $ctrl.addClass('focused');
+      if ($copy.hasClass('d-none')) $copy.removeClass('d-none');
+
+    },
+    onBlur: function() {
+      let $copy = this.$el.find('.ddl-copy');
+      if (!$(event.relatedTarget).hasClass('ddl-copy')) {
+        if (!$copy.hasClass('d-none')) $copy.addClass('d-none');
+        this.$el.find('.pgadmin-controls').first().removeClass('focused');
+      }
+    },
+
   });
 
 let SchemaDiffSelect2Control =
@@ -251,16 +293,16 @@ let SchemaDiffHeaderView = Backform.Form.extend({
     <div class="row pgadmin-control-group">
       <div class="control-label">Select Target</div>
       <div class="col-6 target row"></div>
-      <div class="col-4">
+      <div class="col-5 target-buttons">
           <div class="action-btns d-flex">
               <button class="btn btn-primary mr-auto"><i class="icon-schema-diff-white"></i>&nbsp;Compare</button>
-              <button class="btn btn-secondary mr-1"><i class="icon-script"></i>&nbsp;Generate Script</button>
+              <button id="generate-script" class="btn btn-secondary mr-1"><i class="icon-script"></i>&nbsp;Generate Script</button>
               <div class="btn-group mr-1" role="group" aria-label="">
                 <button id="btn-filter" type="button" class="btn btn-sm btn-secondary"
                         title=""
                         accesskey=""
                         tabindex="0">
-                    <i class="fa fa-filter sql-icon-lg" aria-hidden="true">&nbsp;Filter</i>
+                    <i class="fa fa-filter sql-icon-lg" aria-hidden="true"></i>&nbsp;Filter
                 </button>
                 <button id="btn-filter-dropdown" type="button" class="btn btn-sm btn-secondary dropdown-toggle dropdown-toggle-split"
                         data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
@@ -372,19 +414,14 @@ let SchemaDiffFooterView = Backform.Form.extend({
     return Backform.tabClassName;
   },
   legendClass: 'badge',
-  contentClass: Backform.accordianContentClassName + ' collapse show',
+  contentClass: Backform.accordianContentClassName,
   template: {
-    'header': _.template([
-      '<div class="<%=Backform.accordianGroupClassName%>">',
-      '  <div class="<%=legendClass%>" data-toggle="collapse" data-target="#ddl_comp"><span class=\'caret\'></span>DDL Comparison</legend>',
-      '</div>',
-    ].join('\n')),
     'content': _.template(`
-       <div id="ddl_comp" class="<%=contentClass%>">
-       <div class="pg-el-sm-12 row">
+       <div class="pg-el-sm-12 row <%=contentClass%>">
                   <div class="pg-el-sm-4 ddl-source">Source</div>
                   <div class="pg-el-sm-4 ddl-target">Target</div>
-                  <div class="pg-el-sm-4 ddl-diff">Difference</div>
+                  <div class="pg-el-sm-4 ddl-diff">Difference
+                  </div>
               </div>
       </div>
     `),
@@ -396,7 +433,7 @@ let SchemaDiffFooterView = Backform.Form.extend({
   render: function() {
     this.cleanup();
 
-    var m = this.model,
+    let m = this.model,
       $el = this.$el,
       tmpl = this.template,
       controls = this.controls,
@@ -410,11 +447,10 @@ let SchemaDiffFooterView = Backform.Form.extend({
 
     this.$el.empty();
 
-    var h = $((tmpl['header'])(data)).appendTo($el),
-      el = $((tmpl['content'])(data)).appendTo(h);
+    let el = $((tmpl['content'])(data)).appendTo($el);
 
     this.fields.each(function(f) {
-      var cntr = new(f.get('control'))({
+      let cntr = new(f.get('control'))({
         field: f,
         model: m,
         dialog: self,
@@ -433,6 +469,24 @@ let SchemaDiffFooterView = Backform.Form.extend({
       }
       controls.push(cntr);
     });
+
+    let $diff_sc = this.$el.find('.source_ddl'),
+      $diff_tr = this.$el.find('.target_ddl'),
+      $diff = this.$el.find('.diff_ddl'),
+      footer_height = this.$el.parent().height() - 50;
+    $diff_sc.height(footer_height);
+    $diff_sc.css({
+      'height': footer_height + 'px',
+    });
+    $diff_tr.height(footer_height);
+    $diff_tr.css({
+      'height': footer_height + 'px',
+    });
+    $diff.height(footer_height);
+    $diff.css({
+      'height': footer_height + 'px',
+    });
+
 
     return this;
   },

@@ -20,7 +20,8 @@ from flask_security import current_user, login_required
 from flask_babelex import gettext
 from pgadmin.utils import PgAdminModule
 from pgadmin.utils.ajax import make_json_response, bad_request, \
-    internal_server_error, gone, make_response as ajax_response
+    internal_server_error, gone, make_response as ajax_response, \
+    not_implemented
 from pgadmin.model import Server
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 from pgadmin.tools.schema_diff.model import SchemaDiffModel
@@ -66,6 +67,7 @@ class SchemaDiffModule(PgAdminModule):
             'schema_diff.ddl_compare',
             'schema_diff.connect_server',
             'schema_diff.connect_database',
+            'schema_diff.get_server',
         ]
 
 
@@ -212,7 +214,7 @@ def initialize():
 @login_required
 def servers():
     """
-    This function will return the list of databases for the specified
+    This function will return the list of servers for the specified
     server id.
     """
     res = []
@@ -236,6 +238,42 @@ def servers():
                 "_id": server.id,
                 "connected": connected,
             })
+
+    except Exception as e:
+        app.logger.exception(e)
+
+    return make_json_response(data=res)
+
+
+@blueprint.route(
+    '/get_server/<int:sid>/<int:did>',
+    methods=["GET"],
+    endpoint="get_server"
+)
+@login_required
+def get_server(sid, did):
+    """
+    This function will return the server details for the specified
+    server id.
+    """
+    try:
+        """Return a JSON document listing the server groups for the user"""
+        driver = get_driver(PG_DEFAULT_DRIVER)
+
+        server = Server.query.filter_by(id=sid).first()
+        manager = driver.connection_manager(sid)
+        conn = manager.connection(did=did)
+        connected = conn.connected()
+
+        res = {
+            "sid": sid,
+            "name": server.name,
+            "user": server.username,
+            "gid": server.servergroup_id,
+            "type": manager.server_type,
+            "connected": connected,
+            "database": conn.db
+        }
 
     except Exception as e:
         app.logger.exception(e)
@@ -293,6 +331,7 @@ def databases(sid):
                 "connected": db['connected'],
                 "allowConn": db['allowConn'],
                 "image": db['icon'],
+                "canDisconn": db['canDisconn']
             })
 
     except Exception as e:
@@ -349,6 +388,9 @@ def compare(trans_id, source_sid, source_did, source_scid,
 
     if error_msg == gettext('Transaction ID not found in the session.'):
         return make_json_response(success=0, errormsg=error_msg, status=404)
+
+    if not check_version_compatibility(source_sid, target_sid):
+        return not_implemented(errormsg=gettext("Version mismatch."))
 
     comparison_result = []
     try:
@@ -439,16 +481,60 @@ def ddl_compare(trans_id, source_sid, source_did, source_scid,
     diff_ddl = ''
 
     view = SchemaDiffRegistry.get_node_view(node_type)
-    if hasattr(view, 'ddl_compare'):
+    if view and hasattr(view, 'ddl_compare'):
         sql = view.ddl_compare(source_sid=source_sid, source_did=source_did,
                                source_scid=source_scid, target_sid=target_sid,
                                target_did=target_did, target_scid=target_scid,
                                source_oid=source_oid, target_oid=target_oid,
                                comp_status=comp_status)
+        return ajax_response(
+            status=200,
+            response={'source_ddl': sql['source_ddl'],
+                      'target_ddl': sql['target_ddl'],
+                      'diff_ddl': sql['diff_ddl']}
+        )
+
+    msg = gettext('Only table object is supported for DDL comparison.')
 
     return ajax_response(
         status=200,
-        response={'source_ddl': sql['source_ddl'],
-                  'target_ddl': sql['target_ddl'],
-                  'diff_ddl': sql['diff_ddl']}
+        response={'source_ddl': msg,
+                  'target_ddl': msg,
+                  'diff_ddl': msg
+                  }
     )
+
+
+def check_version_compatibility(sid, tid):
+    """Check the version compatibility of source and target servers."""
+
+    driver = get_driver(PG_DEFAULT_DRIVER)
+    src_server = Server.query.filter_by(id=sid).first()
+    src_manager = driver.connection_manager(src_server.id)
+
+    tar_server = Server.query.filter_by(id=tid).first()
+    tar_manager = driver.connection_manager(tar_server.id)
+
+    src_server_version = src_manager.version
+    tar_server_version = tar_manager.version
+
+    server_versions = [120000, 110000, 100000, 90600, 90500, 90400,
+                       90300, 90200, 90100, 90000]
+
+    for version in server_versions:
+        if version > src_server_version:
+            continue
+
+        src_server_version = version
+        break
+
+    for version in server_versions:
+        if version > tar_server_version:
+            continue
+
+        tar_server_version = version
+        break
+
+    if src_server_version == tar_server_version:
+        return True
+    return False

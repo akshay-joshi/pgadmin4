@@ -15,12 +15,17 @@ import Backbone from 'backbone';
 import Slick from 'sources/../bundle/slickgrid';
 import pgAdmin from 'sources/pgadmin';
 import {setPGCSRFToken} from 'sources/csrf';
+import {generateScript} from 'tools/datagrid/static/js/show_query_tool';
+import 'pgadmin.sqleditor';
 
 import {SchemaDiffSelect2Control, SchemaDiffHeaderView,
   SchemaDiffFooterView, SchemaDiffSqlControl} from './schema_diff.backform';
 
+var wcDocker = window.wcDocker;
+
 export default class SchemaDiffUI {
   constructor(container, trans_id) {
+    var self = this;
     this.$container = container;
     this.header = null;
     this.trans_id = trans_id;
@@ -42,7 +47,52 @@ export default class SchemaDiffUI {
     });
 
     setPGCSRFToken(pgAdmin.csrf_token_header, pgAdmin.csrf_token);
+
+    this.docker = new wcDocker(
+      this.$container, {
+        allowContextMenu: false,
+        allowCollapse: false,
+        loadingClass: 'pg-sp-icon',
+        themePath: url_for('static', {
+          'filename': 'css',
+        }),
+        theme: 'webcabin.overrides.css',
+      }
+    );
+
+    this.header_panel = new pgAdmin.Browser.Panel({
+      name: 'schema_diff_header_panel',
+      showTitle: false,
+      isCloseable: false,
+      isPrivate: true,
+      content: '<div id="schema-diff-header" class="pg-el-container" el="sm"></div><div id="schema-diff-grid" class="pg-el-container" el="sm"></div>',
+      elContainer: true,
+    });
+
+    this.footer_panel = new pgAdmin.Browser.Panel({
+      name: 'schema_diff_footer_panel',
+      title: gettext('DDL Comparison'),
+      isCloseable: false,
+      isPrivate: true,
+      height: '60',
+      content: '<div id="schema-diff-ddl-comp" class="pg-el-container" el="sm"></div>',
+    });
+
+    this.header_panel.load(this.docker);
+    this.footer_panel.load(this.docker);
+
+
+    this.panel_obj = this.docker.addPanel('schema_diff_header_panel', wcDocker.DOCK.TOP, {w:'95%', h:'50%'});
+    this.footer_panel_obj = this.docker.addPanel('schema_diff_footer_panel', wcDocker.DOCK.BOTTOM, this.panel_obj, {w:'95%', h:'50%'});
+
+    self.footer_panel_obj.on(wcDocker.EVENT.RESIZE_ENDED, function() {
+      setTimeout(function() {
+        this.resize_panels();
+      }.bind(self), 200);
+    });
+
   }
+
 
   raise_error_on_fail(alert_title, xhr) {
     try {
@@ -52,7 +102,29 @@ export default class SchemaDiffUI {
       Alertify.alert(alert_title, e.statusText);
     }
   }
-  
+
+  resize_panels() {
+    let $src_ddl = $('#schema-diff-ddl-comp .source_ddl'),
+      $tar_ddl = $('#schema-diff-ddl-comp .target_ddl'),
+      $diff_ddl = $('#schema-diff-ddl-comp .diff_ddl'),
+      footer_height = $('#schema-diff-ddl-comp').height() - 50;
+
+    $src_ddl.height(footer_height);
+    $src_ddl.css({
+      'height': footer_height + 'px',
+    });
+    $tar_ddl.height(footer_height);
+    $tar_ddl.css({
+      'height': footer_height + 'px',
+    });
+    $diff_ddl.height(footer_height);
+    $diff_ddl.css({
+      'height': footer_height + 'px',
+    });
+
+    this.resize_grid();
+  }
+
   compare_schemas() {
     var self = this,
       url_params = self.model.toJSON();
@@ -80,6 +152,40 @@ export default class SchemaDiffUI {
       .fail(function (xhr) {
         self.raise_error_on_fail(gettext('Schema compare error'), xhr);
         self.stopDiffPoller();
+      });
+  }
+
+  generate_script() {
+    var self = this,
+      baseUrl = url_for('schema_diff.get_server', {'sid': self.model.get('target_sid'),
+        'did': self.model.get('target_did')});
+
+    $.ajax({
+      url: baseUrl,
+      method: 'GET',
+      dataType: 'json',
+      contentType: 'application/json',
+    })
+      .done(function (res) {
+        let data = res.data;
+        let server_data = {};
+        if (data) {
+          server_data['sgid'] = data.gid;
+          server_data['sid'] = data.sid;
+          server_data['stype'] = data.type;
+          server_data['server'] = data.name;
+          server_data['user'] = data.user;
+          server_data['did'] = self.model.get('target_did');
+          server_data['database'] = data.database;
+
+          let diff = 'BEGIN;' + '\n' + self.model.get('diff_ddl') + '\n' + 'END;';
+          window.top.pgAdmin.ddl_diff = diff;
+          generateScript(server_data, window.top.pgAdmin.DataGrid);
+        }
+
+      })
+      .fail(function (xhr) {
+        self.raise_error_on_fail(gettext('Generate script error'), xhr);
       });
   }
 
@@ -176,13 +282,7 @@ export default class SchemaDiffUI {
       return false;
     }
 
-    var $data_grid = $('#schema-diff-grid');
-    var grid_height = $('#schema-diff-container').height() - 100;
-    $data_grid.height(grid_height);
-    $data_grid.css({
-      'height': grid_height + 'px',
-    });
-
+    let $data_grid = $('#schema-diff-grid');
     grid = this.grid = new Slick.Grid($data_grid, self.dataView, columns, options);
     grid.registerPlugin(groupItemMetadataProvider);
     grid.setSelectionModel(new Slick.RowSelectionModel({selectActiveRow: false}));
@@ -209,6 +309,18 @@ export default class SchemaDiffUI {
     groupBySchemaObject();
     self.dataView.endUpdate();
 
+    this.resize_grid();
+  }
+
+  resize_grid() {
+    let $data_grid = $('#schema-diff-grid'),
+      grid_height = this.panel_obj.height() - 120;
+    $data_grid.height(grid_height);
+    $data_grid.css({
+      'height': grid_height + 'px',
+    });
+
+    if (this.grid) this.grid.resizeCanvas();
   }
 
   startDiffPoller() {
@@ -269,6 +381,7 @@ export default class SchemaDiffUI {
       url_params[key] = parseInt(val, 10);
     });
 
+    $('#ddl_comp_fetching_data').removeClass('d-none');
 
     var baseUrl = url_for('schema_diff.ddl_compare', url_params);
     self.model.url = baseUrl;
@@ -276,15 +389,19 @@ export default class SchemaDiffUI {
     self.model.fetch({
       success: function() {
         self.footer.render();
+        $('#ddl_comp_fetching_data').addClass('d-none');
       },
     });
   }
 
   render() {
     let self = this;
+    let panel = self.docker.findPanels('schema_diff_header_panel')[0];
+
+    var header = panel.$container.find('#schema-diff-header');
 
     self.header  = new SchemaDiffHeaderView({
-      el: self.$container.find('#schema-diff-header'),
+      el: header,
       model: this.model,
       fields: [{
         name: 'source_sid', label: false,
@@ -401,9 +518,7 @@ export default class SchemaDiffUI {
       }],
     });
 
-
     self.footer  = new SchemaDiffFooterView({
-      el: self.$container.find('#schema-diff-ddl-comp'),
       model: this.model,
       fields: [{
         name: 'source_ddl', label: false,
@@ -416,17 +531,22 @@ export default class SchemaDiffUI {
       }, {
         name: 'diff_ddl', label: false,
         control: SchemaDiffSqlControl,
-        group: 'ddl-diff',
+        group: 'ddl-diff', copyRequired: true,
       }],
     });
 
     self.header.render();
 
     self.header.$el.find('button.btn-primary').on('click', self.compare_schemas.bind(self));
-
+    self.header.$el.find('button#generate-script').on('click', self.generate_script.bind(self));
     self.header.$el.find('ul.filter a.dropdown-item').on('click', self.refresh_filters.bind(self));
 
-    self.footer.render();
+    let footer_panel = self.docker.findPanels('schema_diff_footer_panel')[0],
+      header_panel = self.docker.findPanels('schema_diff_header_panel')[0];
+
+    footer_panel.$container.find('#schema-diff-ddl-comp').append(self.footer.render().$el);
+    header_panel.$container.find('#schema-diff-grid').append(`<div class='obj_properties container-fluid'>
+    <div class='alert alert-info pg-panel-message'>` + gettext('Please select Source and Target.') + '</div></div>');
 
   }
 
@@ -562,7 +682,7 @@ export default class SchemaDiffUI {
     $.post(url)
       .done(function(res) {
         if (res.success == 1) {
-          return onSuccess(res);
+          return onSuccess(res, callback);
         }
       })
       .fail(function(xhr, status, error) {
