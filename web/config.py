@@ -50,7 +50,7 @@ APP_ICON = 'pg-icon'
 
 # Application version number components
 APP_RELEASE = 4
-APP_REVISION = 12
+APP_REVISION = 14
 
 # Application version suffix, e.g. 'beta1', 'dev'. Usually an empty string
 # for GA releases.
@@ -59,7 +59,7 @@ APP_SUFFIX = ''
 # Numeric application version for upgrade checks. Should be in the format:
 # [X]XYYZZ, where X is the release version, Y is the revision, with a leading
 # zero if needed, and Z represents the suffix, with a leading zero if needed
-APP_VERSION_INT = 41200
+APP_VERSION_INT = 41400
 
 # DO NOT CHANGE!
 # The application version string, constructed from the components
@@ -85,6 +85,7 @@ LANGUAGES = {
     'zh': 'Chinese (Simplified)',
     'fr': 'French',
     'de': 'German',
+    'it': 'Italian',
     'ja': 'Japanese',
     'ko': 'Korean',
     'pl': 'Polish',
@@ -154,14 +155,41 @@ X_FRAME_OPTIONS = "SAMEORIGIN"
 # Hashing algorithm used for password storage
 SECURITY_PASSWORD_HASH = 'pbkdf2_sha512'
 
+# Reverse Proxy parameters
+# You must tell the middleware how many proxies set each header
+# so it knows what values to trust.
+# See https://tinyurl.com/yyg7r9av
+# for more information.
+
+# Number of values to trust for X-Forwarded-For
+PROXY_X_FOR_COUNT = 1
+
+# Number of values to trust for X-Forwarded-Proto.
+PROXY_X_PROTO_COUNT = 1
+
+# Number of values to trust for X-Forwarded-Host.
+PROXY_X_HOST_COUNT = 0
+
+# Number of values to trust for X-Forwarded-Port.
+PROXY_X_PORT_COUNT = 1
+
+# Number of values to trust for X-Forwarded-Prefix.
+PROXY_X_PREFIX_COUNT = 0
+
 # NOTE: CSRF_SESSION_KEY, SECRET_KEY and SECURITY_PASSWORD_SALT are no
 #       longer part of the main configuration, but are stored in the
 #       configuration databases 'keys' table and are auto-generated.
 
-# Should HTML be minified on the fly when not in debug mode?
-# NOTE: The HTMLMIN module doesn't work with Python 2.6, so this option
-#       has no effect on <= Python 2.7.
-MINIFY_PAGE = True
+# COMPRESSION
+COMPRESS_MIMETYPES = [
+    'text/html', 'text/css', 'text/xml', 'application/json',
+    'application/javascript'
+]
+COMPRESS_LEVEL = 9
+COMPRESS_MIN_SIZE = 500
+
+# Set the cache control max age for static files in flask to 1 year
+SEND_FILE_MAX_AGE_DEFAULT = 31556952
 
 # This will be added to static urls as url parameter with value as
 # APP_VERSION_INT for cache busting on version upgrade. If the value is set as

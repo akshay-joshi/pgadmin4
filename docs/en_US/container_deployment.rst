@@ -22,6 +22,7 @@ server:
 * PostgreSQL 9.6: */usr/local/pgsql-9.6*
 * PostgreSQL 10: */usr/local/pgsql-10*
 * PostgreSQL 11: */usr/local/pgsql-11*
+* PostgreSQL 12: */usr/local/pgsql-12*
 
 The most recent version of the utilities is used by default; this may be
 changed in the :ref:`preferences`.
@@ -170,10 +171,10 @@ Run a TLS secured container using a shared config/storage directory in
 
     docker pull dpage/pgadmin4
     docker run -p 443:443 \
-        -v '/private/var/lib/pgadmin:/var/lib/pgadmin' \
-        -v '/path/to/certificate.cert:/certs/server.cert' \
-        -v '/path/to/certificate.key:/certs/server.key' \
-        -v '/tmp/servers.json:/servers.json' \
+        -v /private/var/lib/pgadmin:/var/lib/pgadmin \
+        -v /path/to/certificate.cert:/certs/server.cert \
+        -v /path/to/certificate.key:/certs/server.key \
+        -v /tmp/servers.json:/servers.json \
         -e 'PGADMIN_DEFAULT_EMAIL=user@domain.com' \
         -e 'PGADMIN_DEFAULT_PASSWORD=SuperSecret' \
         -e 'PGADMIN_ENABLE_TLS=True' \
@@ -196,6 +197,36 @@ for example:
         -e "PGADMIN_DEFAULT_EMAIL=user@domain.com" \
         -e "PGADMIN_DEFAULT_PASSWORD=SuperSecret" \
         -d dpage/pgadmin4
+
+pgAdmin X-Forwarded-* Configuration
+-----------------------------------
+
+pgAdmin needs to understand how many proxies set each header so it knows what
+values to trust. The configuration parameters for the X-Forwarded-* options
+which are used for this purpose are shown below, along with their default
+values.
+
+pgAdmin is configured by default to be able to run behind a reverse proxy even
+on a non-standard port and these config options don't normally need to be
+changed. If you're running an unusual configuration (such as multiple reverse
+proxies) you can adjust the configuration to suit.
+
+.. code-block:: python
+
+    # Number of values to trust for X-Forwarded-For
+    PROXY_X_FOR_COUNT = 1
+
+    # Number of values to trust for X-Forwarded-Proto.
+    PROXY_X_PROTO_COUNT = 0
+
+    # Number of values to trust for X-Forwarded-Host.
+    PROXY_X_HOST_COUNT = 0
+
+    # Number of values to trust for X-Forwarded-Port.
+    PROXY_X_PORT_COUNT = 1
+
+    # Number of values to trust for X-Forwarded-Prefix.
+    PROXY_X_PREFIX_COUNT = 0
 
 HTTP via Nginx
 --------------

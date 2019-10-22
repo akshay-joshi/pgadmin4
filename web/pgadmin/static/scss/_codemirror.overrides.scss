@@ -3,8 +3,8 @@
 }
 /* To override inbuilt Green color for matchingbracket */
 .cm-s-default .CodeMirror-matchingbracket {
-    color:  $color-gray-dark !important;
-    background-color: $color-gray-lighter !important;
+    color:  $sql-bracket-match-fg !important;
+    background-color: $sql-bracket-match-bg !important;
 }
 
 .CodeMirror {
@@ -138,7 +138,7 @@
 
   background: $sql-hint-bg;
   font-size: 90%;
-  font-family: $font-family-editor;
+  font-family: $font-family-editor !important;
 
   max-height: 20em;
   overflow-y: auto;

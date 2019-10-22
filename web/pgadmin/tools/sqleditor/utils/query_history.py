@@ -1,6 +1,7 @@
 from pgadmin.utils.ajax import make_json_response
 from pgadmin.model import db, QueryHistoryModel
 from config import MAX_QUERY_HIST_STORED
+from pgadmin.utils import IS_PY2
 
 
 class QueryHistory:
@@ -14,11 +15,17 @@ class QueryHistory:
                     QueryHistoryModel.dbname == dbname) \
             .all()
 
+        # In Python 2.7, rec.query_info has buffer data type. Cast it.
+        if IS_PY2:
+            result = [bytes(rec.query_info) for rec in list(result)]
+        else:
+            result = [rec.query_info for rec in list(result)]
+
         return make_json_response(
             data={
                 'status': True,
                 'msg': '',
-                'result': [rec.query_info for rec in result]
+                'result': result
             }
         )
 

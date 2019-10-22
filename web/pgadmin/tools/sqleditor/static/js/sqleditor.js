@@ -8,9 +8,9 @@
 //////////////////////////////////////////////////////////////
 
 define('tools.querytool', [
-  'babel-polyfill', 'sources/gettext', 'sources/url_for', 'jquery', 'jquery.ui',
-  'jqueryui.position', 'underscore', 'underscore.string', 'pgadmin.alertifyjs',
-  'sources/pgadmin', 'backbone', 'sources/../bundle/codemirror',
+  'sources/gettext', 'sources/url_for', 'jquery', 'jquery.ui',
+  'jqueryui.position', 'underscore', 'pgadmin.alertifyjs',
+  'sources/pgadmin', 'backbone', 'bundled_codemirror',
   'pgadmin.misc.explain',
   'sources/selection/grid_selector',
   'sources/selection/active_cell_capture',
@@ -38,21 +38,22 @@ define('tools.querytool', [
   'sources/sqleditor/query_tool_preferences',
   'sources/csrf',
   'tools/datagrid/static/js/datagrid_panel_title',
+  'sources/window',
   'sources/../bundle/slickgrid',
   'pgadmin.file_manager',
-  'backgrid.sizeable.columns',
   'slick.pgadmin.formatters',
   'slick.pgadmin.editors',
   'slick.pgadmin.plugins/slick.autocolumnsize',
   'pgadmin.browser',
   'pgadmin.tools.user_management',
 ], function(
-  babelPollyfill, gettext, url_for, $, jqueryui, jqueryui_position, _, S, alertify, pgAdmin, Backbone, codemirror,
+  gettext, url_for, $, jqueryui, jqueryui_position, _, alertify, pgAdmin, Backbone, codemirror,
   pgExplain, GridSelector, ActiveCellCapture, clipboard, copyData, RangeSelectionHelper, handleQueryOutputKeyboardEvent,
   XCellSelectionModel, setStagedRows, SqlEditorUtils, ExecuteQuery, httpErrorHandler, FilterHandler,
   GeometryViewer, historyColl, queryHist, querySources,
   keyboardShortcuts, queryToolActions, queryToolNotifications, Datagrid,
-  modifyAnimation, calculateQueryRunTime, callRenderAfterPoll, queryToolPref, csrfToken, panelTitleFunc) {
+  modifyAnimation, calculateQueryRunTime, callRenderAfterPoll, queryToolPref, csrfToken, panelTitleFunc,
+  pgWindow) {
   /* Return back, this has been called more than once */
   if (pgAdmin.SqlEditor)
     return pgAdmin.SqlEditor;
@@ -77,8 +78,7 @@ define('tools.querytool', [
       this.$el = opts.el;
       this.handler = opts.handler;
       this.handler['col_size'] = {};
-      let browser = window.opener ?
-        window.opener.pgAdmin.Browser : window.top.pgAdmin.Browser;
+      let browser = pgWindow.default.pgAdmin.Browser;
       this.preferences = browser.get_preferences_for_module('sqleditor');
       this.handler.preferences = this.preferences;
       this.connIntervalId = null;
@@ -110,6 +110,7 @@ define('tools.querytool', [
       'click #btn-remove-filter': 'on_remove_filter',
       'click #btn-cancel': 'on_cancel',
       'click #btn-copy-row': 'on_copy_row',
+      'click #btn-copy-with-header': 'on_copy_row_with_header',
       'click #btn-paste-row': 'on_paste_row',
       'click #btn-flash': 'on_flash',
       'click #btn-flash-menu': 'on_flash',
@@ -144,10 +145,9 @@ define('tools.querytool', [
 
     reflectPreferences: function() {
       let self = this,
-        browser = window.opener ?
-          window.opener.pgAdmin.Browser : window.top.pgAdmin.Browser;
+        browser = pgWindow.default.pgAdmin.Browser;
 
-      /* pgBrowser is different obj from window.top.pgAdmin.Browser
+      /* pgBrowser is different obj from pgWindow.default.pgAdmin.Browser
        * Make sure to get only the latest update. Older versions will be discarded
        * if function is called by older events.
        * This works for new tab sql editor also as it polls if latest version available
@@ -358,14 +358,7 @@ define('tools.querytool', [
         foldOptions: {
           widget: '\u2026',
         },
-        foldGutter: {
-          rangeFinder: CodeMirror.fold.combine(
-            CodeMirror.pgadminBeginRangeFinder,
-            CodeMirror.pgadminIfRangeFinder,
-            CodeMirror.pgadminLoopRangeFinder,
-            CodeMirror.pgadminCaseRangeFinder
-          ),
-        },
+        foldGutter: true,
         gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
         extraKeys: pgBrowser.editor_shortcut_keys,
         scrollbarStyle: 'simple',
@@ -414,7 +407,7 @@ define('tools.querytool', [
 
       if (!self.preferences.new_browser_tab) {
         // Listen on the panel closed event and notify user to save modifications.
-        _.each(window.top.pgAdmin.Browser.docker.findPanels('frm_datagrid'), function(p) {
+        _.each(pgWindow.default.pgAdmin.Browser.docker.findPanels('frm_datagrid'), function(p) {
           if (p.isVisible()) {
             p.on(wcDocker.EVENT.CLOSING, function() {
               return self.handler.check_needed_confirmations_before_closing_panel(true);
@@ -644,7 +637,7 @@ define('tools.querytool', [
        * to reload the shorcuts. As sqleditor is in iFrame of wcDocker
        * window parent is referred
        */
-      pgBrowser.onPreferencesChange('sqleditor', function() {
+      pgWindow.default.pgAdmin.Browser.onPreferencesChange('sqleditor', function() {
         self.reflectPreferences();
       });
 
@@ -654,7 +647,7 @@ define('tools.querytool', [
       if(self.preferences.new_browser_tab) {
         pgBrowser.bind_beforeunload();
         setInterval(()=>{
-          if(window.opener.pgAdmin) {
+          if(pgWindow.default.pgAdmin) {
             self.reflectPreferences();
           }
         }, 1000);
@@ -1201,6 +1194,10 @@ define('tools.querytool', [
         }
       });
 
+      grid.onValidationError.subscribe(function (e, args) {
+        alertify.error(args.validationResults.msg);
+      });
+
       // Resize SlickGrid when window resize
       $(window).resize(function() {
         // Resize grid only when 'Data Output' panel is visible.
@@ -1370,9 +1367,7 @@ define('tools.querytool', [
       /* history fetch fail should not affect query tool */
       });
     },
-    /* This function is responsible to create and render the
-     * new backgrid for the history tab.
-     */
+    /* This function is responsible to create and render the the history tab. */
     render_history_grid: function() {
       var self = this;
 
@@ -1605,6 +1600,21 @@ define('tools.querytool', [
       // Trigger the copy signal to the SqlEditorController class
       self.handler.trigger(
         'pgadmin-sqleditor:button:copy_row',
+        self,
+        self.handler
+      );
+
+    },
+
+    // Callback function for copy with header button click.
+    on_copy_row_with_header: function(ev) {
+      var self = this;
+
+      this._stopEventPropogation(ev);
+
+      // Toggle the button
+      self.handler.trigger(
+        'pgadmin-sqleditor:button:copy_row_with_header',
         self,
         self.handler
       );
@@ -2174,7 +2184,7 @@ define('tools.querytool', [
           });
       },
       /* This function is used to create instance of SQLEditorView,
-       * call the render method of the grid view to render the backgrid
+       * call the render method of the grid view to render the slickgrid
        * header and loading icon and start execution of the sql query.
        */
       start: function(transId, url_params, layout) {
@@ -2276,7 +2286,7 @@ define('tools.querytool', [
                 );
 
                 pgBrowser.report_error(
-                  S(gettext('Error fetching SQL for script: %s.')).sprintf(msg).value()
+                  gettext('Error fetching SQL for script: %s.', msg)
                 );
               });
           } else {
@@ -2325,6 +2335,7 @@ define('tools.querytool', [
         self.on('pgadmin-sqleditor:button:exclude_filter', self._exclude_filter, self);
         self.on('pgadmin-sqleditor:button:remove_filter', self._remove_filter, self);
         self.on('pgadmin-sqleditor:button:copy_row', self._copy_row, self);
+        self.on('pgadmin-sqleditor:button:copy_row_with_header', self._copy_row_with_header, self);
         self.on('pgadmin-sqleditor:button:paste_row', self._paste_row, self);
         self.on('pgadmin-sqleditor:button:limit', self._set_limit, self);
         self.on('pgadmin-sqleditor:button:cancel-query', self._cancel_query, self);
@@ -2506,9 +2517,8 @@ define('tools.querytool', [
         executeQuery.delayedPoll(this);
       },
 
-      /* This function is used to create the backgrid columns,
-       * create the Backbone PageableCollection and finally render
-       * the data in the backgrid.
+      /* This function is used to create the slickgrid columns
+       * and render the data in the slickgrid.
        */
       _render: function(data) {
         var self = this;
@@ -2571,8 +2581,8 @@ define('tools.querytool', [
               self.query_start_time,
               self.query_end_time
             );
-            var msg1 = S(gettext('Successfully run. Total query runtime: %s.')).sprintf(self.total_time).value();
-            var msg2 = S(gettext('%s rows affected.')).sprintf(self.rows_affected).value();
+            var msg1 = gettext('Successfully run. Total query runtime: %s.',self.total_time);
+            var msg2 = gettext('%s rows affected.',self.rows_affected);
 
             // Display the notifier if the timeout is set to >= 0
             if (self.info_notifier_timeout >= 0) {
@@ -3148,7 +3158,7 @@ define('tools.querytool', [
             } else {
             // Something went wrong while saving data on the db server
               self.set_sql_message(res.data.result);
-              var err_msg = S(gettext('%s.')).sprintf(res.data.result).value();
+              var err_msg = gettext('%s.', res.data.result);
               alertify.error(err_msg, 20);
               // If the transaction is not idle, notify the user that previous queries are not rolled back,
               // only the failed save queries.
@@ -3281,7 +3291,7 @@ define('tools.querytool', [
         if (self.preferences.new_browser_tab) {
           window.document.title = title;
         } else {
-          _.each(window.top.pgAdmin.Browser.docker.findPanels('frm_datagrid'), function(p) {
+          _.each(pgWindow.default.pgAdmin.Browser.docker.findPanels('frm_datagrid'), function(p) {
             if (p.isVisible()) {
               panelTitleFunc.setQueryToolDockerTitle(p, self.is_query_tool, title, is_file);
             }
@@ -3442,7 +3452,7 @@ define('tools.querytool', [
               title = window.document.title + ' *';
             } else {
               // Find the title of the visible panel
-              _.each(window.top.pgAdmin.Browser.docker.findPanels('frm_datagrid'), function(p) {
+              _.each(pgWindow.default.pgAdmin.Browser.docker.findPanels('frm_datagrid'), function(p) {
                 if (p.isVisible()) {
                   self.gridView.panel_title = $(p._title).text();
                 }
@@ -3654,6 +3664,10 @@ define('tools.querytool', [
 
       // This function will copy the selected row.
       _copy_row: copyData,
+
+      _copy_row_with_header: function() {
+        $('.copy-with-header').toggleClass('visibility-hidden');
+      },
 
       // This function will paste the selected row.
       _paste_row: function() {
@@ -4004,8 +4018,7 @@ define('tools.querytool', [
       },
 
       call_cache_preferences: function() {
-        let browser = window.opener ?
-          window.opener.pgAdmin.Browser : window.top.pgAdmin.Browser;
+        let browser = pgWindow.default.pgAdmin.Browser;
         browser.cache_preferences('sqleditor');
 
         /* This will make sure to get latest updates only and not older events */
@@ -4323,7 +4336,7 @@ define('tools.querytool', [
         var self = this;
 
         pgBrowser.Events.off('pgadmin:user:logged-in', this.initTransaction);
-        _.each(window.top.pgAdmin.Browser.docker.findPanels('frm_datagrid'), function(panel) {
+        _.each(pgWindow.default.pgAdmin.Browser.docker.findPanels('frm_datagrid'), function(panel) {
           if (panel.isVisible()) {
             window.onbeforeunload = null;
             panel.off(wcDocker.EVENT.CLOSING);
@@ -4331,7 +4344,7 @@ define('tools.querytool', [
             if (!_.isUndefined(self.col_size)) {
               delete self.col_size;
             }
-            window.top.pgAdmin.Browser.docker.removePanel(panel);
+            pgWindow.default.pgAdmin.Browser.docker.removePanel(panel);
           }
         });
       },
@@ -4349,7 +4362,6 @@ define('tools.querytool', [
       return new SqlEditorController(container);
     },
     jquery: $,
-    S: S,
   };
 
   return pgAdmin.SqlEditor;

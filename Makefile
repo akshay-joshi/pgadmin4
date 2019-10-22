@@ -9,6 +9,10 @@
 
 SHELL = /bin/sh
 
+APP_NAME := $(shell grep ^APP_NAME web/config.py | awk -F"=" '{print $$NF}' | tr -d '[:space:]' | tr -d "'" | awk '{print tolower($$0)}')
+APP_RELEASE := $(shell grep ^APP_RELEASE web/config.py | awk -F"=" '{print $$NF}' | tr -d '[:space:]')
+APP_REVISION := $(shell grep ^APP_REVISION web/config.py | awk -F"=" '{print $$NF}' | tr -d '[:space:]')
+
 #########################################################################
 # High-level targets
 #########################################################################
@@ -77,7 +81,7 @@ runtime:
 	cd runtime && qmake CONFIG+=release && make
 
 # Include all clean sub-targets in clean
-clean: clean-appbundle clean-docker clean-dist clean-docs clean-node clean-pip clean-src clean-runtime
+clean: clean-appbundle clean-dist clean-docs clean-node clean-pip clean-src clean-runtime
 	rm -rf web/pgadmin/static/js/generated/*
 	rm -rf web/pgadmin/static/js/generated/.cache
 	rm -rf web/pgadmin/static/css/generated/*
@@ -89,9 +93,6 @@ clean-runtime:
 
 clean-appbundle:
 	rm -rf mac-build/
-
-clean-docker:
-	rm -rf docker-build/
 
 clean-dist:
 	rm -rf dist/
@@ -109,7 +110,8 @@ clean-src:
 	rm -rf src-build/
 
 docker:
-	./pkg/docker/build.sh
+	echo $(APP_NAME)
+	docker build -t ${APP_NAME} -t $(APP_NAME):latest -t $(APP_NAME):$(APP_RELEASE) -t $(APP_NAME):$(APP_RELEASE).$(APP_REVISION) .
 
 docs:
 	LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 $(MAKE) -C docs/en_US -f Makefile.sphinx html

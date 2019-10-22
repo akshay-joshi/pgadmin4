@@ -854,8 +854,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
            main_sql: List contains all the reversed engineered sql
            data: Table's Data
            json_resp: Json response or plain SQL
-           diff_partition_sql: In Schema diff, the Partition sql should be return
-           separately to perform further task
+           diff_partition_sql: In Schema diff, the Partition sql should be
+           return separately to perform further task
         """
         """
         #####################################
@@ -1524,15 +1524,17 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     if not status:
                         return internal_server_error(errormsg=res)
 
-                    if len(res['rows']) > 0:
-                        old_data = res['rows'][0]
-                        # Sql to update object
-                        sql.append(
-                            render_template("/".join([
-                                self.foreign_key_template_path,
-                                'update.sql']), data=c, o_data=old_data,
-                                conn=self.conn).strip('\n')
-                        )
+                    old_data = res['rows'][0]
+                    if 'name' not in c:
+                        c['name'] = old_data['name']
+
+                    # Sql to update object
+                    sql.append(
+                        render_template("/".join([
+                            self.foreign_key_template_path,
+                            'update.sql']), data=c, o_data=old_data,
+                            conn=self.conn).strip('\n')
+                    )
 
                     if not self.validate_constrains('foreign_key', c):
                         sql.append(

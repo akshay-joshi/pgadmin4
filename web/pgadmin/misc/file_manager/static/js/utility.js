@@ -17,13 +17,11 @@
  *  @author Simon Georget <simon (at) linea21 (dot) com>
  *  @copyright  Authors
  */
-import loading_icon from 'acitree/image/load-root.gif';
-
 define([
-  'jquery', 'underscore', 'underscore.string', 'pgadmin.alertifyjs',
+  'jquery', 'underscore', 'pgadmin.alertifyjs',
   'sources/gettext', 'sources/url_for', 'dropzone', 'sources/pgadmin',
   'sources/csrf', 'tablesorter',
-], function($, _, S, Alertify, gettext, url_for, Dropzone, pgAdmin, csrfToken) {
+], function($, _, Alertify, gettext, url_for, Dropzone, pgAdmin, csrfToken) {
 
   /*---------------------------------------------------------
     Define functions used for various operations
@@ -475,7 +473,7 @@ define([
 
     var loading_icon_url = url_for(
       'static', {
-        'filename': 'js/generated/' + loading_icon,
+        'filename': 'js/generated/load-root.gif',
       }
     );
 
@@ -1396,7 +1394,7 @@ define([
                 path = path.replace(/\//g, '\\');
               } else {
                 path = path.replace(/\\/g, '/');
-                if (!S.startsWith(path, '/')) {
+                if (!path.startsWith('/')) {
                   path = '/' + path;
                 }
               }
@@ -1556,7 +1554,7 @@ define([
           $('.storage_dialog #uploader .input-path').val(path);
         }
       } else if (!(config.options.platform_type === 'win32') &&
-        (path == '' || !S.startsWith(path, '/'))) {
+        (path == '' || !path.startsWith('/'))) {
         path = '/' + path;
         $('.storage_dialog #uploader .input-path').val(path);
       } else {

@@ -9,7 +9,6 @@
 from __future__ import print_function
 import json
 import os
-import urllib
 import traceback
 from flask import url_for
 import regression
@@ -20,6 +19,17 @@ from pgadmin.browser.server_groups.servers.databases.tests import \
     utils as database_utils
 from pgadmin.utils.versioned_template_loader import \
     get_version_mapping_directories
+
+# import urlencode from urlib for python2.x and python3.x
+try:
+    from urllib import urlencode
+except Exception as e:
+    from urllib.parse import urlencode
+
+try:
+    basestring
+except NameError:
+    basestring = str
 
 
 def create_resql_module_list(all_modules, exclude_pkgs, for_modules):
@@ -79,6 +89,8 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
         self.apppath = os.getcwd()
         # Status of the test case
         self.final_test_status = True
+        self.parent_ids = dict()
+        self.all_object_ids = dict()
 
         # Added line break after scenario name
         print("")
@@ -99,7 +111,6 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
             getattr(BaseTestGenerator, 'for_modules', []))
 
         for module in resql_module_list:
-            self.table_id = None
             module_path = resql_module_list[module]
             # Get the folder name based on server version number and
             # their existence.
@@ -125,6 +136,10 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
 
                         for key, scenarios in data.items():
                             self.execute_test_case(scenarios)
+
+                        # Clear the parent ids stored for one json file.
+                        self.parent_ids.clear()
+                        self.all_object_ids.clear()
 
         # Check the final status of the test case
         self.assertEqual(self.final_test_status, True)
@@ -168,12 +183,27 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                 elif arg == 'did':
                     options['did'] = int(self.server_information['db_id'])
                 elif arg == 'scid':
-                    options['scid'] = int(self.schema_id)
-                elif arg == 'tid' and self.table_id:
-                    options['tid'] = int(self.table_id)
+                    # For schema node object_id is the actual schema id.
+                    if endpoint.__contains__('NODE-schema') and \
+                            object_id is not None:
+                        options['scid'] = int(object_id)
+                    else:
+                        options['scid'] = int(self.schema_id)
+                # tid represents table oid
+                elif arg == 'tid' and 'tid' in self.parent_ids:
+                    options['tid'] = int(self.parent_ids['tid'])
+                # fid represents FDW oid
+                elif arg == 'fid' and 'fid' in self.parent_ids:
+                    options['fid'] = int(self.parent_ids['fid'])
+                # fsid represents Foreign Server oid
+                elif arg == 'fsid' and 'fsid' in self.parent_ids:
+                    options['fsid'] = int(self.parent_ids['fsid'])
                 else:
                     if object_id is not None:
-                        options[arg] = int(object_id)
+                        try:
+                            options[arg] = int(object_id)
+                        except ValueError:
+                            options[arg] = object_id
 
             with self.app.test_request_context():
                 object_url = url_for(rule.endpoint, **options)
@@ -199,6 +229,11 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
             # Check precondition for schema
             self.check_schema_precondition(scenario)
 
+            # Preprocessed data to replace any place holder if available
+            if 'preprocess_data' in scenario and \
+                    scenario['preprocess_data'] and 'data' in scenario:
+                scenario['data'] = self.preprocess_data(scenario['data'])
+
             # If msql_endpoint exists then validate the modified sql
             if 'msql_endpoint' in scenario\
                     and scenario['msql_endpoint']:
@@ -210,6 +245,8 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                     print_msg = print_msg + "... FAIL"
                     print(print_msg)
                     continue
+                else:
+                    print(scenario['name'] + " (MSQL) ... ok")
 
             if 'type' in scenario and scenario['type'] == 'create':
                 # Get the url and create the specific node.
@@ -229,9 +266,11 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                 resp_data = json.loads(response.data.decode('utf8'))
                 object_id = resp_data['node']['_id']
 
-                # Table child nodes require table id
-                if 'store_table_id' in scenario:
-                    self.table_id = object_id
+                # Store the object id based on endpoints
+                if 'store_object_id' in scenario:
+                    self.store_object_ids(object_id,
+                                          scenario['data']['name'],
+                                          scenario['endpoint'])
 
                 # Compare the reverse engineering SQL
                 if not self.check_re_sql(scenario, object_id):
@@ -329,7 +368,15 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
         msql_url = self.get_url(scenario['msql_endpoint'],
                                 object_id)
 
-        params = urllib.parse.urlencode(scenario['data'])
+        # As msql data is passed as URL params, dict, list types data has to
+        # be converted to string using json.dumps before passing it to
+        # urlencode
+        msql_data = {
+            key: json.dumps(val)
+            if isinstance(val, dict) or isinstance(val, list) else val
+            for key, val in scenario['data'].items()}
+
+        params = urlencode(msql_data)
         params = params.replace('False', 'false').replace('True', 'true')
         url = msql_url + "?%s" % params
         response = self.tester.get(url,
@@ -355,7 +402,9 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
         # Remove first and last double quotes
         if resp_sql.startswith('"') and resp_sql.endswith('"'):
             resp_sql = resp_sql[1:-1]
-            resp_sql = resp_sql.rstrip()
+
+        # Remove triling \n
+        resp_sql = resp_sql.rstrip()
 
         # Check if expected sql is given in JSON file or path of the output
         # file is given
@@ -414,7 +463,9 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
         # Remove first and last double quotes
         if resp_sql.startswith('"') and resp_sql.endswith('"'):
             resp_sql = resp_sql[1:-1]
-            resp_sql = resp_sql.rstrip()
+
+        # Remove triling \n
+        resp_sql = resp_sql.rstrip()
 
         # Check if expected sql is given in JSON file or path of the output
         # file is given
@@ -547,3 +598,63 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                     pg_cursor.close()
 
         return sql
+
+    def store_object_ids(self, object_id, object_name, endpoint):
+        """
+        This functions will store the object id based on endpoints
+        :param object_id: Object id of the created node
+        :param object_name: Object name
+        :param endpoint:
+        :return:
+        """
+        if endpoint.__contains__("NODE-table"):
+            self.parent_ids['tid'] = object_id
+        elif endpoint.__contains__("NODE-foreign_data_wrapper"):
+            self.parent_ids['fid'] = object_id
+        elif endpoint.__contains__("NODE-foreign_server"):
+            self.parent_ids['fsid'] = object_id
+
+        # Store object id with object name
+        self.all_object_ids[object_name] = object_id
+
+    def preprocess_data(self, data):
+        """
+        This function iterate through data and check for any place holder
+        starts with '<' and ends with '>' and replace with respective object
+        ids.
+        :param data: Data
+        :return:
+        """
+
+        if isinstance(data, dict):
+            for key, val in data.items():
+                if isinstance(val, dict) or isinstance(val, list):
+                    data[key] = self.preprocess_data(val)
+                else:
+                    data[key] = self.replace_placeholder_with_id(val)
+        elif isinstance(data, list):
+            ret_list = []
+            for item in data:
+                if isinstance(item, dict) or isinstance(item, list):
+                    ret_list.append(self.preprocess_data(item))
+                else:
+                    ret_list.append(self.replace_placeholder_with_id(item))
+            return ret_list
+
+        return data
+
+    def replace_placeholder_with_id(self, value):
+        """
+        This function is used to replace the place holder with id.
+        :param value:
+        :return:
+        """
+
+        if isinstance(value, basestring) and \
+                value.startswith('<') and value.endswith('>'):
+            # Remove < and > from the string
+            temp_value = value[1:-1]
+            # Find the place holder OID in dictionary
+            if temp_value in self.all_object_ids:
+                return self.all_object_ids[temp_value]
+        return value
