@@ -25,7 +25,7 @@ from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
 from pgadmin.utils import IS_PY2
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
 
 # If we are in Python3
 if not IS_PY2:
@@ -91,7 +91,7 @@ class SequenceModule(SchemaChildModule):
 blueprint = SequenceModule(__name__)
 
 
-class SequenceView(PGChildNodeView):
+class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
     node_type = blueprint.node_type
 
     parent_ids = [
@@ -116,8 +116,7 @@ class SequenceView(PGChildNodeView):
         'msql': [{'get': 'msql'}, {'get': 'msql'}],
         'stats': [{'get': 'statistics'}, {'get': 'statistics'}],
         'dependency': [{'get': 'dependencies'}],
-        'dependent': [{'get': 'dependents'}],
-        'compare': [{'get': 'compare'}, {'get': 'compare'}]
+        'dependent': [{'get': 'dependents'}]
     })
 
     def check_precondition(action=None):
@@ -888,8 +887,8 @@ class SequenceView(PGChildNodeView):
             status=200
         )
 
-    @check_precondition(action="fetch_sequences")
-    def fetch_sequences(self, sid, did, scid):
+    @check_precondition(action="fetch_objects_to_compare")
+    def fetch_objects_to_compare(self, sid, did, scid):
         """
         This function will fetch the list of all the sequences for
         specified schema id.
@@ -912,34 +911,6 @@ class SequenceView(PGChildNodeView):
                 res[row['name']] = data
 
         return res
-
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the sequence objects
-        from two different schemas.
-
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-
-        source_sequences = self.fetch_sequences(sid=src_sid, did=src_did,
-                                                scid=src_scid)
-        target_sequences = self.fetch_sequences(sid=tar_sid, did=tar_did,
-                                                scid=tar_scid)
-
-        # If both the dict have no items then return None.
-        if len(source_sequences) <= 0 and len(target_sequences) <= 0:
-            return None
-
-        ignore_keys = ['oid', 'owner', 'schema']
-        return compare_dictionaries(source_sequences, target_sequences,
-                                    self.node_type, ignore_keys)
 
 
 SchemaDiffRegistry('Sequences', SequenceView)

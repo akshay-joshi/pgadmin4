@@ -52,7 +52,7 @@ PLAIN{% elif data.attstorage == 'm'%}MAIN{% elif data.attstorage == 'e'%}
 EXTERNAL{% elif data.attstorage == 'x'%}EXTENDED{% endif %};
 
 {% endif %}
-{% if data.description is defined %}
+{% if data.description is defined and data.description != None %}
 {% if data.name %}
 COMMENT ON COLUMN {{conn|qtIdent(data.schema, data.table, data.name)}}
 {% else %}
@@ -62,7 +62,7 @@ COMMENT ON COLUMN {{conn|qtIdent(data.schema, data.table, o_data.name)}}
 
 {% endif %}
 {### Update column variables ###}
-{% if 'attoptions' in data and data.attoptions|length > 0 %}
+{% if 'attoptions' in data and data.attoptions != None and data.attoptions|length > 0 %}
 {% set variables = data.attoptions %}
 {% if 'deleted' in variables and variables.deleted|length > 0 %}
 ALTER TABLE {{conn|qtIdent(data.schema, data.table)}}

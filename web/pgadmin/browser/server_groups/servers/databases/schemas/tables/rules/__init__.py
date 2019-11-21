@@ -27,9 +27,7 @@ from config import PG_DEFAULT_DRIVER
 from pgadmin.utils.compile_template_name import compile_template_path
 from pgadmin.utils import IS_PY2
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries,\
-    directory_diff
-from pgadmin.tools.schema_diff.model import SchemaDiffModel
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
 
 # If we are in Python3
 if not IS_PY2:
@@ -141,7 +139,7 @@ class RuleModule(CollectionNodeModule):
 blueprint = RuleModule(__name__)
 
 
-class RuleView(PGChildNodeView):
+class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
     """
     This is a class for rule node which inherits the
     properties and methods from PGChildNodeView class and define
@@ -184,6 +182,9 @@ class RuleView(PGChildNodeView):
         'dependent': [{'get': 'dependents'}],
         'configs': [{'get': 'configs'}]
     })
+
+    # Schema Diff: Keys to ignore while comparing
+    keys_to_ignore = ['oid', 'schema', 'definition']
 
     def check_precondition(f):
         """
@@ -518,46 +519,40 @@ class RuleView(PGChildNodeView):
         return SQL, data['name'] if 'name' in data else old_data['name']
 
     @check_precondition
-    def get_sql_from_rule_diff(self, sid, did, scid, tid, rid, data=None,
-                               diff_scid=None):
+    def get_sql_from_diff(self, gid, sid, did, scid, tid, oid, data=None,
+                          diff_schema=None, drop_sql=False):
 
-        SQL = render_template("/".join(
-            [self.template_path, 'properties.sql']), rid=rid)
-        status, res = self.conn.execute_dict(SQL)
-        if not status:
-            return internal_server_error(errormsg=res)
-        if len(res['rows']) == 0:
-            return gone(
-                gettext("""Could not find the rule in the table.""")
-            )
-        res_data = parse_rule_definition(res)
-
-        SQL = ''
-
-        if data:
-            old_data = res_data
-            SQL = render_template(
-                "/".join([self.template_path, 'update.sql']),
-                data=data, o_data=old_data
-            )
+        if drop_sql:
+            SQL = self.delete(gid=gid, sid=sid, did=did,
+                              scid=scid, tid=tid,
+                              rid=oid, only_sql=True)
         else:
-            if diff_scid:
-                # Fetch schema name
-                status, schema_name = self.conn.execute_scalar(
-                    render_template(
-                        "/".join([self.table_template_path,
-                                  'get_schema.sql']),
-                        conn=self.conn, scid=diff_scid
-                    )
-                )
-                if not status:
-                    return internal_server_error(errormsg=schema_name)
-
-                res_data['schema'] = schema_name
-
             SQL = render_template("/".join(
-                [self.template_path, 'create.sql']),
-                data=res_data, display_comments=True)
+                [self.template_path, 'properties.sql']), rid=oid)
+            status, res = self.conn.execute_dict(SQL)
+            if not status:
+                return internal_server_error(errormsg=res)
+            if len(res['rows']) == 0:
+                return gone(
+                    gettext("""Could not find the rule in the table.""")
+                )
+            res_data = parse_rule_definition(res)
+
+            SQL = ''
+
+            if data:
+                old_data = res_data
+                SQL = render_template(
+                    "/".join([self.template_path, 'update.sql']),
+                    data=data, o_data=old_data
+                )
+            else:
+                if diff_schema:
+                    res_data['schema'] = diff_schema
+
+                SQL = render_template("/".join(
+                    [self.template_path, 'create.sql']),
+                    data=res_data, display_comments=True)
 
         return SQL
 
@@ -600,8 +595,8 @@ class RuleView(PGChildNodeView):
         )
 
     @check_precondition
-    def fetch_to_compare(self, sid, did, scid, tid, oid=None,
-                         ignore_keys=False):
+    def fetch_objects_to_compare(self, sid, did, scid, tid, oid=None,
+                                 ignore_keys=False):
         """
         This function will fetch the list of all the rules for
         specified schema id.
@@ -614,7 +609,6 @@ class RuleView(PGChildNodeView):
         """
 
         res = {}
-        keys_to_ignore = ['oid', 'schema']
         if oid:
             status, data = self._fetch_properties(oid)
             if not status:
@@ -635,98 +629,11 @@ class RuleView(PGChildNodeView):
                 status, data = self._fetch_properties(row['oid'])
                 if status:
                     if ignore_keys:
-                        for key in keys_to_ignore:
+                        for key in self.keys_to_ignore:
                             if key in data:
                                 del data[key]
                     res[row['name']] = data
         return res
-
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the rule objects
-        from two different schemas.
-
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        src_tid = kwargs.get('source_tid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-        tar_tid = kwargs.get('target_tid')
-
-        source_rules = self.fetch_to_compare(sid=src_sid, did=src_did,
-                                             scid=src_scid, tid=src_tid)
-
-        target_rules = self.fetch_to_compare(sid=tar_sid, did=tar_did,
-                                             scid=tar_scid, tid=tar_tid)
-
-        # If both the dict have no items then return None.
-        if not (source_rules or target_rules) or (
-                len(source_rules) <= 0 and len(target_rules) <= 0):
-            return None
-
-        ignore_keys = ['oid', 'schema']
-        return compare_dictionaries(source_rules, target_rules,
-                                    self.node_type,
-                                    ignore_keys)
-
-    def ddl_compare(self, **kwargs):
-        """
-        This function will compare rule properties and
-         return the difference of SQL
-        """
-
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        src_tid = kwargs.get('source_tid')
-        src_oid = kwargs.get('source_oid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-        tar_tid = kwargs.get('target_tid')
-        tar_oid = kwargs.get('target_oid')
-        comp_status = kwargs.get('comp_status')
-
-        source = ''
-        target = ''
-        diff = ''
-
-        if comp_status == SchemaDiffModel.COMPARISON_STATUS['source_only']:
-            diff = self.get_sql_from_rule_diff(sid=src_sid,
-                                               did=src_did, scid=src_scid,
-                                               tid=src_tid, rid=src_oid,
-                                               diff_scid=tar_scid)
-
-        elif comp_status == SchemaDiffModel.COMPARISON_STATUS['target_only']:
-            diff = self.delete(gid=1, sid=tar_sid, did=tar_did,
-                               scid=tar_scid, tid=tar_tid,
-                               rid=tar_oid, only_sql=True)
-        else:
-            source = self.fetch_to_compare(sid=src_sid, did=src_did,
-                                           scid=src_scid, tid=src_tid,
-                                           oid=src_oid)
-            target = self.fetch_to_compare(sid=tar_sid, did=tar_did,
-                                           scid=tar_scid, tid=tar_tid,
-                                           oid=tar_oid)
-
-            if not (source or target):
-                return None
-
-            diff_dict = directory_diff(
-                source, target, ignore_keys=['oid', 'schema'],
-                difference={}
-            )
-
-            diff = self.get_sql_from_rule_diff(sid=tar_sid, did=tar_did,
-                                               scid=tar_scid, tid=tar_tid,
-                                               rid=tar_oid, data=diff_dict)
-
-        return diff
 
 
 SchemaDiffRegistry('rule', RuleView, 'table')

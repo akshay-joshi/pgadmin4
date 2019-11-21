@@ -367,7 +367,7 @@ export default class SchemaDiffUI {
       target_oid = data.oid,
       url_params = self.model.toJSON();
 
-    if(data.status.toLowerCase() == 'different') {
+    if(data.status.toLowerCase() == 'different' || data.status.toLowerCase() == 'identical') {
       target_oid = data.target_oid;
     }
 

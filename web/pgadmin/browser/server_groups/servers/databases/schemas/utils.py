@@ -15,6 +15,8 @@ from flask import render_template
 
 from pgadmin.browser.collection import CollectionNodeModule
 from pgadmin.utils.ajax import internal_server_error
+from pgadmin.utils.driver import get_driver
+from config import PG_DEFAULT_DRIVER
 
 
 class SchemaChildModule(CollectionNodeModule):
@@ -566,3 +568,28 @@ class VacuumSettings:
                     row.pop('value')
 
         return vacuum_settings_tmp
+
+
+def get_schema(sid, did, scid):
+    """
+    This function will return the schema name.
+    """
+
+    driver = get_driver(PG_DEFAULT_DRIVER)
+    manager = driver.connection_manager(sid)
+    conn = manager.connection(did=did)
+
+    ver = manager.version
+    server_type = manager.server_type
+
+    # Fetch schema name
+    status, schema_name = conn.execute_scalar(
+        render_template("/".join(['schemas',
+                                  '{0}/#{1}#'.format(server_type,
+                                                     ver),
+                                  'sql/get_name.sql']),
+                        conn=conn, scid=scid
+                        )
+    )
+
+    return status, schema_name

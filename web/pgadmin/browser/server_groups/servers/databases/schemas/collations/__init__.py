@@ -26,7 +26,7 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
 from pgadmin.utils.compile_template_name import compile_template_path
 from pgadmin.utils.driver import get_driver
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
 
 # If we are in Python3
 if not IS_PY2:
@@ -94,7 +94,7 @@ class CollationModule(SchemaChildModule):
 blueprint = CollationModule(__name__)
 
 
-class CollationView(PGChildNodeView):
+class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
     """
     This class is responsible for generating routes for Collation node
 
@@ -769,7 +769,7 @@ class CollationView(PGChildNodeView):
         )
 
     @check_precondition
-    def fetch_collations(self, sid, did, scid):
+    def fetch_objects_to_compare(self, sid, did, scid):
         """
         This function will fetch the list of all the collations for
         specified schema id.
@@ -792,34 +792,6 @@ class CollationView(PGChildNodeView):
                 res[row['name']] = data
 
         return res
-
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the collation objects
-        from two different schemas.
-
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-
-        source_collations = self.fetch_collations(sid=src_sid, did=src_did,
-                                                  scid=src_scid)
-        target_collations = self.fetch_collations(sid=tar_sid, did=tar_did,
-                                                  scid=tar_scid)
-
-        # If both the dict have no items then return None.
-        if len(source_collations) <= 0 and len(target_collations) <= 0:
-            return None
-
-        ignore_keys = ['oid', 'owner', 'schema']
-        return compare_dictionaries(source_collations, target_collations,
-                                    self.node_type, ignore_keys)
 
 
 SchemaDiffRegistry('Collations', CollationView)

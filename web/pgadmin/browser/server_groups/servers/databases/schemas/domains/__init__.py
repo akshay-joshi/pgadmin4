@@ -28,7 +28,7 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
 from pgadmin.utils.compile_template_name import compile_template_path
 from pgadmin.utils.driver import get_driver
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
 
 # If we are in Python3
 if not IS_PY2:
@@ -81,7 +81,7 @@ class DomainModule(SchemaChildModule):
 blueprint = DomainModule(__name__)
 
 
-class DomainView(PGChildNodeView, DataTypeReader):
+class DomainView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
     """
     class DomainView
 
@@ -871,7 +871,7 @@ AND relkind != 'c'))"""
         )
 
     @check_precondition
-    def fetch_domains(self, sid, did, scid):
+    def fetch_objects_to_compare(self, sid, did, scid):
         """
         This function will fetch the list of all the domains for
         specified schema id.
@@ -904,82 +904,6 @@ AND relkind != 'c'))"""
                 res[row['name']] = data
 
         return res
-
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the domain objects
-        from two different schemas.
-
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-
-        source_domains = self.fetch_domains(sid=src_sid, did=src_did,
-                                            scid=src_scid)
-        target_domains = self.fetch_domains(sid=tar_sid, did=tar_did,
-                                            scid=tar_scid)
-
-        # If both the dict have no items then return None.
-        if len(source_domains) <= 0 and len(target_domains) <= 0:
-            return None
-
-        ignore_keys = ['oid', 'owner', 'basensp']
-        return compare_dictionaries(source_domains, target_domains,
-                                    self.node_type, ignore_keys)
-
-    def get_ddl(self, **kwargs):
-        """
-        This function is used to get the DDL for source, target and
-        their diff.
-        :param kwargs:
-        :return:
-        """
-
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-        src_oid = kwargs.get('source_oid')
-        tar_oid = kwargs.get('target_oid')
-        comp_status = kwargs.get('comp_status')
-
-        source_ddl = ''
-        target_ddl = ''
-        diff_ddl = ''
-
-        if comp_status == SchemaDiffRegistry.SOURCE_ONLY:
-            source_ddl = self.sql(gid=0, sid=src_sid, did=src_did,
-                                  scid=src_scid, doid=src_oid,
-                                  return_ajax_response=False)
-        elif comp_status == SchemaDiffRegistry.TARGET_ONLY:
-            target_ddl = self.sql(gid=0, sid=tar_sid, did=tar_did,
-                                  scid=tar_scid, doid=tar_oid,
-                                  return_ajax_response=False)
-        elif comp_status == SchemaDiffRegistry.DIFFERENT:
-            source_ddl = self.sql(gid=0, sid=src_sid, did=src_did,
-                                  scid=src_scid, doid=src_oid,
-                                  return_ajax_response=False)
-            target_ddl = self.sql(gid=0, sid=tar_sid, did=tar_did,
-                                  scid=tar_scid, doid=tar_oid,
-                                  return_ajax_response=False)
-            # TODO: Implement the DDL for the difference.
-        elif comp_status == SchemaDiffRegistry.IDENTICAL:
-            source_ddl = self.sql(gid=0, sid=src_sid, did=src_did,
-                                  scid=src_scid, doid=src_oid,
-                                  return_ajax_response=False)
-            target_ddl = self.sql(gid=0, sid=tar_sid, did=tar_did,
-                                  scid=tar_scid, doid=tar_oid,
-                                  return_ajax_response=False)
-
-        return source_ddl, target_ddl, diff_ddl
 
 
 SchemaDiffRegistry('Domains', DomainView)

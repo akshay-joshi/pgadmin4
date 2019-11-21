@@ -29,6 +29,8 @@ from pgadmin.utils import IS_PY2
 from pgadmin.utils.compile_template_name import compile_template_path
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
+from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries,\
+    directory_diff
 
 
 class BaseTableView(PGChildNodeView, BasePartitionTable):
@@ -1242,7 +1244,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     part_data = dict()
                     part_data['partitioned_table_name'] = data['name']
                     part_data['parent_schema'] = data['schema']
-                    if json_resp:
+                    if not json_resp:
                         part_data['schema'] = data['schema']
                     else:
                         part_data['schema'] = row['schema_name']
@@ -1634,7 +1636,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             # If constraint(s) is/are deleted
             if 'deleted' in constraint:
                 for c in constraint['deleted']:
-                    c['schema'] = data['schema']
+                    c['schema'] = c['nspname'] = data['schema']
                     c['table'] = data['name']
 
                     # Sql for drop
@@ -2637,3 +2639,28 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
             if len(reset_values) > 0:
                 data[vacuum_key]['reset_values'] = reset_values
+
+
+def get_schema_for_schema_diff(sid, did, scid):
+    """
+    This function will return the schema name.
+    """
+
+    driver = get_driver(PG_DEFAULT_DRIVER)
+    manager = driver.connection_manager(sid)
+    conn = manager.connection(did=did)
+
+    ver = manager.version
+    server_type = manager.server_type
+
+    table_template_path = compile_template_path('tables/sql',
+                                                server_type, ver)
+    # Fetch schema name
+    status, schema_name = conn.execute_scalar(
+        render_template("/".join([table_template_path,
+                                  'get_schema.sql']),
+                        conn=conn, scid=scid
+                        )
+    )
+
+    return status, schema_name

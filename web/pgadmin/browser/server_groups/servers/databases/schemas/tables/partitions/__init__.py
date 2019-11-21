@@ -28,6 +28,7 @@ from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries,\
     directory_diff
 from pgadmin.tools.schema_diff.model import SchemaDiffModel
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
 
 
 def backend_supported(module, manager, **kwargs):
@@ -156,7 +157,8 @@ class PartitionsModule(CollectionNodeModule):
 blueprint = PartitionsModule(__name__)
 
 
-class PartitionsView(BaseTableView, DataTypeReader, VacuumSettings):
+class PartitionsView(BaseTableView, DataTypeReader, VacuumSettings,
+                     SchemaDiffObjectCompare):
     """
     This class is responsible for generating routes for Partition node
 
@@ -203,6 +205,10 @@ class PartitionsView(BaseTableView, DataTypeReader, VacuumSettings):
         'truncate': [{'put': 'truncate'}]
 
     })
+
+    # Schema Diff: Keys to ignore while comparing
+    keys_to_ignore = ['oid', 'schema', 'vacuum_table',
+                      'vacuum_toast', 'edit_types']
 
     def children(self, **kwargs):
         """Build a list of treeview nodes from the child nodes."""
@@ -372,8 +378,7 @@ class PartitionsView(BaseTableView, DataTypeReader, VacuumSettings):
             gid, sid, did, scid, ptid, res)
 
     @BaseTableView.check_precondition
-    def fetch_tables(self, sid, did, scid, tid, ptid=None,
-                     keys_to_remove=None):
+    def fetch_objects_to_compare(self, sid, did, scid, tid, ptid=None):
         """
         This function will fetch the list of all the tables for
         specified schema id.
@@ -463,7 +468,7 @@ class PartitionsView(BaseTableView, DataTypeReader, VacuumSettings):
                                                         main_sql, data)
 
     @BaseTableView.check_precondition
-    def get_sql_from_table_diff(self, **kwargs):
+    def get_sql_from_diff(self, **kwargs):
         """
         This function will create sql on the basis the difference of 2 tables
         """
@@ -476,7 +481,8 @@ class PartitionsView(BaseTableView, DataTypeReader, VacuumSettings):
         ptid = kwargs['ptid']
         diff_data = kwargs['diff_data'] if 'diff_data' in kwargs else None
         json_resp = kwargs['json_resp'] if 'json_resp' in kwargs else True
-        diff_scid = kwargs['diff_scid'] if 'diff_scid' in kwargs else None
+        diff_schema = kwargs['diff_schema'] if 'diff_schema' in kwargs else\
+            None
 
         if diff_data:
             SQL = render_template("/".join([self.partition_template_path,
@@ -508,20 +514,9 @@ class PartitionsView(BaseTableView, DataTypeReader, VacuumSettings):
 
             data = res['rows'][0]
 
-            if diff_scid:
-                # Fetch schema name
-                status, schema_name = self.conn.execute_scalar(
-                    render_template(
-                        "/".join([self.table_template_path,
-                                  'get_schema.sql']),
-                        conn=self.conn, scid=diff_scid
-                    )
-                )
-                if not status:
-                    return internal_server_error(errormsg=schema_name)
-
-                data['schema'] = schema_name
-                data['parent_schema'] = schema_name
+            if diff_schema:
+                data['schema'] = diff_schema
+                data['parent_schema'] = diff_schema
 
             return BaseTableView.get_reverse_engineered_sql(self, did,
                                                             scid, ptid,
@@ -774,40 +769,6 @@ class PartitionsView(BaseTableView, DataTypeReader, VacuumSettings):
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the partition tables
-        from two different schemas.
-
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        src_tid = kwargs.get('source_tid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-        tar_tid = kwargs.get('target_tid')
-
-        source_partitions = self.fetch_tables(sid=src_sid, did=src_did,
-                                              scid=src_scid, tid=src_tid)
-
-        target_partitions = self.fetch_tables(sid=tar_sid, did=tar_did,
-                                              scid=tar_scid, tid=tar_tid)
-
-        # If both the dict have no items then return None.
-        if not(source_partitions or target_partitions) or (
-                len(source_partitions) <= 0 and len(target_partitions) <= 0):
-            return None
-
-        ignore_keys = ['oid', 'relowner', 'schema', 'vacuum_table',
-                       'vacuum_toast', 'edit_types']
-
-        return compare_dictionaries(source_partitions, target_partitions,
-                                    self.node_type, ignore_keys)
-
     def ddl_compare(self, **kwargs):
         """
         This function will compare index properties and
@@ -830,11 +791,18 @@ class PartitionsView(BaseTableView, DataTypeReader, VacuumSettings):
         target = ''
         diff = ''
 
+        status, target_schema = self.get_schema_for_schema_diff(tar_sid,
+                                                                tar_did,
+                                                                tar_scid
+                                                                )
+        if not status:
+            return internal_server_error(errormsg=target_schema)
+
         if comp_status == SchemaDiffModel.COMPARISON_STATUS['source_only']:
-            diff = self.get_sql_from_table_diff(sid=src_sid,
-                                                did=src_did, scid=src_scid,
-                                                tid=src_tid, ptid=src_oid,
-                                                diff_scid=tar_scid)
+            diff = self.get_sql_from_diff(sid=src_sid,
+                                          did=src_did, scid=src_scid,
+                                          tid=src_tid, ptid=src_oid,
+                                          diff_schema=target_schema)
 
         elif comp_status == SchemaDiffModel.COMPARISON_STATUS['target_only']:
             SQL = render_template("/".join([self.partition_template_path,

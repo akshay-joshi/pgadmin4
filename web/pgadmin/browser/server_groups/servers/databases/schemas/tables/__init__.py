@@ -22,7 +22,7 @@ from pgadmin.browser.server_groups.servers.databases.schemas.utils \
 from pgadmin.browser.server_groups.servers.utils import parse_priv_to_db
 from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
-from .utils import BaseTableView
+from .utils import BaseTableView, get_schema_for_schema_diff
 from pgadmin.utils.preferences import Preferences
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries,\
@@ -1318,7 +1318,8 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         tid = kwargs['tid']
         diff_data = kwargs['diff_data'] if 'diff_data' in kwargs else None
         json_resp = kwargs['json_resp'] if 'json_resp' in kwargs else True
-        diff_scid = kwargs['diff_scid'] if 'diff_scid' in kwargs else None
+        diff_schema = kwargs['diff_schema'] if 'diff_schema' in kwargs else\
+            None
         schema_diff_table = kwargs['schema_diff_table'] if\
             'schema_diff_table' in kwargs else None
 
@@ -1341,22 +1342,13 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                                     ))
 
             if status:
-                data = super(TableView, self).properties(
-                    0, sid, did, scid, tid, res, False
-                )
-            if diff_scid:
-                # Fetch schema name
-                status, schema_name = self.conn.execute_scalar(
-                    render_template(
-                        "/".join([self.table_template_path,
-                                  'get_schema.sql']),
-                        conn=self.conn, scid=diff_scid
-                    )
-                )
-                if not status:
-                    return internal_server_error(errormsg=schema_name)
+                data = res['rows'][0]
+                # data = super(TableView, self).properties(
+                #     0, sid, did, scid, tid, res, False
+                # )
 
-                data['schema'] = schema_name
+            if diff_schema:
+                data['schema'] = diff_schema
 
             if schema_diff_table:
                 data['orig_name'] = data['name']
@@ -1392,7 +1384,6 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
            tid: Table ID
         """
         data = dict()
-        res = None
         SQL = ''
         for k, v in request.args.items():
             try:
@@ -1405,18 +1396,20 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
             except (ValueError, TypeError, KeyError):
                 data[k] = v
 
-        if tid is not None:
-            return self._fetch_sql(did, scid, tid, data)
+        return self._fetch_sql(did, scid, tid, data)
 
     def _fetch_sql(self, did, scid, tid, data, json_resp=True):
-        SQL = render_template(
-            "/".join([self.table_template_path, 'properties.sql']),
-            did=did, scid=scid, tid=tid,
-            datlastsysoid=self.datlastsysoid
-        )
-        status, res = self.conn.execute_dict(SQL)
-        if not status:
-            return internal_server_error(errormsg=SQL)
+        res = None
+
+        if tid is not None:
+            SQL = render_template(
+                "/".join([self.table_template_path, 'properties.sql']),
+                did=did, scid=scid, tid=tid,
+                datlastsysoid=self.datlastsysoid
+            )
+            status, res = self.conn.execute_dict(SQL)
+            if not status:
+                return internal_server_error(errormsg=SQL)
 
         SQL, name = self.get_sql(did, scid, tid, data, res)
         SQL = re.sub('\n{2,}', '\n\n', SQL)
@@ -1800,9 +1793,12 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
 
         # Keys to ignore while comparison
         ignore_keys = ['oid', 'schema', 'vacuum_table',
-                       'vacuum_toast', 'edit_types']
+                       'vacuum_toast', 'edit_types', 'attnum', 'col_type']
 
-        sub_modules = ['index', 'rule', 'trigger', 'compound_trigger']
+        sub_modules = ['index', 'rule', 'trigger']
+
+        if self.manager.version >= 120000:
+            sub_modules.append('compound_trigger')
 
         src_server_type, tar_server_type = self.get_server_type(src_sid,
                                                                 tar_sid)
@@ -1815,7 +1811,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
             if module_view.blueprint.server_type is None or \
                     src_server_type in module_view.blueprint.server_type:
                 for key, val in source_tables.items():
-                    source = module_view.fetch_to_compare(
+                    source = module_view.fetch_objects_to_compare(
                         sid=src_sid,
                         did=src_did,
                         scid=src_scid,
@@ -1829,7 +1825,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
             if module_view.blueprint.server_type is None or \
                     tar_server_type in module_view.blueprint.server_type:
                 for key, val in target_tables.items():
-                    target = module_view.fetch_to_compare(
+                    target = module_view.fetch_objects_to_compare(
                         sid=tar_sid,
                         did=tar_did,
                         scid=tar_scid,
@@ -1885,16 +1881,26 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         target_tables = self.fetch_tables(sid=tar_sid, did=tar_did,
                                           scid=tar_scid)
 
+        status, target_schema = get_schema_for_schema_diff(tar_sid,
+                                                           tar_did,
+                                                           tar_scid
+                                                           )
+        if not status:
+            return internal_server_error(errormsg=target_schema)
+
         if comp_status == SchemaDiffModel.COMPARISON_STATUS['source_only']:
             source = self.get_sql_from_table_diff(sid=src_sid, did=src_did,
                                                   scid=src_scid, tid=src_oid,
                                                   json_resp=False)
             diff = self.get_sql_from_table_diff(sid=src_sid, did=src_did,
                                                 scid=src_scid, tid=src_oid,
-                                                diff_scid=tar_scid,
+                                                diff_schema=target_schema,
                                                 json_resp=False)
 
         elif comp_status == SchemaDiffModel.COMPARISON_STATUS['target_only']:
+            target = self.get_sql_from_table_diff(sid=tar_sid, did=tar_did,
+                                                  scid=tar_scid, tid=tar_oid,
+                                                  json_resp=False)
             SQL = render_template(
                 "/".join([self.table_template_path, 'properties.sql']),
                 did=tar_did, scid=tar_scid, tid=tar_oid,
@@ -1934,8 +1940,10 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
             diff_dict.update(col_diff)
 
             # Primary key comparison
-            pk_diff = self.primary_key_ddl_comp(source, target)
+            pk_diff = self.constraint_ddl_comp(source, target)
             diff_dict.update(pk_diff)
+
+            diff_dict['relacl'] = self.parce_acl(source, target)
 
             source = self.get_sql_from_table_diff(sid=src_sid, did=src_did,
                                                   scid=src_scid, tid=src_oid,
@@ -1949,6 +1957,13 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                                                 json_resp=False)
 
             ignore_sub_modules = ['column', 'constraints']
+
+            if self.manager.version < 100000:
+                ignore_sub_modules.append('partition')
+
+            if self.manager.version < 120000:
+                ignore_sub_modules.append('compound_trigger')
+
             for module in self.blueprint.submodules:
                 if module.NODE_TYPE not in ignore_sub_modules:
                     module_view = SchemaDiffRegistry.get_node_view(
@@ -2054,7 +2069,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                                 did=src_did,
                                 scid=src_scid,
                                 tid=src_oid,
-                                diff_scid=tar_scid,
+                                diff_schema=target_schema,
                                 json_resp=False,
                                 schema_diff_table=True
                             )
@@ -2109,55 +2124,69 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
         return different
 
     @staticmethod
-    def primary_key_ddl_comp(source, target):
+    def constraint_ddl_comp(source_table, target_table):
         """
-        Table Primary key comparison
-        :param source: Source columns
-        :param target: Target columns
-        :return: Difference of the columns
+        Table Constraint DDL comparison
+        :param source: Source Table
+        :param target: Target Table
+        :return: Difference of constraints
         """
-        source_cols = source['primary_key']
-        target_cols = copy.deepcopy(target['primary_key'])
-        added = []
-        updated = []
-        deleted = []
-        different = {'primary_key': {}}
+        different = {}
+        non_editable_keys = {}
 
-        non_editable_keys = ['col_count', 'condeferrable',
-                             'condeffered', 'columns']
+        non_editable_keys = {'primary_key': ['col_count',
+                                             'condeferrable',
+                                             'condeffered',
+                                             'columns'],
+                             'check_constraint': ['consrc'],
+                             'exclude_constraint': ['amname',
+                                                    'indconstraint',
+                                                    'columns']
+                             }
 
-        for source in source_cols:
-            if 'name' in source:
-                if type(target_cols) is list and len(
-                        target_cols) > 0:
-                    tmp = None
-                    for item in target_cols:
-                        if item['name'] == source['name']:
-                            tmp = copy.deepcopy(item)
-                    if tmp and source != tmp:
-                        tmp_updated = copy.deepcopy(source)
-                        for key in non_editable_keys:
-                            if key in tmp_updated and \
-                                    tmp_updated[key] != tmp[key]:
-                                added.append(source)
-                                deleted.append(tmp_updated)
-                                tmp_updated = None
-                                break
-                        if tmp_updated:
-                            updated.append(tmp_updated)
-                        target_cols.remove(tmp)
-                    elif tmp and source == tmp:
-                        target_cols.remove(tmp)
-                    elif tmp is None:
+        for constraint in ['primary_key', 'check_constraint',
+                           'exclude_constraint']:
+            source_cols = source_table[constraint] if \
+                constraint in source_table else []
+            target_cols = copy.deepcopy(target_table[constraint]) if\
+                constraint in target_table else []
+            added = []
+            updated = []
+            deleted = []
+
+            different[constraint] = {}
+            for source in source_cols:
+                if 'name' in source:
+                    if type(target_cols) is list and len(
+                            target_cols) > 0:
+                        tmp = None
+                        for item in target_cols:
+                            if item['name'] == source['name']:
+                                tmp = copy.deepcopy(item)
+                        if tmp and source != tmp:
+                            tmp_updated = copy.deepcopy(source)
+                            for key in non_editable_keys[constraint]:
+                                if key in tmp_updated and \
+                                        tmp_updated[key] != tmp[key]:
+                                    added.append(source)
+                                    deleted.append(tmp_updated)
+                                    tmp_updated = None
+                                    break
+                            if tmp_updated:
+                                updated.append(tmp_updated)
+                            target_cols.remove(tmp)
+                        elif tmp and source == tmp:
+                            target_cols.remove(tmp)
+                        elif tmp is None:
+                            added.append(source)
+                    else:
                         added.append(source)
-                else:
-                    added.append(source)
-            different['primary_key']['added'] = added
-            different['primary_key']['changed'] = updated
-            different['primary_key']['deleted'] = deleted
+                different[constraint]['added'] = added
+                different[constraint]['changed'] = updated
+                different[constraint]['deleted'] = deleted
 
-        if target_cols and len(target_cols) > 0:
-            different['primary_key']['deleted'] = target_cols
+            if target_cols and len(target_cols) > 0:
+                different[constraint]['deleted'] = target_cols
 
         return different
 
@@ -2186,6 +2215,22 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                     for key in p_val:
                         if key in item:
                             item.pop(key)
+
+    @staticmethod
+    def parce_acl(source, target):
+        tmp_source = source['relacl'] if 'relacl' in source else []
+        tmp_target = copy.deepcopy(target['relacl'] if 'relacl'
+                                                       in source else [])
+
+        diff = {'added': [], 'deleted': []}
+        for acl in tmp_source:
+            if acl in tmp_target:
+                tmp_target.remove(acl)
+            elif acl not in tmp_target:
+                diff['added'].append(acl)
+        diff['deleted'] = tmp_target
+
+        return diff
 
 
 SchemaDiffRegistry('table', TableView)

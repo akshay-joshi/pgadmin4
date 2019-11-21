@@ -33,7 +33,7 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
 from pgadmin.utils.compile_template_name import compile_template_path
 from pgadmin.utils.driver import get_driver
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
 
 # If we are in Python3
 if not IS_PY2:
@@ -95,7 +95,8 @@ class ForeignTableModule(SchemaChildModule):
 blueprint = ForeignTableModule(__name__)
 
 
-class ForeignTableView(PGChildNodeView, DataTypeReader):
+class ForeignTableView(PGChildNodeView, DataTypeReader,
+                       SchemaDiffObjectCompare):
     """
     class ForeignTableView(PGChildNodeView)
 
@@ -1352,7 +1353,7 @@ class ForeignTableView(PGChildNodeView, DataTypeReader):
         return ajax_response(response=sql)
 
     @check_precondition
-    def fetch_foreign_tables(self, sid, did, scid):
+    def fetch_objects_to_compare(self, sid, did, scid):
         """
         This function will fetch the list of all the foreign tables for
         specified schema id.
@@ -1382,37 +1383,6 @@ class ForeignTableView(PGChildNodeView, DataTypeReader):
                 res[row['name']] = data
 
         return res
-
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the foreign tables objects
-        from two different schemas.
-
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-
-        source_foreign_tables = self.fetch_foreign_tables(sid=src_sid,
-                                                          did=src_did,
-                                                          scid=src_scid)
-        target_foreign_tables = self.fetch_foreign_tables(sid=tar_sid,
-                                                          did=tar_did,
-                                                          scid=tar_scid)
-        # If both the dict have no items then return None.
-        if len(source_foreign_tables) <= 0 and \
-                len(target_foreign_tables) <= 0:
-            return None
-
-        ignore_keys = ['oid', 'owner', 'basensp']
-        return compare_dictionaries(source_foreign_tables,
-                                    target_foreign_tables,
-                                    self.node_type, ignore_keys)
 
 
 SchemaDiffRegistry('Foreign Tables', ForeignTableView)

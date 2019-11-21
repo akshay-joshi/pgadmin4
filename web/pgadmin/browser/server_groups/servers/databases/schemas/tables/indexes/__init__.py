@@ -29,6 +29,7 @@ from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries,\
     directory_diff
 from pgadmin.tools.schema_diff.model import SchemaDiffModel
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
 
 # If we are in Python3
 if not IS_PY2:
@@ -138,7 +139,7 @@ class IndexesModule(CollectionNodeModule):
 blueprint = IndexesModule(__name__)
 
 
-class IndexesView(PGChildNodeView):
+class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
     """
     This class is responsible for generating routes for Index node
 
@@ -229,6 +230,11 @@ class IndexesView(PGChildNodeView):
         'get_op_class': [{'get': 'get_op_class'},
                          {'get': 'get_op_class'}]
     })
+
+    # Schema Diff: Keys to ignore while comparing
+    keys_to_ignore = ['oid', 'relowner', 'schema',
+                      'indrelid', 'nspname'
+                      ]
 
     def check_precondition(f):
         """
@@ -1007,7 +1013,7 @@ class IndexesView(PGChildNodeView):
 
     @check_precondition
     def get_sql_from_index_diff(self, sid, did, scid, tid, idx, data=None,
-                                diff_scid=None, drop_req=False):
+                                diff_schema=None, drop_req=False):
 
         tmp_idx = idx
         if data:
@@ -1041,20 +1047,9 @@ class IndexesView(PGChildNodeView):
             if self.manager.version >= 110000:
                 data = self._include_details(idx, data, 'create')
 
-            if diff_scid:
-                # Fetch schema name
-                status, schema_name = self.conn.execute_scalar(
-                    render_template(
-                        "/".join([self.table_template_path,
-                                  'get_schema.sql']),
-                        conn=self.conn, scid=diff_scid
-                    )
-                )
-                if not status:
-                    return internal_server_error(errormsg=schema_name)
-
-                data['schema'] = schema_name
-                data['nspname'] = schema_name
+            if diff_schema:
+                data['schema'] = diff_schema
+                data['nspname'] = diff_schema
 
         SQL, name = self.get_sql(did, scid, tid, tmp_idx, data)
         if not isinstance(SQL, (str, unicode)):
@@ -1192,8 +1187,8 @@ class IndexesView(PGChildNodeView):
         )
 
     @check_precondition
-    def fetch_to_compare(self, sid, did, scid, tid, oid=None,
-                         ignore_keys=False):
+    def fetch_objects_to_compare(self, sid, did, scid, tid, oid=None,
+                                 ignore_keys=False):
         """
         This function will fetch the list of all the indexes for
         specified schema id.
@@ -1205,8 +1200,7 @@ class IndexesView(PGChildNodeView):
         """
 
         res = dict()
-        keys_to_ignore = ['oid', 'relowner', 'schema',
-                          'indrelid', 'nspname']
+
         if not oid:
             SQL = render_template("/".join([self.template_path,
                                             'nodes.sql']), tid=tid)
@@ -1220,7 +1214,7 @@ class IndexesView(PGChildNodeView):
                                                       row['oid'])
                 if status:
                     if ignore_keys:
-                        for key in keys_to_ignore:
+                        for key in self.keys_to_ignore:
                             if key in data:
                                 del data[key]
                     res[row['name']] = data
@@ -1233,42 +1227,6 @@ class IndexesView(PGChildNodeView):
             res = data
 
         return res
-
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the index objects
-        from two different schemas.
-
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        src_tid = kwargs.get('source_tid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-        tar_tid = kwargs.get('target_tid')
-
-        source_indexes = self.fetch_to_compare(sid=src_sid, did=src_did,
-                                               scid=src_scid, tid=src_tid,
-                                               ignore_keys=False)
-
-        target_indexes = self.fetch_to_compare(sid=tar_sid, did=tar_did,
-                                               scid=tar_scid, tid=tar_tid,
-                                               ignore_keys=False)
-
-        # If both the dict have no items then return None.
-        if not (source_indexes or target_indexes) or (
-                len(source_indexes) <= 0 and len(target_indexes) <= 0):
-            return None
-
-        keys_to_ignore = ['oid', 'relowner', 'schema',
-                          'indrelid', 'nspname']
-        return compare_dictionaries(source_indexes, target_indexes,
-                                    self.node_type,
-                                    keys_to_ignore)
 
     def ddl_compare(self, **kwargs):
         """
@@ -1292,11 +1250,18 @@ class IndexesView(PGChildNodeView):
         target = ''
         diff = ''
 
+        status, target_schema = self.get_schema(tar_sid,
+                                                tar_did,
+                                                tar_scid
+                                                )
+        if not status:
+            return internal_server_error(errormsg=target_schema)
+
         if comp_status == SchemaDiffModel.COMPARISON_STATUS['source_only']:
             diff = self.get_sql_from_index_diff(sid=src_sid,
                                                 did=src_did, scid=src_scid,
                                                 tid=src_tid, idx=src_oid,
-                                                diff_scid=tar_scid)
+                                                diff_schema=target_schema)
 
         elif comp_status == SchemaDiffModel.COMPARISON_STATUS['target_only']:
             diff = self.delete(gid=1, sid=tar_sid, did=tar_did,
@@ -1304,19 +1269,18 @@ class IndexesView(PGChildNodeView):
                                idx=tar_oid, only_sql=True)
 
         else:
-            source = self.fetch_to_compare(sid=src_sid, did=src_did,
-                                           scid=src_scid, tid=src_tid,
-                                           oid=src_oid)
-            target = self.fetch_to_compare(sid=tar_sid, did=tar_did,
-                                           scid=tar_scid, tid=tar_tid,
-                                           oid=tar_oid)
+            source = self.fetch_objects_to_compare(sid=src_sid, did=src_did,
+                                                   scid=src_scid, tid=src_tid,
+                                                   oid=src_oid)
+            target = self.fetch_objects_to_compare(sid=tar_sid, did=tar_did,
+                                                   scid=tar_scid, tid=tar_tid,
+                                                   oid=tar_oid)
 
             if not (source or target):
                 return None
 
             diff_dict = directory_diff(
-                source, target, ignore_keys=['oid', 'relowner', 'schema',
-                                             'indrelid', 'nspname'],
+                source, target, ignore_keys=self.keys_to_ignore,
                 difference={}
             )
 
@@ -1333,7 +1297,7 @@ class IndexesView(PGChildNodeView):
                                                     scid=src_scid,
                                                     tid=src_tid,
                                                     idx=src_oid,
-                                                    diff_scid=tar_scid,
+                                                    diff_schema=target_schema,
                                                     drop_req=True)
             else:
                 diff = self.get_sql_from_index_diff(sid=tar_sid,

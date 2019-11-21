@@ -25,7 +25,7 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.driver import get_driver
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
 
 # If we are in Python3
 if not IS_PY2:
@@ -92,7 +92,7 @@ class FtsTemplateModule(SchemaChildModule):
 blueprint = FtsTemplateModule(__name__)
 
 
-class FtsTemplateView(PGChildNodeView):
+class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
     """
     class FtsTemplateView(PGChildNodeView)
 
@@ -189,8 +189,7 @@ class FtsTemplateView(PGChildNodeView):
         'dependency': [{'get': 'dependencies'}],
         'dependent': [{'get': 'dependents'}],
         'get_lexize': [{'get': 'get_lexize'}, {'get': 'get_lexize'}],
-        'get_init': [{'get': 'get_init'}, {'get': 'get_init'}],
-        'compare': [{'get': 'compare'}, {'get': 'compare'}]
+        'get_init': [{'get': 'get_init'}, {'get': 'get_init'}]
     })
 
     def _init_(self, **kwargs):
@@ -763,7 +762,7 @@ class FtsTemplateView(PGChildNodeView):
         )
 
     @check_precondition
-    def fetch_fts_templates(self, sid, did, scid):
+    def fetch_objects_to_compare(self, sid, did, scid):
         """
         This function will fetch the list of all the fts templates for
         specified schema id.
@@ -786,37 +785,6 @@ class FtsTemplateView(PGChildNodeView):
                 res[row['name']] = data
 
         return res
-
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the fts templates objects
-        from two different schemas.
-
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-
-        source_fts_templates = \
-            self.fetch_fts_templates(sid=src_sid, did=src_did, scid=src_scid)
-        target_fts_templates = \
-            self.fetch_fts_templates(sid=tar_sid, did=tar_did, scid=tar_scid)
-
-        # If both the dict have no items then return None.
-        if len(source_fts_templates) <= 0 and \
-                len(target_fts_templates) <= 0:
-            return None
-
-        ignore_keys = ['oid', 'owner', 'schema']
-        return compare_dictionaries(source_fts_templates,
-                                    target_fts_templates,
-                                    self.node_type,
-                                    ignore_keys)
 
 
 SchemaDiffRegistry('FTS Templates', FtsTemplateView)

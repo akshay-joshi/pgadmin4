@@ -73,7 +73,7 @@ def compare_dictionaries(source_dict, target_dict, node, ignore_keys=None):
                 dict2[key].pop(ig_key)
 
         # Recursively Compare the two dictionary
-        if are_dictionaries_identical(dict1[key], dict2[key]):
+        if are_dictionaries_identical(dict1[key], dict2[key], ignore_keys):
             identical.append({
                 'id': count,
                 'type': node,
@@ -98,7 +98,7 @@ def compare_dictionaries(source_dict, target_dict, node, ignore_keys=None):
     return source_only + target_only + different + identical
 
 
-def are_lists_identical(source_list, target_list):
+def are_lists_identical(source_list, target_list, ignore_keys):
     """
     This function is used to compare two list.
     :param source_list:
@@ -114,7 +114,8 @@ def are_lists_identical(source_list, target_list):
             # call are_dictionaries_identical() function.
             if type(source_list[index]) is dict:
                 if not are_dictionaries_identical(source_list[index],
-                                                  target_list[index]):
+                                                  target_list[index],
+                                                  ignore_keys):
                     return False
             else:
                 if source_list[index] != target_list[index]:
@@ -122,7 +123,7 @@ def are_lists_identical(source_list, target_list):
     return True
 
 
-def are_dictionaries_identical(source_dict, target_dict):
+def are_dictionaries_identical(source_dict, target_dict, ignore_keys):
     """
     This function is used to recursively compare two dictionaries with
     same keys.
@@ -133,6 +134,13 @@ def are_dictionaries_identical(source_dict, target_dict):
 
     src_keys = set(source_dict.keys())
     tar_keys = set(target_dict.keys())
+
+    # ignore the keys if available.
+    for ig_key in ignore_keys:
+        if ig_key in src_keys:
+            source_dict.pop(ig_key)
+        if ig_key in target_dict:
+            target_dict.pop(ig_key)
 
     # Keys that are available in source and missing in target.
     src_only = src_keys - tar_keys
@@ -153,10 +161,11 @@ def are_dictionaries_identical(source_dict, target_dict):
     for key in source_dict.keys():
         if type(source_dict[key]) is dict:
             if not are_dictionaries_identical(source_dict[key],
-                                              target_dict[key]):
+                                              target_dict[key], ignore_keys):
                 return False
         elif type(source_dict[key]) is list:
-            if not are_lists_identical(source_dict[key], target_dict[key]):
+            if not are_lists_identical(source_dict[key], target_dict[key],
+                                       ignore_keys):
                 return False
         else:
             if source_dict[key] != target_dict[key]:

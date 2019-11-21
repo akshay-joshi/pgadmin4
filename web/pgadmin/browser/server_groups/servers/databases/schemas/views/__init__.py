@@ -9,6 +9,7 @@
 
 """Implements View and Materialized View Node"""
 
+import copy
 from functools import wraps
 
 import simplejson as json
@@ -18,7 +19,7 @@ from flask_babelex import gettext
 import pgadmin.browser.server_groups.servers.databases as databases
 from config import PG_DEFAULT_DRIVER
 from pgadmin.browser.server_groups.servers.databases.schemas.utils import \
-    SchemaChildModule, parse_rule_definition, VacuumSettings
+    SchemaChildModule, parse_rule_definition, VacuumSettings, get_schema
 from pgadmin.browser.server_groups.servers.utils import parse_priv_from_db, \
     parse_priv_to_db
 from pgadmin.browser.utils import PGChildNodeView
@@ -26,7 +27,8 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.driver import get_driver
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
+
 
 """
     This module is responsible for generating two nodes
@@ -199,7 +201,7 @@ def check_precondition(f):
     return wrap
 
 
-class ViewNode(PGChildNodeView, VacuumSettings):
+class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
     """
     This class is responsible for generating routes for view node.
 
@@ -293,9 +295,10 @@ class ViewNode(PGChildNodeView, VacuumSettings):
             {'get': 'get_table_vacuum'}],
         'get_toast_table_vacuum': [
             {'get': 'get_toast_table_vacuum'},
-            {'get': 'get_toast_table_vacuum'}],
-        'compare': [{'get': 'compare'}, {'get': 'compare'}]
+            {'get': 'get_toast_table_vacuum'}]
     })
+
+    keys_to_ignore = ['oid', 'schema', 'xmin']
 
     def __init__(self, *args, **kwargs):
         """
@@ -576,7 +579,7 @@ class ViewNode(PGChildNodeView, VacuumSettings):
             return internal_server_error(errormsg=str(e))
 
     @check_precondition
-    def delete(self, gid, sid, did, scid, vid=None):
+    def delete(self, gid, sid, did, scid, vid=None, only_sql=False):
         """
         This function will drop a view object
         """
@@ -624,6 +627,10 @@ class ViewNode(PGChildNodeView, VacuumSettings):
                     nspname=res_data['rows'][0]['schema'],
                     name=res_data['rows'][0]['name'], cascade=cascade
                 )
+
+                if only_sql:
+                    return SQL
+
                 status, res = self.conn.execute_scalar(SQL)
                 if not status:
                     return internal_server_error(errormsg=res)
@@ -1110,7 +1117,8 @@ class ViewNode(PGChildNodeView, VacuumSettings):
         return SQL_data
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, vid):
+    def sql(self, gid, sid, did, scid, vid, diff_schema=None,
+            json_resp=True):
         """
         This function will generate sql to render into the sql panel
         """
@@ -1131,6 +1139,9 @@ class ViewNode(PGChildNodeView, VacuumSettings):
             )
 
         result = res['rows'][0]
+        if diff_schema:
+            result['schema'] = diff_schema
+
         # sending result to formtter
         frmtd_reslt = self.formatter(result)
 
@@ -1184,6 +1195,8 @@ class ViewNode(PGChildNodeView, VacuumSettings):
         SQL_data += self.get_compound_trigger_sql(vid)
         SQL_data += self.get_index_sql(did, vid)
 
+        if not json_resp:
+            return SQL_data
         return ajax_response(response=SQL_data)
 
     @check_precondition
@@ -1378,7 +1391,7 @@ class ViewNode(PGChildNodeView, VacuumSettings):
         return ajax_response(response=sql)
 
     @check_precondition
-    def fetch_views(self, sid, did, scid):
+    def fetch_objects_to_compare(self, sid, did, scid, oid=None):
         """
         This function will fetch the list of all the views for
         specified schema id.
@@ -1389,48 +1402,47 @@ class ViewNode(PGChildNodeView, VacuumSettings):
         :return:
         """
         res = dict()
-        SQL = render_template("/".join([self.template_path,
-                                        'sql/nodes.sql']), did=did,
-                              scid=scid, datlastsysoid=self.datlastsysoid)
-        status, rset = self.conn.execute_2darray(SQL)
-        if not status:
-            return internal_server_error(errormsg=res)
 
-        for row in rset['rows']:
-            status, data = self._fetch_properties(scid, row['oid'])
-            if status:
-                res[row['name']] = data
+        if not oid:
+            SQL = render_template("/".join([self.template_path,
+                                            'sql/nodes.sql']), did=did,
+                                  scid=scid, datlastsysoid=self.datlastsysoid)
+            status, views = self.conn.execute_2darray(SQL)
+            if not status:
+                current_app.logger.error(views)
+                return False
+
+            for row in views['rows']:
+                status, data = self._fetch_properties(scid, row['oid'])
+                if status:
+                    res[row['name']] = data
+        else:
+            status, data = self._fetch_properties(scid, oid)
+            if not status:
+                current_app.logger.error(data)
+                return False
+            res = data
 
         return res
 
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the view objects
-        from two different schemas.
-
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-
-        source_views = self.fetch_views(sid=src_sid, did=src_did,
-                                        scid=src_scid)
-        target_views = self.fetch_views(sid=tar_sid, did=tar_did,
-                                        scid=tar_scid)
-
-        # If both the dict have no items then return None.
-        if len(source_views) <= 0 and len(target_views) <= 0:
-            return None
-
-        ignore_keys = ['oid', 'owner', 'schema', 'xmin']
-        return compare_dictionaries(source_views, target_views,
-                                    self.node_type,
-                                    ignore_keys)
+    def get_sql_from_diff(self, gid, sid, did, scid, oid, data=None,
+                          diff_schema=None, drop_sql=False):
+        sql = ''
+        if data:
+            if diff_schema:
+                data['schema'] = diff_schema
+            sql, nameOrError = self.getSQL(gid, sid, did, data, oid)
+        else:
+            if drop_sql:
+                sql = self.delete(gid=gid, sid=sid, did=did,
+                                  scid=scid, vid=oid, only_sql=True)
+            elif diff_schema:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, vid=oid,
+                               diff_schema=diff_schema, json_resp=False)
+            else:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, vid=oid,
+                               json_resp=False)
+        return sql
 
 
 # Override the operations for materialized view
@@ -1706,7 +1718,8 @@ class MViewNode(ViewNode, VacuumSettings):
         return SQL, data['name'] if 'name' in data else old_data['name']
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, vid):
+    def sql(self, gid, sid, did, scid, vid, diff_schema=None,
+            json_resp=True):
         """
         This function will generate sql to render into the sql panel
         """
@@ -1728,6 +1741,9 @@ class MViewNode(ViewNode, VacuumSettings):
             )
 
         result = res['rows'][0]
+
+        if diff_schema:
+            result['schema'] = diff_schema
 
         # sending result to formtter
         frmtd_reslt = self.formatter(result)
@@ -1818,6 +1834,9 @@ class MViewNode(ViewNode, VacuumSettings):
         SQL_data += self.get_trigger_sql(vid)
         SQL_data += self.get_index_sql(did, vid)
         SQL_data = SQL_data.strip('\n')
+
+        if not json_resp:
+            return SQL_data
         return ajax_response(response=SQL_data)
 
     @check_precondition
@@ -1860,7 +1879,7 @@ class MViewNode(ViewNode, VacuumSettings):
         Fetches the properties of an individual view
         and render in the properties tab
         """
-        status, res = self._fetch_mview_properties(did, scid, vid)
+        status, res = self._fetch_properties(did, scid, vid)
         if not status:
             return res
 
@@ -1869,7 +1888,7 @@ class MViewNode(ViewNode, VacuumSettings):
             status=200
         )
 
-    def _fetch_mview_properties(self, did, scid, vid):
+    def _fetch_properties(self, did, scid, vid):
         """
         This function is used to fetch the properties of the specified object
         :param did:
@@ -1964,7 +1983,7 @@ class MViewNode(ViewNode, VacuumSettings):
             return internal_server_error(errormsg=str(e))
 
     @check_precondition
-    def fetch_mviews(self, sid, did, scid):
+    def fetch_objects_to_compare(self, sid, did, scid, oid=None):
         """
         This function will fetch the list of all the mviews for
         specified schema id.
@@ -1983,42 +2002,14 @@ class MViewNode(ViewNode, VacuumSettings):
             return internal_server_error(errormsg=res)
 
         for row in rset['rows']:
-            status, data = self._fetch_mview_properties(did, scid, row['oid'])
+            status, data = self._fetch_properties(did, scid, row['oid'])
             if status:
                 res[row['name']] = data
 
         return res
 
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the mview objects
-        from two different schemas.
 
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-
-        source_mviews = self.fetch_mviews(sid=src_sid, did=src_did,
-                                          scid=src_scid)
-        target_mviews = self.fetch_mviews(sid=tar_sid, did=tar_did,
-                                          scid=tar_scid)
-
-        # If both the dict have no items then return None.
-        if len(source_mviews) <= 0 and len(target_mviews) <= 0:
-            return None
-
-        ignore_keys = ['oid', 'owner', 'schema', 'xmin']
-        return compare_dictionaries(source_mviews, target_mviews,
-                                    self.node_type, ignore_keys)
-
-
-SchemaDiffRegistry('Views', ViewNode)
+SchemaDiffRegistry('view', ViewNode)
 ViewNode.register_node_view(view_blueprint)
-SchemaDiffRegistry('Materialized Views', MViewNode)
+SchemaDiffRegistry('mview', MViewNode)
 MViewNode.register_node_view(mview_blueprint)

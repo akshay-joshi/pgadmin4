@@ -21,7 +21,7 @@ from flask import render_template, make_response, request, jsonify, \
     current_app
 from flask_babelex import gettext
 from pgadmin.browser.server_groups.servers.databases.schemas.utils import \
-    SchemaChildModule, DataTypeReader
+    SchemaChildModule, DataTypeReader, get_schema
 from pgadmin.browser.server_groups.servers.databases.utils import \
     parse_sec_labels_from_db, parse_variables_from_db
 from pgadmin.browser.server_groups.servers.utils import parse_priv_from_db, \
@@ -32,7 +32,8 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.model import SchemaDiffModel
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
 
 
 class FunctionModule(SchemaChildModule):
@@ -116,7 +117,7 @@ class FunctionModule(SchemaChildModule):
 blueprint = FunctionModule(__name__)
 
 
-class FunctionView(PGChildNodeView, DataTypeReader):
+class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
     """
     class FunctionView(PGChildNodeView)
 
@@ -215,9 +216,11 @@ class FunctionView(PGChildNodeView, DataTypeReader):
         'select_sql': [{'get': 'select_sql'}],
         'exec_sql': [{'get': 'exec_sql'}],
         'get_support_functions': [{'get': 'get_support_functions'},
-                                  {'get': 'get_support_functions'}],
-        'compare': [{'get': 'compare'}, {'get': 'compare'}]
+                                  {'get': 'get_support_functions'}]
     })
+
+    keys_to_ignore = ['oid', 'proowner', 'typnsp', 'xmin', 'prokind',
+                      'proisagg', 'pronamespace', 'proargdefaults']
 
     @property
     def required_args(self):
@@ -920,7 +923,8 @@ class FunctionView(PGChildNodeView, DataTypeReader):
             )
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, fnid=None):
+    def sql(self, gid, sid, did, scid, fnid=None, diff_schema=None,
+            json_resp=True):
         """
         Returns the SQL for the Function object.
 
@@ -994,6 +998,8 @@ class FunctionView(PGChildNodeView, DataTypeReader):
             if not status:
                 return internal_server_error(errormsg=res)
 
+            if diff_schema:
+                res['rows'][0]['nspname'] = diff_schema
             name_with_default_args = self.qtIdent(
                 self.conn,
                 res['rows'][0]['nspname'],
@@ -1045,6 +1051,9 @@ class FunctionView(PGChildNodeView, DataTypeReader):
             if not status:
                 return internal_server_error(errormsg=res)
 
+            if diff_schema:
+                res['rows'][0]['nspname'] = diff_schema
+
             name_with_default_args = self.qtIdent(
                 self.conn,
                 res['rows'][0]['nspname'],
@@ -1079,6 +1088,8 @@ class FunctionView(PGChildNodeView, DataTypeReader):
         SQL = sql_header + func_def
         SQL = re.sub('\n{2,}', '\n\n', SQL)
 
+        if not json_resp:
+            return SQL
         return ajax_response(response=SQL)
 
     @check_precondition
@@ -1602,8 +1613,27 @@ class FunctionView(PGChildNodeView, DataTypeReader):
             status=200
         )
 
+    def get_sql_from_diff(self, gid, sid, did, scid, oid, data=None,
+                          diff_schema=None, drop_sql=False):
+        sql = ''
+        if data:
+            if diff_schema:
+                data['schema'] = diff_schema
+            status, sql = self._get_sql(gid, sid, did, scid, data, oid)
+        else:
+            if drop_sql:
+                sql = self.delete(gid=gid, sid=sid, did=did,
+                                  scid=scid, fnid=oid, only_sql=True)
+            elif diff_schema:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, fnid=oid,
+                               diff_schema=diff_schema, json_resp=False)
+            else:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, fnid=oid,
+                               json_resp=False)
+        return sql
+
     @check_precondition
-    def fetch_functions(self, sid, did, scid):
+    def fetch_objects_to_compare(self, sid, did, scid, oid=None):
         """
         This function will fetch the list of all the functions for
         specified schema id.
@@ -1624,50 +1654,25 @@ class FunctionView(PGChildNodeView, DataTypeReader):
                 and server_version < self.blueprint.min_ppasver:
             return res
 
-        SQL = render_template("/".join([self.sql_template_path,
-                                        'node.sql']), scid=scid)
-        status, rset = self.conn.execute_2darray(SQL)
-        if not status:
-            return internal_server_error(errormsg=res)
+        if not oid:
+            SQL = render_template("/".join([self.sql_template_path,
+                                            'node.sql']), scid=scid)
+            status, rset = self.conn.execute_2darray(SQL)
+            if not status:
+                return internal_server_error(errormsg=res)
 
-        for row in rset['rows']:
-            data = self._fetch_properties(0, sid, did, scid, row['oid'])
-            if isinstance(data, dict):
-                res[row['name']] = data
+            for row in rset['rows']:
+                data = self._fetch_properties(0, sid, did, scid, row['oid'])
+                if isinstance(data, dict):
+                    res[row['name']] = data
+        else:
+            data = self._fetch_properties(0, sid, did, scid, oid)
+            res = data
 
         return res
 
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the function objects
-        from two different schemas.
 
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-
-        source_functions = self.fetch_functions(sid=src_sid, did=src_did,
-                                                scid=src_scid)
-        target_functions = self.fetch_functions(sid=tar_sid, did=tar_did,
-                                                scid=tar_scid)
-
-        # If both the dict have no items then return None.
-        if len(source_functions) <= 0 and len(target_functions) <= 0:
-            return None
-
-        ignore_keys = ['oid', 'proowner', 'typnsp', 'xmin', 'prokind',
-                       'proisagg', 'pronamespace', 'proargdefaults']
-        return compare_dictionaries(source_functions, target_functions,
-                                    self.node_type, ignore_keys)
-
-
-SchemaDiffRegistry('Functions', FunctionView)
+SchemaDiffRegistry('function', FunctionView)
 FunctionView.register_node_view(blueprint)
 
 
@@ -1768,7 +1773,7 @@ class ProcedureView(FunctionView):
                 'prosrc']
 
 
-SchemaDiffRegistry('Procedures', ProcedureView)
+SchemaDiffRegistry('procedure', ProcedureView)
 ProcedureView.register_node_view(procedure_blueprint)
 
 

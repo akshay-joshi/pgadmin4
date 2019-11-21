@@ -17,7 +17,7 @@ ALTER TABLE {{conn|qtIdent(data.schema, data.table)}}
 
 {% endif %}
 {% if data.col_type_conversion is defined and data.col_type_conversion == False %} -- {% endif %}ALTER TABLE {{conn|qtIdent(data.schema, data.table)}}
-{% if data.col_type_conversion is defined and data.col_type_conversion == False %} -- {% endif %}   ALTER COLUMN {% if data.name %}{{conn|qtTypeIdent(data.name)}}{% else %}{{conn|qtTypeIdent(o_data.name)}}{% endif %} TYPE {{ GET_TYPE.UPDATE_TYPE_SQL(conn, data, o_data) }}{% if data.collspcname and data.collspcname != o_data.collspcname %}
+{% if data.col_type_conversion is defined and data.col_type_conversion == False %} -- {% endif %}    ALTER COLUMN {% if data.name %}{{conn|qtTypeIdent(data.name)}}{% else %}{{conn|qtTypeIdent(o_data.name)}}{% endif %} TYPE {{ GET_TYPE.UPDATE_TYPE_SQL(conn, data, o_data) }}{% if data.collspcname and data.collspcname != o_data.collspcname %}
  COLLATE {{data.collspcname}}{% elif o_data.collspcname %} COLLATE {{o_data.collspcname}}{% endif %};
 {% endif %}
 {###  Alter column default value ###}

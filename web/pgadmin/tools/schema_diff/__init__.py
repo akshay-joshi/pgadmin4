@@ -494,7 +494,7 @@ def ddl_compare(trans_id, source_sid, source_did, source_scid,
                       'diff_ddl': sql['diff_ddl']}
         )
 
-    msg = gettext('Only table object is supported for DDL comparison.')
+    msg = gettext('Selected object is supported for DDL comparison.')
 
     return ajax_response(
         status=200,

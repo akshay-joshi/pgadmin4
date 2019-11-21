@@ -28,7 +28,7 @@ from pgadmin.utils.ajax import make_json_response, \
     precondition_required, gone
 from pgadmin.utils.driver import get_driver
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
 
 # If we are in Python3
 if not IS_PY2:
@@ -85,7 +85,7 @@ class PackageModule(SchemaChildModule):
 blueprint = PackageModule(__name__)
 
 
-class PackageView(PGChildNodeView):
+class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
     node_type = blueprint.node_type
 
     parent_ids = [
@@ -110,9 +110,10 @@ class PackageView(PGChildNodeView):
         'msql': [{'get': 'msql'}, {'get': 'msql'}],
         'stats': [{'get': 'statistics'}, {'get': 'statistics'}],
         'dependency': [{'get': 'dependencies'}],
-        'dependent': [{'get': 'dependents'}],
-        'compare': [{'get': 'compare'}, {'get': 'compare'}]
+        'dependent': [{'get': 'dependents'}]
     })
+
+    keys_to_ignore = ['oid', 'schema', 'xmin']
 
     def check_precondition(action=None):
         """
@@ -772,8 +773,8 @@ class PackageView(PGChildNodeView):
 
         return sql[start:end].strip("\n")
 
-    @check_precondition(action="fetch_packages")
-    def fetch_packages(self, sid, did, scid):
+    @check_precondition(action="fetch_objects_to_compare")
+    def fetch_objects_to_compare(self, sid, did, scid):
         """
         This function will fetch the list of all the packages for
         specified schema id.
@@ -799,34 +800,6 @@ class PackageView(PGChildNodeView):
                 res[row['name']] = data
 
         return res
-
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the package objects
-        from two different schemas.
-
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-
-        source_packages = self.fetch_packages(sid=src_sid, did=src_did,
-                                              scid=src_scid)
-        target_packages = self.fetch_packages(sid=tar_sid, did=tar_did,
-                                              scid=tar_scid)
-
-        # If both the dict have no items then return None.
-        if len(source_packages) <= 0 and len(target_packages) <= 0:
-            return None
-
-        ignore_keys = ['oid', 'owner', 'schema', 'xmin']
-        return compare_dictionaries(source_packages, target_packages,
-                                    self.node_type, ignore_keys)
 
 
 SchemaDiffRegistry('Packages', PackageView)

@@ -27,7 +27,7 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.driver import get_driver
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
-from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
 
 # If we are in Python3
 if not IS_PY2:
@@ -96,7 +96,7 @@ class TypeModule(SchemaChildModule):
 blueprint = TypeModule(__name__)
 
 
-class TypeView(PGChildNodeView, DataTypeReader):
+class TypeView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
     """
     This class is responsible for generating routes for Type node
 
@@ -216,8 +216,7 @@ class TypeView(PGChildNodeView, DataTypeReader):
         'get_collations': [{'get': 'get_collations'},
                            {'get': 'get_collations'}],
         'get_external_functions': [{'get': 'get_external_functions_list'},
-                                   {'get': 'get_external_functions_list'}],
-        'compare': [{'get': 'compare'}, {'get': 'compare'}]
+                                   {'get': 'get_external_functions_list'}]
     })
 
     def check_precondition(f):
@@ -1464,7 +1463,7 @@ class TypeView(PGChildNodeView, DataTypeReader):
         )
 
     @check_precondition
-    def fetch_types(self, sid, did, scid):
+    def fetch_objects_to_compare(self, sid, did, scid):
         """
         This function will fetch the list of all the types for
         specified schema id.
@@ -1488,35 +1487,6 @@ class TypeView(PGChildNodeView, DataTypeReader):
                 res[row['name']] = data
 
         return res
-
-    def compare(self, **kwargs):
-        """
-        This function is used to compare all the type objects
-        from two different schemas.
-
-        :param kwargs:
-        :return:
-        """
-        src_sid = kwargs.get('source_sid')
-        src_did = kwargs.get('source_did')
-        src_scid = kwargs.get('source_scid')
-        tar_sid = kwargs.get('target_sid')
-        tar_did = kwargs.get('target_did')
-        tar_scid = kwargs.get('target_scid')
-
-        source_types = self.fetch_types(sid=src_sid, did=src_did,
-                                        scid=src_scid)
-        target_types = self.fetch_types(sid=tar_sid, did=tar_did,
-                                        scid=tar_scid)
-
-        # If both the dict have no items then return None.
-        if len(source_types) <= 0 and len(target_types) <= 0:
-            return None
-
-        ignore_keys = ['oid', 'alias', 'schema', 'typnamespace', 'typeowner',
-                       'typrelid', 'typarray']
-        return compare_dictionaries(source_types, target_types,
-                                    self.node_type, ignore_keys)
 
 
 SchemaDiffRegistry('Types', TypeView)
