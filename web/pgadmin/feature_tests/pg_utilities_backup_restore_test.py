@@ -55,18 +55,16 @@ class PGUtilitiesBackupFeatureTest(BaseFeatureTest):
             self.server['sslmode']
         )
         test_utils.drop_database(connection, self.database_name)
-
         test_utils.create_database(self.server, self.database_name)
+        test_gui_helper.close_bgprocess_popup(self)
         self.page.add_server(self.server)
 
         self.wait = WebDriverWait(self.page.driver, 20)
 
-        test_gui_helper.close_bgprocess_popup(self)
-
     def runTest(self):
-        self.page.toggle_open_server(self.server['name'])
-        self.page.toggle_open_tree_item('Databases')
-        self.page.toggle_open_tree_item(self.database_name)
+        self.page.expand_database_node(
+            self.server['name'],
+            self.server['db_password'], self.database_name)
 
         # Backup
         self.page.retry_click(
@@ -110,16 +108,17 @@ class PGUtilitiesBackupFeatureTest(BaseFeatureTest):
 
         status = test_utils.get_watcher_dialogue_status(self)
 
+        self.page.retry_click(
+            (By.CSS_SELECTOR,
+             NavMenuLocators.status_alertifier_more_btn_css),
+            (By.XPATH,
+             NavMenuLocators.process_watcher_alertfier))
+        self.page.wait_for_element_to_disappear(
+            lambda driver: driver.find_element_by_css_selector(".loading-logs")
+        )
+
         if status != "Successfully completed.":
-            test_gui_helper.close_bgprocess_popup(self)
-
-        self.assertEquals(status, "Successfully completed.")
-
-        self.page.find_by_css_selector(
-            NavMenuLocators.status_alertifier_more_btn_css).click()
-
-        self.wait.until(EC.visibility_of_element_located(
-            (By.XPATH, NavMenuLocators.process_watcher_alertfier)))
+            self.assertEquals(status, "Successfully completed.")
 
         backup_file = None
         # Check for XSS in Backup details
@@ -143,9 +142,7 @@ class PGUtilitiesBackupFeatureTest(BaseFeatureTest):
                 backup_file = command[int(command.find('--file')) +
                                       8:int(command.find('--host')) - 2]
 
-        close_btn = self.page.find_by_xpath(
-            NavMenuLocators.process_watcher_close_button_xpath)
-        close_btn.click()
+        test_gui_helper.close_process_watcher(self)
 
         # Restore
         tools_menu = self.driver.find_element_by_link_text(
@@ -181,16 +178,17 @@ class PGUtilitiesBackupFeatureTest(BaseFeatureTest):
 
         status = test_utils.get_watcher_dialogue_status(self)
 
+        self.page.retry_click(
+            (By.CSS_SELECTOR,
+             NavMenuLocators.status_alertifier_more_btn_css),
+            (By.XPATH,
+             NavMenuLocators.process_watcher_alertfier))
+        self.page.wait_for_element_to_disappear(
+            lambda driver: driver.find_element_by_css_selector(".loading-logs")
+        )
+
         if status != "Successfully completed.":
-            test_gui_helper.close_bgprocess_popup(self)
-
-        self.assertEquals(status, "Successfully completed.")
-
-        self.page.find_by_css_selector(
-            NavMenuLocators.status_alertifier_more_btn_css).click()
-
-        self.wait.until(EC.visibility_of_element_located(
-            (By.XPATH, NavMenuLocators.process_watcher_alertfier)))
+            self.assertEquals(status, "Successfully completed.")
 
         # Check for XSS in Restore details
         if self.is_xss_check:
@@ -206,9 +204,7 @@ class PGUtilitiesBackupFeatureTest(BaseFeatureTest):
 
             self.assertIn("pg_restore", str(command))
 
-        close_watcher = self.page.find_by_xpath(
-            NavMenuLocators.process_watcher_close_button_xpath)
-        close_watcher.click()
+        test_gui_helper.close_process_watcher(self)
 
         if backup_file is not None:
             if os.path.isfile(backup_file):

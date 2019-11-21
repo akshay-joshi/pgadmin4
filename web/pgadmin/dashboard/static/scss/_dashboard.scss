@@ -1,5 +1,5 @@
 .dashboard-icon {
-    color: $color-primary;
+    color: $color-brand;
 }
 
 .dashboard-container {
@@ -14,14 +14,6 @@
 
 .dashboard-row {
     margin-bottom: $grid-gutter-width/2;
-}
-
-.dashboard-tab-btn-group {
-    background-color: $color-gray-light;
-    border: 2px solid  $color-gray;
-    left: 0px;
-    right: 0px;
-    padding: 2px;
 }
 
 .graph-error {
@@ -44,5 +36,43 @@
 
 .dashboard-link a {
     cursor: pointer;
-    color: $color-fg-theme;
+    color: $color-fg;
+}
+
+.dashboard-graph-body {
+    & .flotr-labels {
+        color: $color-fg !important;
+    }
+    & .flotr-legend {
+        border: none !important;
+        padding: 0.25rem 0.5rem;
+        & .flotr-legend-label {
+            color: $color-fg !important;
+            padding-left: 0.25rem;
+        }
+
+        & .flotr-legend-color-box>div {
+            border: none !important;
+            &>div {
+                border: none !important;
+            }
+        }
+
+        & .flotr-legend-bg {
+            border-radius: $border-radius;
+        }
+    }
+}
+
+.welcome-logo {
+    width: 400px;
+    & .app-name {
+        fill: $color-brand;
+    }
+    & .app-name-underline {
+        stroke: $color-fg;
+    }
+    & .app-tagline {
+        fill: $color-fg;
+    }
 }

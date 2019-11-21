@@ -28,6 +28,10 @@ define('pgadmin.browser.node', [
       F1: 112,
     };
 
+  const REMOVE_SERVER_PRIORITY = 5;
+  const REMOVE_SERVER_LABEL = 'Remove Server';
+  const SERVER = 'server';
+
   // It has already been defined.
   // Avoid running this script again.
   if (pgBrowser.Node)
@@ -142,8 +146,8 @@ define('pgadmin.browser.node', [
           module: self,
           applies: ['object', 'context'],
           callback: 'delete_obj',
-          priority: 2,
-          label: gettext('Delete/Drop'),
+          priority: self.get_menu_item_priority(self.type, 2),
+          label: self.change_menu_label(self.type, gettext('Delete/Drop')),
           data: {
             'url': 'drop',
           },
@@ -342,7 +346,12 @@ define('pgadmin.browser.node', [
                 this.empty().css('visibility', 'hidden');
               }.bind(that.statusBar));
             }
-            callback(true);
+
+            var sessHasChanged = false;
+            if(this.sessChanged && this.sessChanged()){
+              sessHasChanged = true;
+            }
+            callback(true, sessHasChanged);
 
             return true;
           };
@@ -755,15 +764,31 @@ define('pgadmin.browser.node', [
             return;
           }
         } else {
-          msg = gettext('Are you sure you want to drop %s "%s"?', obj.label.toLowerCase(), d.label);
-          title = gettext('DROP %s?', obj.label);
+          var remove_drop_text;
+          if(obj.type === SERVER) {
+            remove_drop_text = 'Remove';
+          }
+          else {
+            remove_drop_text = 'DROP';
+          }
+
+          msg = gettext('Are you sure you want to %s %s "%s"?', remove_drop_text.toLowerCase(), obj.label.toLowerCase(), d.label);
+          title = gettext('%s %s?', remove_drop_text, obj.label);
 
           if (!(_.isFunction(obj.canDrop) ?
             obj.canDrop.apply(obj, [d, i]) : obj.canDrop)) {
-            Alertify.error(
-              gettext('The %s "%s" cannot be dropped.', obj.label, d.label),
-              10
-            );
+            if(obj.type === SERVER) {
+              Alertify.error(
+                gettext('The %s "%s" cannot be removed.', obj.label, d.label),
+                10
+              );
+            }
+            else {
+              Alertify.error(
+                gettext('The %s "%s" cannot be dropped.', obj.label, d.label),
+                10
+              );
+            }
             return;
           }
         }
@@ -792,8 +817,14 @@ define('pgadmin.browser.node', [
                     console.warn(e.stack || e);
                   }
                 }
-                pgBrowser.report_error(
-                  gettext('Error dropping %s: "%s"', obj.label, objName), msg);
+                if(obj.type === SERVER) {
+                  pgBrowser.report_error(
+                    gettext('Error removing %s: "%s"', obj.label, objName), msg);
+                }
+                else {
+                  pgBrowser.report_error(
+                    gettext('Error dropping %s: "%s"', obj.label, objName), msg);
+                }
               });
           },
           null).show();
@@ -1033,7 +1064,8 @@ define('pgadmin.browser.node', [
         j = panel.$container.find('.obj_properties').first(),
         view = j.data('obj-view'),
         content = $('<div tabindex="1"></div>')
-          .addClass('pg-prop-content col-12');
+          .addClass('pg-prop-content col-12'),
+        confirm_close = true;
 
       // Handle key press events for Cancel, save and help button
       var handleKeyDown = function(event, context) {
@@ -1042,7 +1074,7 @@ define('pgadmin.browser.node', [
 
         switch (event.which) {
         case keyCode.ESCAPE:
-          closePanel();
+          closePanel(true);
           break;
         case keyCode.ENTER:
           // Return if event is fired from child element
@@ -1240,6 +1272,39 @@ define('pgadmin.browser.node', [
           window.open(that.dialogHelp, 'pgadmin_help');
         }.bind(panel),
 
+        warnBeforeChangesLost = function(warn_text, yes_callback) {
+          var j = this.$container.find('.obj_properties').first(),
+            view = j && j.data('obj-view'),
+            self = this;
+
+          let confirm_on_properties_close = pgBrowser.get_preferences_for_module('browser').confirm_on_properties_close;
+          if (confirm_on_properties_close && confirm_close && view && view.model) {
+            if(view.model.sessChanged()){
+              Alertify.confirm(
+                gettext('Warning'),
+                warn_text,
+                function() {
+                  setTimeout(function(){
+                    yes_callback();
+                  }.bind(self), 50);
+                  return true;
+                },
+                function() {
+                  return true;
+                }
+              ).set('labels', {
+                ok: gettext('Yes'),
+                cancel: gettext('No'),
+              }).show();
+            } else {
+              return true;
+            }
+          } else {
+            yes_callback();
+            return true;
+          }
+        }.bind(panel),
+
         onSave = function(view, saveBtn) {
           var m = view.model,
             d = m.toJSON(true),
@@ -1400,7 +1465,7 @@ define('pgadmin.browser.node', [
                 btn.on('click',() => {
                   // Removing the action-mode
                   panel.$container.removeAttr('action-mode');
-                  onCancelFunc.call(arguments);
+                  onCancelFunc.call(true);
                 });
               },
             }, {
@@ -1412,9 +1477,15 @@ define('pgadmin.browser.node', [
               disabled: true,
               register: function(btn) {
                 btn.on('click',() => {
-                  setTimeout(function() {
-                    editFunc.call();
-                  }, 0);
+                  warnBeforeChangesLost.call(
+                    panel,
+                    gettext('Changes will be lost. Are you sure you want to reset?'),
+                    function() {
+                      setTimeout(function() {
+                        editFunc.call();
+                      }, 0);
+                    }
+                  );
                 });
               },
             }, {
@@ -1455,7 +1526,10 @@ define('pgadmin.browser.node', [
           // Show contents before buttons
           j.prepend(content);
         }.bind(panel),
-        closePanel = function() {
+        closePanel = function(confirm_close_flag) {
+          if(!_.isUndefined(confirm_close_flag)) {
+            confirm_close = confirm_close_flag;
+          }
           // Closing this panel
           this.close();
         }.bind(panel),
@@ -1484,7 +1558,7 @@ define('pgadmin.browser.node', [
               },
             }
           );
-          closePanel();
+          closePanel(false);
         },
         saveNewNode = function(that) {
           var panel = this,
@@ -1503,7 +1577,7 @@ define('pgadmin.browser.node', [
           } catch (e) {
             console.warn(e.stack || e);
           }
-          closePanel();
+          closePanel(false);
         }.bind(panel, that),
         editInNewPanel = function() {
           // Open edit in separate panel
@@ -1535,6 +1609,15 @@ define('pgadmin.browser.node', [
         onEdit = editInNewPanel.bind(panel);
       }
       if (panel.closeable()) {
+        panel.on(wcDocker.EVENT.CLOSING, warnBeforeChangesLost.bind(
+          panel,
+          gettext('Changes will be lost. Are you sure you want to close the dialog?'),
+          function() {
+            panel.off(wcDocker.EVENT.CLOSING);
+            panel.close();
+          }
+        ));
+
         var onCloseFunc = function() {
           var j = this.$container.find('.obj_properties').first(),
             view = j && j.data('obj-view');
@@ -1704,6 +1787,18 @@ define('pgadmin.browser.node', [
         }
         return this.parent_type;
       }
+    },
+    get_menu_item_priority: function(type, default_priority) { //downgrade Remove Server priority in menus only for Servers
+      if(type && type === SERVER) {
+        return REMOVE_SERVER_PRIORITY;
+      }
+      return default_priority;
+    },
+    change_menu_label: function(type, default_label) { //change Delete/Drop menu option to Remove Server
+      if(type && type === SERVER) {
+        return gettext(REMOVE_SERVER_LABEL);
+      }
+      return default_label;
     },
   });
 

@@ -12,6 +12,7 @@ import random
 
 from regression.feature_utils.base_feature_test import BaseFeatureTest
 from regression.python_test_utils import test_utils
+from regression.feature_utils.tree_area_locators import TreeAreaLocators
 
 
 class TableDdlFeatureTest(BaseFeatureTest):
@@ -32,13 +33,15 @@ class TableDdlFeatureTest(BaseFeatureTest):
         test_utils.create_table(self.server, self.test_db,
                                 self.test_table_name)
 
-        self.page.toggle_open_server(self.server['name'])
-        self.page.toggle_open_tree_item('Databases')
-        self.page.toggle_open_tree_item(self.test_db)
-        self.page.toggle_open_tree_item('Schemas')
-        self.page.toggle_open_tree_item('public')
-        self.page.toggle_open_tree_item('Tables')
-        self.page.select_tree_item(self.test_table_name)
+        self.page.expand_database_node(
+            self.server['name'],
+            self.server['db_password'], self.test_db)
+        self.page.toggle_open_tables_node(
+            self.server['name'], self.server['db_password'],
+            self.test_db, 'public')
+        self.page.click_a_tree_node(
+            self.test_table_name,
+            TreeAreaLocators.sub_nodes_of_tables_node)
         self.page.click_tab("SQL")
 
         # Wait till data is displayed in SQL Tab

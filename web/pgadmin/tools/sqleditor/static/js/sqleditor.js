@@ -770,6 +770,7 @@ define('tools.querytool', [
           display_name: c.display_name,
           column_type: c.column_type,
           column_type_internal: c.column_type_internal,
+          cell: c.cell,
           not_null: c.not_null,
           has_default_val: c.has_default_val,
           is_array: c.is_array,
@@ -1654,6 +1655,10 @@ define('tools.querytool', [
 
     // Callback function for the flash button click.
     on_flash: function() {
+      let data_click_counter = $('#btn-flash').attr('data-click-counter');
+      data_click_counter = (parseInt(data_click_counter) + 1)%10;
+      $('#btn-flash').attr('data-click-counter', data_click_counter);
+
       this.handler.history_query_source = QuerySources.EXECUTE;
 
       queryToolActions.executeQuery(this.handler);
@@ -2257,7 +2262,7 @@ define('tools.querytool', [
          * loses focus and events don't work.
          */
         $(window).on('keydown', (e)=>{
-          if(self.gridView.keyAction) {
+          if(($('.sql-editor').find(e.target).length !== 0 || e.target == $('body.wcDesktop')[0]) && self.gridView.keyAction) {
             self.gridView.keyAction(e);
           }
         });

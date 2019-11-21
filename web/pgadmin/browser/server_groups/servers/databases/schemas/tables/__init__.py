@@ -30,7 +30,8 @@ from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries,\
 from pgadmin.tools.schema_diff.model import SchemaDiffModel
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
-
+from pgadmin.browser.server_groups.servers.databases.schemas.tables.\
+    constraints.foreign_key import utils as fkey_utils
 
 class TableModule(SchemaChildModule):
     """
@@ -1038,18 +1039,10 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
 
         if 'foreign_key' in data:
             for c in data['foreign_key']:
-                SQL = render_template(
-                    "/".join([
-                        self.foreign_key_template_path, 'get_parent.sql'
-                    ]),
-                    tid=c['columns'][0]['references']
-                )
-                status, rset = self.conn.execute_2darray(SQL)
-                if not status:
-                    return internal_server_error(errormsg=rset)
-
-                c['remote_schema'] = rset['rows'][0]['schema']
-                c['remote_table'] = rset['rows'][0]['table']
+                schema, table = fkey_utils.get_parent(
+                    self.conn, c['columns'][0]['references'])
+                c['remote_schema'] = schema
+                c['remote_table'] = table
 
         try:
             partitions_sql = ''
@@ -1255,7 +1248,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
             request.data, encoding='utf-8'
         )
         # Convert str 'true' to boolean type
-        is_enable = json.loads(data['enable'])
+        is_enable_trigger = data['is_enable_trigger']
 
         try:
             SQL = render_template(
@@ -1272,7 +1265,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
                 "/".join([
                     self.table_template_path, 'enable_disable_trigger.sql'
                 ]),
-                data=data, is_enable_trigger=is_enable
+                data=data, is_enable_trigger=is_enable_trigger
             )
             status, res = self.conn.execute_scalar(SQL)
             if not status:
@@ -1280,8 +1273,9 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings):
 
             return make_json_response(
                 success=1,
-                info=gettext("Trigger(s) have been enabled") if is_enable
-                else gettext("Trigger(s) have been disabled"),
+                info=gettext("Trigger(s) have been disabled")
+                if is_enable_trigger == 'D'
+                else gettext("Trigger(s) have been enabled"),
                 data={
                     'id': tid,
                     'scid': scid

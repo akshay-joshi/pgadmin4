@@ -711,12 +711,18 @@ def create_app(app_name=None):
         from flask_compress import Compress
         Compress(app)
 
+    from pgadmin.misc.themes import Themes
+    Themes(app)
+
     @app.context_processor
     def inject_blueprint():
-        """Inject a reference to the current blueprint, if any."""
+        """
+        Inject a reference to the current blueprint, if any.
+        """
+
         return {
             'current_app': current_app,
-            'current_blueprint': current_blueprint
+            'current_blueprint': current_blueprint,
         }
 
     @app.errorhandler(Exception)

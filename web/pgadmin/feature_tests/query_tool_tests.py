@@ -35,9 +35,9 @@ class QueryToolFeatureTest(BaseFeatureTest):
     def before(self):
         self.page.wait_for_spinner_to_disappear()
         self.page.add_server(self.server)
-        self.page.toggle_open_tree_item(self.server['name'])
-        self.page.toggle_open_tree_item('Databases')
-        self.page.toggle_open_tree_item(self.test_db)
+        self.page.expand_database_node(
+            self.server['name'],
+            self.server['db_password'], self.test_db)
         self.page.open_query_tool()
         self.page.wait_for_spinner_to_disappear()
         self._reset_options()
@@ -135,18 +135,10 @@ class QueryToolFeatureTest(BaseFeatureTest):
         query_op.click()
 
         # disable auto rollback only if they are enabled
-        btn = self.page.find_by_css_selector(
-            QueryToolLocators.btn_auto_rollback)
-        check = btn.find_element_by_tag_name('i')
-        if 'visibility-hidden' not in check.get_attribute('class'):
-            btn.click()
+        self.page.uncheck_execute_option('auto_rollback')
 
         # enable autocommit only if it's disabled
-        btn = self.page.find_by_css_selector(
-            QueryToolLocators.btn_auto_commit)
-        check = btn.find_element_by_tag_name('i')
-        if 'visibility-hidden' in check.get_attribute('class'):
-            btn.click()
+        self.page.check_execute_option('auto_commit')
 
         # close menu
         query_op.click()
@@ -181,8 +173,7 @@ SELECT generate_series(1, {}) as id1, 'dummy' as id2""".format(
 
         print("On demand result set on grid select all... ",
               file=sys.stderr, end="")
-        self.page.find_by_css_selector(
-            QueryToolLocators.btn_execute_query_css).click()
+        self.page.click_execute_query_button()
 
         # wait for header of the table to be visible
         canvas = self.page.find_by_css_selector(
@@ -207,15 +198,13 @@ SELECT generate_series(1, {}) as id1, 'dummy' as id2""".format(
                     ElementClickInterceptedException):
                 count += 1
                 pass
-        print(count)
 
         self._check_ondemand_result(row_id_to_find)
         print("OK.", file=sys.stderr)
 
         print("On demand result set on column select all... ",
               file=sys.stderr, end="")
-        self.page.find_by_css_selector(
-            QueryToolLocators.btn_execute_query_css).click()
+        self.page.click_execute_query_button()
 
         self.page.wait_for_query_tool_loading_indicator_to_disappear()
 
@@ -244,6 +233,7 @@ SELECT generate_series(1, {}) as id1, 'dummy' as id2""".format(
     def _check_ondemand_result(self, row_id_to_find):
         # scroll to bottom to bring last row of next chunk in viewport.
         scroll = 10
+        status = False
         while scroll:
             canvas_ele = self.page.find_by_css_selector('.grid-canvas')
             scrolling_height = canvas_ele.size['height']
@@ -254,15 +244,19 @@ SELECT generate_series(1, {}) as id1, 'dummy' as id2""".format(
             )
             # Table height takes some time to update, for which their is no
             # particular way
-            time.sleep(1)
-            if canvas_ele.size['height'] == scrolling_height:
+            time.sleep(2)
+            if canvas_ele.size['height'] == scrolling_height and \
+                self.page.check_if_element_exist_by_xpath(
+                    QueryToolLocators.output_column_data_xpath.format(
+                        row_id_to_find)):
+                status = True
                 break
             else:
                 scroll -= 1
 
-        self.assertTrue(self.page.check_if_element_exist_by_xpath(
-            QueryToolLocators.output_column_data_xpath.format(row_id_to_find)
-        ))
+        self.assertTrue(
+            status, "Element is not loaded to the rows id: "
+                    "{}".format(row_id_to_find))
 
     def _query_tool_explain_with_verbose_and_cost(self):
         query = """-- Explain query with verbose and cost
@@ -345,18 +339,16 @@ CREATE TABLE public.{}();""".format(table_name)
 
         self.page.fill_codemirror_area_with(query)
 
-        # open auto commit option and disable it
+        # disable auto commit option
         query_op = self.page.find_by_css_selector(
             QueryToolLocators.btn_query_dropdown)
         query_op.click()
-        self.page.find_by_css_selector(
-            QueryToolLocators.btn_auto_commit).click()
+        self.page.uncheck_execute_option('auto_commit')
         # close option
         query_op.click()
 
         # execute query
-        self.page.find_by_css_selector(
-            QueryToolLocators.btn_execute_query_css).click()
+        self.page.click_execute_query_button()
 
         self.page.wait_for_query_tool_loading_indicator_to_disappear()
         self.page.click_tab('Messages')
@@ -372,11 +364,7 @@ CREATE TABLE public.{}();""".format(table_name)
 -- 3. ROLLBACK transaction.
 -- 4. Check if table is *NOT* created.
 ROLLBACK;"""
-        self.page.fill_codemirror_area_with(query)
-        self.page.find_by_css_selector(
-            QueryToolLocators.btn_execute_query_css).click()
-
-        self.page.wait_for_query_tool_loading_indicator_to_disappear()
+        self.page.execute_query(query)
         self.page.click_tab('Messages')
         self.assertTrue(self.page.check_if_element_exist_by_xpath(
             QueryToolLocators.sql_editor_message.format('ROLLBACK')),
@@ -389,11 +377,8 @@ ROLLBACK;"""
 -- 4. Check if table is *NOT* created.
 SELECT relname FROM pg_class
     WHERE relkind IN ('r','s','t') and relnamespace = 2200::oid;"""
-        self.page.fill_codemirror_area_with(query)
-        self.page.find_by_css_selector(
-            QueryToolLocators.btn_execute_query_css).click()
 
-        self.page.wait_for_query_tool_loading_indicator_to_disappear()
+        self.page.execute_query(query)
         self.page.click_tab('Data Output')
         canvas = self.wait.until(EC.presence_of_element_located(
             (By.CSS_SELECTOR, QueryToolLocators.query_output_canvas_css)))
@@ -411,11 +396,7 @@ SELECT relname FROM pg_class
         -- 3. ROLLBACK transaction.
         -- 4. Check if table is *NOT* created.
         ROLLBACK;"""
-        self.page.fill_codemirror_area_with(query)
-        self.page.find_by_css_selector(
-            QueryToolLocators.btn_execute_query_css).click()
-
-        self.page.wait_for_query_tool_loading_indicator_to_disappear()
+        self.page.execute_query(query)
 
     def _query_tool_auto_commit_enabled(self):
         query = """-- 1. Enable auto commit.
@@ -431,13 +412,12 @@ END;"""
             QueryToolLocators.btn_query_dropdown)
         query_op.click()
 
-        self.page.find_by_css_selector(
-            QueryToolLocators.btn_auto_commit).click()
+        # Enable auto_commit if it is disabled
+        self.page.check_execute_option('auto_commit')
 
         query_op.click()
 
-        self.page.find_by_css_selector(
-            QueryToolLocators.btn_execute_query_css).click()
+        self.page.click_execute_query_button()
 
         self.page.wait_for_query_tool_loading_indicator_to_disappear()
 
@@ -481,10 +461,8 @@ ROLLBACK;"""
 -- 5. Check if table is created event after ROLLBACK.
 SELECT relname FROM pg_class
     WHERE relkind IN ('r','s','t') and relnamespace = 2200::oid;"""
-        self.page.fill_codemirror_area_with(query)
-        self.page.find_by_css_selector(
-            QueryToolLocators.btn_execute_query_css).click()
 
+        self.page.execute_query(query)
         self.page.click_tab('Data Output')
         self.page.wait_for_query_tool_loading_indicator_to_disappear()
 
@@ -513,14 +491,13 @@ END;"""
             QueryToolLocators.btn_query_dropdown)
         query_op.click()
 
-        # uncheckt auto commit and check auto-rollback
-        self.uncheck_execute_option('auto_commit')
-        self.check_execute_option('auto_rollback')
+        # uncheck auto commit and check auto-rollback
+        self.page.uncheck_execute_option('auto_commit')
+        self.page.check_execute_option('auto_rollback')
 
         query_op.click()
 
-        self.page.find_by_css_selector(
-            QueryToolLocators.btn_execute_query_css).click()
+        self.page.click_execute_query_button()
 
         self.page.wait_for_query_tool_loading_indicator_to_disappear()
         self.page.clear_query_tool()
@@ -611,15 +588,24 @@ SELECT 1, pg_sleep(300)"""
         query_op.click()
 
         # enable auto-commit and disable auto-rollback
-        self.check_execute_option('auto_commit')
-        self.uncheck_execute_option('auto_rollback')
+        self.page.check_execute_option('auto_commit')
+        self.page.uncheck_execute_option('auto_rollback')
         # close drop down
         query_op.click()
+        # Execute query
+        retry = 5
+        execute_button = self.page.find_by_css_selector(
+            QueryToolLocators.btn_execute_query_css)
+        while retry > 0:
+            execute_button.click()
+            if self.page.wait_for_query_tool_loading_indicator_to_appear():
+                break
+            else:
+                retry -= 1
+        # Providing a second of sleep since clicks on the execute and stop
+        # query button is too quick that the query is not able run properly
+        time.sleep(1)
 
-        self.page.find_by_css_selector(
-            QueryToolLocators.btn_execute_query_css).click()
-
-        self.page.find_by_xpath("//*[@id='fetching_data']")
         self.page.find_by_css_selector(
             QueryToolLocators.btn_cancel_query).click()
         self.page.wait_for_query_tool_loading_indicator_to_disappear()
@@ -742,38 +728,6 @@ SELECT 1, pg_sleep(300)"""
         canvas.find_element_by_xpath("//*[contains(string(), 'JIT')]")
 
         self.page.clear_query_tool()
-
-    def check_execute_option(self, option):
-        """"This function will check auto commit or auto roll back based on
-        user input. If button is already checked, no action will be taken"""
-        if option == 'auto_commit':
-            check_status = self.driver.find_element_by_css_selector(
-                QueryToolLocators.btn_auto_commit_check_status)
-            if 'visibility-hidden' in check_status.get_attribute('class'):
-                self.page.find_by_css_selector(QueryToolLocators.
-                                               btn_auto_commit).click()
-        if option == 'auto_rollback':
-            check_status = self.driver.find_element_by_css_selector(
-                QueryToolLocators.btn_auto_rollback_check_status)
-            if 'visibility-hidden' in check_status.get_attribute('class'):
-                self.page.find_by_css_selector(QueryToolLocators.
-                                               btn_auto_rollback).click()
-
-    def uncheck_execute_option(self, option):
-        """"This function will uncheck auto commit or auto roll back based on
-        user input. If button is already unchecked, no action will be taken"""
-        if option == 'auto_commit':
-            check_status = self.driver.find_element_by_css_selector(
-                QueryToolLocators.btn_auto_commit_check_status)
-            if 'visibility-hidden' not in check_status.get_attribute('class'):
-                self.page.find_by_css_selector(QueryToolLocators.
-                                               btn_auto_commit).click()
-        if option == 'auto_rollback':
-            check_status = self.driver.find_element_by_css_selector(
-                QueryToolLocators.btn_auto_rollback_check_status)
-            if 'visibility-hidden' not in check_status.get_attribute('class'):
-                self.page.find_by_css_selector(QueryToolLocators.
-                                               btn_auto_rollback).click()
 
 
 class WaitForAnyElementWithText(object):

@@ -13,6 +13,7 @@ import random
 from regression.python_test_utils import test_utils
 from regression.feature_utils.base_feature_test import BaseFeatureTest
 from regression.feature_utils.locators import NavMenuLocators
+from regression.feature_utils.tree_area_locators import TreeAreaLocators
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
@@ -58,9 +59,11 @@ class CheckRoleMembershipControlFeatureTest(BaseFeatureTest):
                              "<h1>test</h1>")
 
     def _role_node_expandable(self, role):
-        self.page.toggle_open_server(self.server['name'])
+        self.page.expand_server_node(
+            self.server['name'], self.server['db_password'])
         self.page.toggle_open_tree_item('Login/Group Roles')
-        self.page.select_tree_item(role)
+        self.page.click_a_tree_node(
+            role, TreeAreaLocators.sub_nodes_of_login_group_node)
 
     def _check_role_membership_control(self):
         self.page.driver.find_element_by_link_text(
@@ -93,6 +96,6 @@ class CheckRoleMembershipControlFeatureTest(BaseFeatureTest):
         """This will click and open membership tab of role"""
 
         self.page.retry_click(
-            (By.XPATH,
-             "//a[normalize-space(text())='Membership']"),
+            (By.LINK_TEXT,
+             "Membership"),
             (By.XPATH, "//input[@placeholder='Select members']"))

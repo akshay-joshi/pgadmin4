@@ -21,6 +21,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from regression.feature_utils.locators import QueryToolLocators, \
     NavMenuLocators
+from regression.feature_utils.tree_area_locators import TreeAreaLocators
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 
@@ -122,12 +123,12 @@ CREATE TABLE public.nonintpkey
         self.page.wait_for_spinner_to_disappear()
         self.page.add_server(self.server)
 
-        self.page.toggle_open_tree_item(self.server['name'])
-        self.page.toggle_open_tree_item('Databases')
-        self.page.toggle_open_tree_item(self.test_db)
-        self.page.toggle_open_tree_item('Schemas')
-        self.page.toggle_open_tree_item('public')
-        self.page.toggle_open_tree_item('Tables')
+        self.page.expand_database_node(
+            self.server['name'],
+            self.server['db_password'], self.test_db)
+        self.page.toggle_open_tables_node(self.server['name'],
+                                          self.server['db_password'],
+                                          self.test_db, 'public')
 
         self._load_config_data('table_insert_update_cases')
         # iterate on both tables
@@ -167,7 +168,9 @@ CREATE TABLE public.nonintpkey
         config_data = config_data_json[config_key]
 
     def _perform_test_for_table(self, table_name):
-        self.page.select_tree_item(table_name)
+        self.page.click_a_tree_node(
+            table_name,
+            TreeAreaLocators.sub_nodes_of_tables_node)
         # Open Object -> View/Edit data
         self._view_data_grid(table_name)
 
@@ -305,7 +308,11 @@ CREATE TABLE public.nonintpkey
         self._verify_row_data(False, updated_row_data)
 
     def _add_update_save_row(self, data, row=1):
-        for idx in data.keys():
+        items = list(data.keys())
+        for item in range(0, len(items)):
+            items[item] = int(items[item])
+        items.sort(reverse=False)
+        for idx in items:
             cell_xpath = CheckForViewDataTest._get_cell_xpath(
                 'r' + str(idx), row
             )
@@ -342,20 +349,35 @@ CREATE TABLE public.nonintpkey
 
         self.page.wait_for_query_tool_loading_indicator_to_disappear()
 
-        result_row = self.page.find_by_xpath(xpath)
-
-        # List of row values in an array
-        for idx in config_check_data.keys():
-            element = result_row.find_element_by_class_name("r" + str(idx))
-            self.page.driver.execute_script(
-                "arguments[0].scrollIntoView(false)", element)
-
-            self.assertEquals(element.text, config_check_data[str(idx)][1])
+        # Verify the List of actual values with the expected list
+        actual_list = list(config_check_data.keys())
+        for value in range(0, len(actual_list)):
+            actual_list[value] = int(actual_list[value])
+        actual_list.sort(reverse=False)
+        retry = 5
+        for idx in actual_list:
+            while retry > 0:
+                try:
+                    result_row = self.page.find_by_xpath(xpath)
+                    element = \
+                        result_row.find_element_by_class_name("r" + str(idx))
+                    self.page.driver.execute_script(
+                        "arguments[0].scrollIntoView(false)", element)
+                    break
+                except Exception:
+                    print("stale reference exception at id:", idx)
+                    retry -= 1
+            time.sleep(0.4)
             self.assertEquals(element.text, config_check_data[str(idx)][1])
 
         # scroll browser back to the left
         # to reset position so other assertions can succeed
-        for idx in reversed(list(config_check_data.keys())):
+        list_item = list(config_check_data.keys())
+        for item in range(0, len(list_item)):
+            list_item[item] = int(list_item[item])
+        list_item.sort(reverse=True)
+        for idx in list_item:
+            time.sleep(0.4)
             element = result_row.find_element_by_class_name("r" + str(idx))
             self.page.driver.execute_script(
                 "arguments[0].scrollIntoView(false)", element)

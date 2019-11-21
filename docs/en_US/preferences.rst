@@ -34,6 +34,10 @@ Use the fields on the *Display* panel to specify general display preferences:
   saving interval. A value of *-1* will disable the treeview state saving
   functionality.
 
+* When the *Confirm before closing properties with unsaved changes* switch is set to *True*,
+  pgAdmin will warn you before closing the properties dialog of an object if there
+  are any unsaved changes. On user confirmation, the properties dialog will close.
+
 * When the *Confirm on close or refresh* switch is set to *True*, pgAdmin will
   attempt to catch browser close or refresh events and prompt before allowing
   them to continue.
@@ -173,6 +177,14 @@ Expand the *Miscellaneous* node to specify miscellaneous display preferences.
 
 * Use the *User language* drop-down listbox to select the display language for
   the client.
+
+.. image:: images/preferences_misc_themes.png
+    :alt: Preferences dialog themes section
+    :align: center
+
+* Use the *Themes* drop-down listbox to select the theme for pgAdmin. You'll also get a preview just below the
+  drop down. Note that, to apply the theme you need to refresh the pgAdmin page. You can also submit your
+  own themes, check `here <https://git.postgresql.org/gitweb/?p=pgadmin4.git;a=blob_plain;f=README>`_ how.
 
 The Paths Node
 **************

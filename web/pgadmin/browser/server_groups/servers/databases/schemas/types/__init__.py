@@ -948,16 +948,6 @@ class TypeView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                     )
                 )
             # Additional checks goes here
-            # If type is composite then check if it has two members
-            if data and data[arg] == 'c':
-                if len(data['composite']) < 2:
-                    return make_json_response(
-                        status=410,
-                        success=0,
-                        errormsg=gettext(
-                            'Composite types require at least two members.'
-                        )
-                    )
             # If type is range then check if subtype is defined or not
             if data and data[arg] == 'r':
                 if 'typname' not in data or data['typname'] is None:
@@ -1304,11 +1294,6 @@ class TypeView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                     return "-- definition incomplete"
 
             # Additional checks go here
-            # If type is composite then check if it has two members
-            if data and data[arg] == 'c':
-                if len(data['composite']) < 2:
-                    return "-- definition incomplete"
-
             # If type is range then check if subtype is defined or not
             if data and data[arg] == 'r':
                 if 'typname' not in data or data['typname'] is None:

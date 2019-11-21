@@ -188,7 +188,7 @@ define([
           'remove': function() {
             if (this.grid) {
               if (this.grid.collection) {
-                this.grid.collection.reset({silent: true});
+                this.grid.collection.reset([], {silent: true});
                 delete (this.grid.collection);
               }
               delete (this.grid);
@@ -247,7 +247,7 @@ define([
           type: 'delete',
           tooltip: gettext('Drop Cascade'),
           extraClasses: ['btn-secondary m-1', 'delete_multiple_cascade'],
-          icon: 'icon-delete_multiple_cascade',
+          icon: 'pg-font-icon icon-drop-cascade',
           disabled: (_.isFunction(that.canDropCascade)) ? !(that.canDropCascade.apply(self, [data, item])) : (!that.canDropCascade),
           register: function(btn) {
             btn.on('click',() => {
