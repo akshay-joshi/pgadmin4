@@ -792,67 +792,25 @@ class TriggerView(PGChildNodeView, SchemaDiffObjectCompare):
     def get_sql_from_diff(self, gid, sid, did, scid, tid, oid,
                           data=None, diff_schema=None, drop_sql=False):
         if data:
-            sql, name = self.get_sql(scid, tid, oid, data)
-            if not isinstance(sql, (str, unicode)):
-                return sql
-            sql = sql.strip('\n').strip(' ')
+            SQL, name = self.get_sql(scid, tid, oid, data)
+            if not isinstance(SQL, (str, unicode)):
+                return SQL
+            SQL = SQL.strip('\n').strip(' ')
         else:
             if drop_sql:
                 SQL = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, tid=tid, trid=oid,
                                   only_sql=True)
             else:
-                SQL = render_template("/".join([self.template_path,
-                                                'properties.sql']),
-                                      tid=tid, trid=oid,
-                                      datlastsysoid=self.datlastsysoid)
-
-                status, res = self.conn.execute_dict(SQL)
-                if not status:
-                    return internal_server_error(errormsg=res)
-                if len(res['rows']) == 0:
-                    return gone(gettext(
-                        """Could not find the trigger in the table."""))
-
-                data = dict(res['rows'][0])
-                # Adding parent into data dict,
-                # will be using it while creating sql
-                data['schema'] = self.schema
-                data['table'] = self.table
-
-                data = self.get_trigger_function_schema(data)
-
-                if len(data['custom_tgargs']) > 1:
-                    # We know that trigger has more than 1 argument,
-                    # let's join them
-                    data['tgargs'] = self._format_args(data['custom_tgargs'])
-
-                if len(data['tgattr']) >= 1:
-                    columns = ', '.join(data['tgattr'].split(' '))
-                    data['columns'] = self._column_details(tid, columns)
-
-                data = self._trigger_definition(data)
-
+                schema = self.schema
                 if diff_schema:
-                    data['schema'] = diff_schema
-
-                SQL, name = self.get_sql(scid, tid, None, data)
-
-                sql_header = u"-- Trigger: {0}\n\n-- ".format(data['name'])
-
-                sql_header += render_template("/".join([self.template_path,
-                                                        'delete.sql']),
-                                              data=data, conn=self.conn)
-
-                SQL = sql_header + '\n\n' + SQL.strip('\n')
-
-                # If trigger is disbaled then add sql code for the same
-                if not data['is_enable_trigger']:
-                    SQL += '\n\n'
-                    SQL += render_template("/".join([
-                        self.template_path,
-                        'enable_disable_trigger.sql']),
-                        data=data, conn=self.conn)
+                    schema = diff_schema
+                SQL = trigger_utils.get_reverse_engineered_sql(
+                    self.conn, schema,
+                    self.table, tid, oid,
+                    self.datlastsysoid,
+                    self.blueprint.show_system_objects,
+                    template_path=None, with_header=False)
 
         return SQL
 

@@ -798,7 +798,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         )
 
     @check_precondition
-    def delete(self, gid, sid, did, scid, fnid=None):
+    def delete(self, gid, sid, did, scid, fnid=None, only_sql=False):
         """
         Drop the Function.
 
@@ -849,6 +849,8 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                                       func_args=res['rows'][0]['func_args'],
                                       nspname=res['rows'][0]['nspname'],
                                       cascade=cascade)
+                if only_sql:
+                    return SQL
                 status, res = self.conn.execute_scalar(SQL)
                 if not status:
                     return internal_server_error(errormsg=res)

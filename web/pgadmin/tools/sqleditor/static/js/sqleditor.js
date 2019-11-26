@@ -2314,7 +2314,7 @@ define('tools.querytool', [
       },
 
       set_value_to_editor: function(query) {
-        if (this.gridView && this.gridView.query_tool_obj) {
+        if (this.gridView && this.gridView.query_tool_obj && !_.isUndefined(query)) {
           this.gridView.query_tool_obj.setValue(query);
         }
       },

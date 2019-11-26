@@ -420,34 +420,35 @@ require(['sources/generated/browser_nodes', 'sources/generated/codemirror', 'sou
           });
         }
 
-    // Get the controller object from pgAdmin.SqlEditor
-    var sqlEditorController = pgAdmin.SqlEditor.create(editorPanel);
+        // Get the controller object from pgAdmin.SqlEditor
+        var sqlEditorController = pgAdmin.SqlEditor.create(editorPanel);
 
-    // Listen on events to show/hide loading-icon and change messages.
-    sqlEditorController.on('pgadmin-sqleditor:loading-icon:message', function(msg) {
-        msgDiv.text(msg);
-      }).on('pgadmin-sqleditor:loading-icon:show', function(msg) {
-        loadingDiv.removeClass('d-none');
-        msgDiv.text(msg);
-      }).on('pgadmin-sqleditor:loading-icon:hide', function() {
-        loadingDiv.addClass('d-none');
-      });
-    {% if script_type_url %}
-        var script_type_url = '{{ script_type_url }}';
-    {% else %}
-        var script_type_url = '';
-    {% endif %}
-    // Start the query tool.
-    sqlEditorController.start(
-        {{ uniqueId }},
-        {{ url_params|safe}},
-        '{{ layout|safe }}'
-    );
+        // Listen on events to show/hide loading-icon and change messages.
+        sqlEditorController.on('pgadmin-sqleditor:loading-icon:message', function(msg) {
+            msgDiv.text(msg);
+          }).on('pgadmin-sqleditor:loading-icon:show', function(msg) {
+            loadingDiv.removeClass('d-none');
+            msgDiv.text(msg);
+          }).on('pgadmin-sqleditor:loading-icon:hide', function() {
+            loadingDiv.addClass('d-none');
+          });
+        {% if script_type_url %}
+            var script_type_url = '{{ script_type_url }}';
+        {% else %}
+            var script_type_url = '';
+        {% endif %}
+        // Start the query tool.
+        sqlEditorController.start(
+            {{ uniqueId }},
+            {{ url_params|safe}},
+            '{{ layout|safe }}'
+        );
 
-    // If opening from schema diff, set the generated script to the SQL Editor
-    var schema_ddl_diff = window.top.pgAdmin.ddl_diff || window.opener.pgAdmin.ddl_diff;
-    sqlEditorController.set_value_to_editor(schema_ddl_diff);
-    if (window.top !== null) window.top.pgAdmin.ddl_diff = '';
-    if (window.opener !== null) window.opener.pgAdmin.ddl_diff = '';
+        // If opening from schema diff, set the generated script to the SQL Editor
+        var schema_ddl_diff = (window.top !== null) ? window.top.pgAdmin.ddl_diff : window.opener.pgAdmin.ddl_diff;
+        sqlEditorController.set_value_to_editor(schema_ddl_diff);
+        if (window.top !== null) window.top.pgAdmin.ddl_diff = '';
+        if (window.opener !== null) window.opener.pgAdmin.ddl_diff = '';
+    });
 });
 {% endblock %}

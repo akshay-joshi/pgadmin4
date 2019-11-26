@@ -13,8 +13,6 @@ import traceback
 from regression.python_test_utils import test_utils as utils
 from pgadmin.browser.server_groups.servers.databases.schemas.tests import \
     utils as schema_utils
-from pgadmin.browser.server_groups.servers.databases.schemas.tables.utils \
-    import get_schema_for_schema_diff
 
 
 def restore_schema(server, db_name, schema_name, sql_path):

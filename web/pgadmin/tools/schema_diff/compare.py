@@ -187,8 +187,10 @@ class SchemaDiffObjectCompare():
         elif 'relacl' in source:
             key = 'relacl'
 
-        tmp_source = source[key] if key in source else []
-        tmp_target = copy.deepcopy(target[key] if key in target else [])
+        tmp_source = source[key] if\
+            key in source and source[key] is not None else []
+        tmp_target = copy.deepcopy(target[key]) if\
+            key in target and target[key] is not None else []
 
         diff = {'added': [], 'deleted': []}
         for acl in tmp_source:

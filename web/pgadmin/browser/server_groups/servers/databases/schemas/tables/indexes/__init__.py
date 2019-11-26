@@ -831,53 +831,26 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
                                 diff_schema=None, drop_req=False):
 
         tmp_idx = idx
+        schema = ''
         if data:
-            data['schema'] = self.schema
-            data['table'] = self.table
-            data['nspname'] = self.schema
-        else:
-            tmp_idx = None
-            SQL = render_template(
-                "/".join([self.template_path, 'properties.sql']),
-                did=did, tid=tid, idx=idx, datlastsysoid=self.datlastsysoid
-            )
+            schema = self.schema
+        elif diff_schema:
+            schema = diff_schema
 
-            status, res = self.conn.execute_dict(SQL)
-            if not status:
-                return internal_server_error(errormsg=res)
-            if len(res['rows']) == 0:
-                return gone(gettext(
-                    """Could not find the index in the table."""))
+        sql = index_utils.get_reverse_engineered_sql(
+            self.conn, schema,
+            self.table, did, tid, idx,
+            self.datlastsysoid,
+            template_path=None, with_header=False)
 
-            data = dict(res['rows'][0])
-            # Adding parent into data dict,
-            # will be using it while creating sql
-            data['schema'] = self.schema
-            data['table'] = self.table
-
-            # Add column details for current index
-            data = self._column_details(idx, data, 'create')
-
-            # Add Include details of the index
-            if self.manager.version >= 110000:
-                data = self._include_details(idx, data, 'create')
-
-            if diff_schema:
-                data['schema'] = diff_schema
-                data['nspname'] = diff_schema
-
-        SQL, name = self.get_sql(did, scid, tid, tmp_idx, data)
-        if not isinstance(SQL, (str, unicode)):
-            return SQL
-
-        sql_header = ''
+        drop_sql = ''
         if drop_req:
-            sql_header = '\n' + render_template(
+            drop_sql = '\n' + render_template(
                 "/".join([self.template_path, 'delete.sql']),
                 data=data, conn=self.conn
             )
 
-        return sql_header + '\n\n' + SQL
+        return drop_sql + '\n\n' + sql
 
     @check_precondition
     def dependents(self, gid, sid, did, scid, tid, idx):

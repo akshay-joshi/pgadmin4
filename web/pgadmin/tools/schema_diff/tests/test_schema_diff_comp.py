@@ -42,6 +42,7 @@ class SchemaDiffTestCase(BaseTestGenerator):
 
         self.server = parent_node_dict["server"][-1]["server"]
         self.server_id = parent_node_dict["server"][-1]["server_id"]
+        self.nodes = ['table', 'function', 'procedure', 'view', 'mview']
         self.restore_backup()
 
     def restore_backup(self):
@@ -143,28 +144,29 @@ class SchemaDiffTestCase(BaseTestGenerator):
         file_obj = open(diff_file, 'a')
 
         for diff in response_data['data']:
-            if diff['type'] == 'table':
-                src_table_id = tar_table_id = None
+            if diff['type'] in self.nodes:
+                src_obj_oid = tar_obj_oid = None
                 if diff['status'] == 'Source Only' or\
                         diff['status'] == 'Target Only':
-                    src_table_id = tar_table_id = diff['oid']
+                    src_obj_oid = tar_obj_oid = diff['oid']
                 elif diff['status'] == 'Different':
-                    src_table_id = diff['source_oid']
-                    tar_table_id = diff['target_oid']
+                    src_obj_oid = diff['source_oid']
+                    tar_obj_oid = diff['target_oid']
 
-                if src_table_id is not None:
+                if src_obj_oid is not None:
                     url = 'schema_diff/ddl_compare/{0}/{1}/{2}/{3}/{4}/{5}/' \
-                          '{6}/{7}/{8}/table/{9}/'.format(self.trans_id,
-                                                          self.server_id,
-                                                          self.src_db_id,
-                                                          self.src_schema_id,
-                                                          self.server_id,
-                                                          self.tar_db_id,
-                                                          self.tar_schema_id,
-                                                          src_table_id,
-                                                          tar_table_id,
-                                                          diff['status']
-                                                          )
+                          '{6}/{7}/{8}/{9}/{10}/'.format(self.trans_id,
+                                                         self.server_id,
+                                                         self.src_db_id,
+                                                         self.src_schema_id,
+                                                         self.server_id,
+                                                         self.tar_db_id,
+                                                         self.tar_schema_id,
+                                                         src_obj_oid,
+                                                         tar_obj_oid,
+                                                         diff['type'],
+                                                         diff['status']
+                                                         )
 
                     response = self.tester.get(url)
 
@@ -173,15 +175,18 @@ class SchemaDiffTestCase(BaseTestGenerator):
                     file_obj.write(response_data['diff_ddl'])
 
         file_obj.close()
-        restore_schema(self.server, self.tar_database, 'target', diff_file)
+        try:
+            restore_schema(self.server, self.tar_database, 'target',
+                           diff_file)
 
-        os.remove(diff_file)
+            os.remove(diff_file)
 
-        response_data = self.compare()
-        for diff in response_data['data']:
-            if diff['type'] == 'table':
-                print(diff)
-                self.assertEquals(diff['status'], 'Identical')
+            response_data = self.compare()
+            for diff in response_data['data']:
+                if diff['type'] in self.nodes:
+                    self.assertEquals(diff['status'], 'Identical')
+        except Exception as e:
+            os.remove(diff_file)
 
     def tearDown(self):
         """This function drop the added database"""

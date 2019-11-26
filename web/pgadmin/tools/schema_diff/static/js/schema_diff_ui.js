@@ -391,6 +391,9 @@ export default class SchemaDiffUI {
         self.footer.render();
         $('#ddl_comp_fetching_data').addClass('d-none');
       },
+      error: function() {
+        $('#ddl_comp_fetching_data').addClass('d-none');
+      },
     });
   }
 

@@ -669,17 +669,14 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         for row in rset['rows']:
             index_sql = index_utils.get_reverse_engineered_sql(
                 self.conn, schema, table, did, tid, row['oid'],
-                self.datlastsysoid)
+                self.datlastsysoid,
+                template_path=None, with_header=json_resp)
             index_sql = u"\n" + index_sql
 
             # Add into main sql
             index_sql = re.sub('\n{2,}', '\n\n', index_sql)
 
-            if json_resp:
-                main_sql.append(sql_header + '\n\n' + index_sql.strip('\n'))
-            else:
-                main_sql.append(index_sql.strip('\n'))
-
+            main_sql.append(index_sql.strip('\n'))
 
         """
         ########################################
@@ -695,7 +692,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         for row in rset['rows']:
             trigger_sql = trigger_utils.get_reverse_engineered_sql(
                 self.conn, schema, table, tid, row['oid'],
-                self.datlastsysoid, self.blueprint.show_system_objects)
+                self.datlastsysoid, self.blueprint.show_system_objects,
+                template_path=None, with_header=json_resp)
             trigger_sql = u"\n" + trigger_sql
 
             # Add into main sql
@@ -1744,28 +1742,3 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
             if len(reset_values) > 0:
                 data[vacuum_key]['reset_values'] = reset_values
-
-
-def get_schema_for_schema_diff(sid, did, scid):
-    """
-    This function will return the schema name.
-    """
-
-    driver = get_driver(PG_DEFAULT_DRIVER)
-    manager = driver.connection_manager(sid)
-    conn = manager.connection(did=did)
-
-    ver = manager.version
-    server_type = manager.server_type
-
-    table_template_path = compile_template_path('tables/sql',
-                                                server_type, ver)
-    # Fetch schema name
-    status, schema_name = conn.execute_scalar(
-        render_template("/".join([table_template_path,
-                                  'get_schema.sql']),
-                        conn=conn, scid=scid
-                        )
-    )
-
-    return status, schema_name

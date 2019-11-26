@@ -363,7 +363,6 @@ CREATE RULE rule3 AS
 
 REFRESH MATERIALIZED VIEW target."MView";
 
-
 --
 -- TOC entry 12284 (class 1259 OID 347823)
 -- Name: test view; Type: VIEW; Schema: target; Owner: postgres
@@ -378,31 +377,7 @@ CREATE VIEW target."test view" AS
     pg_class.relam,
     pg_class.relfilenode,
     pg_class.reltablespace,
-    pg_class.relpages,
-    pg_class.reltuples,
-    pg_class.relallvisible,
-    pg_class.reltoastrelid,
-    pg_class.relhasindex,
-    pg_class.relisshared,
-    pg_class.relpersistence,
-    pg_class.relkind,
-    pg_class.relnatts,
-    pg_class.relchecks,
-    pg_class.relhasoids,
-    pg_class.relhaspkey,
-    pg_class.relhasrules,
-    pg_class.relhastriggers,
-    pg_class.relhassubclass,
-    pg_class.relrowsecurity,
-    pg_class.relforcerowsecurity,
-    pg_class.relispopulated,
-    pg_class.relreplident,
-    pg_class.relispartition,
-    pg_class.relfrozenxid,
-    pg_class.relminmxid,
-    pg_class.relacl,
-    pg_class.reloptions,
-    pg_class.relpartbound
+    pg_class.relpages
    FROM pg_class
  LIMIT 10;
 
@@ -427,3 +402,16 @@ ALTER TABLE target."test view f" OWNER TO postgres;
 --
 
 COMMENT ON VIEW target."test view f" IS 'cmn';
+
+
+--
+-- TOC entry 437 (class 1255 OID 112907)
+-- Name: dodaj_klijenta(character varying, character varying, character varying, character varying, integer, character varying, character varying, character varying, boolean, boolean, character varying, character varying, character varying, character varying, numeric, character varying); Type: PROCEDURE; Schema: target schema; Owner: postgres
+--
+
+CREATE PROCEDURE target.dodaj_klijenta(v_naziv character varying, v_oib character varying, v_pdv_id character varying, v_adresa character varying, v_mjesto integer, v_drzava character varying, v_tip_p_sub character varying, v_vlasnik character varying, v_pdv boolean, v_fisk boolean, v_iban character varying, v_k_osoba character varying, v_email character varying, v_br_tel character varying, v_radna_god numeric, v_schema character varying)
+    LANGUAGE sql
+    AS $$select 4;$$;
+
+
+ALTER PROCEDURE target.dodaj_klijenta(v_naziv character varying, v_oib character varying, v_pdv_id character varying, v_adresa character varying, v_mjesto integer, v_drzava character varying, v_tip_p_sub character varying, v_vlasnik character varying, v_pdv boolean, v_fisk boolean, v_iban character varying, v_k_osoba character varying, v_email character varying, v_br_tel character varying, v_radna_god numeric, v_schema character varying) OWNER TO postgres;
