@@ -867,7 +867,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
 
         return columns
 
-    def get_rule_sql(self, vid):
+    def get_rule_sql(self, vid, display_comments=True):
         """
         Get all non system rules of view node,
         generate their sql and render
@@ -896,12 +896,12 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
                 res = parse_rule_definition(res)
                 SQL = render_template("/".join(
                     [self.rule_temp_path, 'sql/create.sql']),
-                    data=res, display_comments=True)
+                    data=res, display_comments=display_comments)
                 SQL_data += '\n'
                 SQL_data += SQL
         return SQL_data
 
-    def get_compound_trigger_sql(self, vid):
+    def get_compound_trigger_sql(self, vid, display_comments=True):
         """
         Get all compound trigger nodes associated with view node,
         generate their sql and render into sql tab
@@ -972,13 +972,13 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
                     [self.ct_trigger_temp_path,
                      'sql/{0}/#{1}#/create.sql'.format(
                          self.manager.server_type, self.manager.version)]),
-                    data=res_rows, display_comments=True)
+                    data=res_rows, display_comments=display_comments)
                 SQL_data += '\n'
                 SQL_data += SQL
 
         return SQL_data
 
-    def get_trigger_sql(self, vid):
+    def get_trigger_sql(self, vid, display_comments=True):
         """
         Get all trigger nodes associated with view node,
         generate their sql and render
@@ -1065,13 +1065,13 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
                 [self.trigger_temp_path,
                  'sql/{0}/#{1}#/create.sql'.format(
                      self.manager.server_type, self.manager.version)]),
-                data=res_rows, display_comments=True)
+                data=res_rows, display_comments=display_comments)
             SQL_data += '\n'
             SQL_data += SQL
 
         return SQL_data
 
-    def get_index_sql(self, did, vid):
+    def get_index_sql(self, did, vid, display_comments=True):
         """
         Get all index associated with view node,
         generate their sql and render
@@ -1111,7 +1111,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
             SQL = render_template("/".join(
                 [self.index_temp_path,
                  'sql/#{0}#/create.sql'.format(self.manager.version)]),
-                data=data, display_comments=True)
+                data=data, display_comments=display_comments)
             SQL_data += '\n'
             SQL_data += SQL
         return SQL_data
@@ -1122,6 +1122,11 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         """
         This function will generate sql to render into the sql panel
         """
+
+        display_comments = True
+
+        if not json_resp:
+            display_comments = False
 
         SQL_data = ''
         SQL = render_template("/".join(
@@ -1183,17 +1188,17 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
             [self.template_path, 'sql/create.sql']),
             data=result,
             conn=self.conn,
-            display_comments=True
+            display_comments=display_comments
         )
         SQL += "\n"
         SQL += render_template("/".join(
             [self.template_path, 'sql/grant.sql']), data=result)
 
         SQL_data += SQL
-        SQL_data += self.get_rule_sql(vid)
-        SQL_data += self.get_trigger_sql(vid)
-        SQL_data += self.get_compound_trigger_sql(vid)
-        SQL_data += self.get_index_sql(did, vid)
+        SQL_data += self.get_rule_sql(vid, display_comments)
+        SQL_data += self.get_trigger_sql(vid, display_comments)
+        SQL_data += self.get_compound_trigger_sql(vid, display_comments)
+        SQL_data += self.get_index_sql(did, vid, display_comments)
 
         if not json_resp:
             return SQL_data
@@ -1724,6 +1729,11 @@ class MViewNode(ViewNode, VacuumSettings):
         This function will generate sql to render into the sql panel
         """
 
+        display_comments = True
+
+        if not json_resp:
+            display_comments = False
+
         SQL_data = ''
         SQL = render_template("/".join(
             [self.template_path, 'sql/properties.sql']),
@@ -1823,16 +1833,16 @@ class MViewNode(ViewNode, VacuumSettings):
             [self.template_path, 'sql/create.sql']),
             data=result,
             conn=self.conn,
-            display_comments=True
+            display_comments=display_comments
         )
         SQL += "\n"
         SQL += render_template("/".join(
             [self.template_path, 'sql/grant.sql']), data=result)
 
         SQL_data += SQL
-        SQL_data += self.get_rule_sql(vid)
-        SQL_data += self.get_trigger_sql(vid)
-        SQL_data += self.get_index_sql(did, vid)
+        SQL_data += self.get_rule_sql(vid, display_comments)
+        SQL_data += self.get_trigger_sql(vid, display_comments)
+        SQL_data += self.get_index_sql(did, vid, display_comments)
         SQL_data = SQL_data.strip('\n')
 
         if not json_resp:
