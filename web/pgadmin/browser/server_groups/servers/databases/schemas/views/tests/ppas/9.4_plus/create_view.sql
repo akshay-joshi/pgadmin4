@@ -15,7 +15,3 @@ COMMENT ON VIEW public."testview_$%{}[]()&*^!@""'`\/#"
     IS 'Testcomment';
 
 GRANT ALL ON TABLE public."testview_$%{}[]()&*^!@""'`\/#" TO enterprisedb;
-
-
-
-

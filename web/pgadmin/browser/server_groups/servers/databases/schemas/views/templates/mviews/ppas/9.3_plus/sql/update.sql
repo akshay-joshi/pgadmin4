@@ -27,14 +27,15 @@ ALTER TABLE {{ conn|qtIdent(view_schema, view_name) }}
 {% if def and def != o_data.definition.rstrip(';') %}
 DROP MATERIALIZED VIEW {{ conn|qtIdent(view_schema, view_name) }};
 CREATE MATERIALIZED VIEW {{ conn|qtIdent(view_schema, view_name) }}
-{% if data.fillfactor or (data['vacuum_data']['changed']|length > 0 ) %}
+{% if data.fillfactor or o_data.fillfactor %}
 WITH(
 {% if data.fillfactor %}
-  FILLFACTOR = {{ data.fillfactor }}{% if data['vacuum_data']['changed']|length > 0 %},{% endif %}{{ '\r' }}
+FILLFACTOR = {{ data.fillfactor }}{% if (data['vacuum_data'] is defined and data['vacuum_data']['changed']|length > 0) or (o_data['vacuum_data'] is defined and o_data['vacuum_data']['changed']|length > 0)  %},{% endif %}
+{% elif o_data.fillfactor %}
+FILLFACTOR = {{ o_data.fillfactor }}{% if (data['vacuum_data'] is defined and data['vacuum_data']['changed']|length > 0) or (o_data['vacuum_data'] is defined and o_data['vacuum_data']['changed']|length > 0)  %},{% endif %}
 {% endif %}
 {% if data['vacuum_data']['changed']|length > 0 %}
-{% for field in data['vacuum_data']['changed'] %}
-  {{ field.name }} = {{ field.value|lower }}{% if not loop.last  %},{% endif %}{{ '\r' }}
+{% for field in data['vacuum_data']['changed'] %} {{ field.name }} = {{ field.value|lower }}{% if not loop.last  %},{% endif %}{{ '\n' }}
 {% endfor %}
 {% endif %}
 )
@@ -44,9 +45,13 @@ WITH(
 {% if data.with_data is defined %}
  WITH {{ 'DATA' if data.with_data else 'NO DATA' }};
 
-{% elif o_data.with_data %}
+{% elif o_data.with_data is defined %}
  WITH {{ 'DATA' if o_data.with_data else 'NO DATA' }};
 
+{% endif %}
+{% if o_data.comment and not data.comment  %}
+COMMENT ON MATERIALIZED VIEW {{ conn|qtIdent(view_schema, view_name) }}
+    IS {{ o_data.comment|qtLiteral }};
 {% endif %}
 {% else %}
 {# ======= Alter Tablespace ========= #}
@@ -96,8 +101,7 @@ ALTER MATERIALIZED VIEW {{ conn|qtIdent(view_schema, view_name) }} RESET(
 {% if('vacuum_toast' in data and data['vacuum_toast']['changed']|length > 0) %}
 ALTER MATERIALIZED VIEW {{ conn|qtIdent(data.schema, data.name) }} SET(
 {% for field in data['vacuum_toast']['changed'] %}
-{% if field.value != None %}
-  {{ field.name }} = {{ field.value|lower }}{% if not loop.last  %},{% endif %}{{ '\r' }}
+{% if field.value != None %} {{ field.name }} = {{ field.value|lower }}{% if not loop.last  %},{{ '\n' }}{% endif %}
 {% endif %}
 {% endfor %}
 );
@@ -124,8 +128,7 @@ ALTER MATERIALIZED VIEW {{ conn|qtIdent(view_schema, view_name) }} RESET(
 {% if('vacuum_table' in data and data['vacuum_table']['changed']|length > 0) %}
 ALTER MATERIALIZED VIEW {{ conn|qtIdent(data.schema, data.name) }} SET(
 {% for field in data['vacuum_table']['changed'] %}
-{% if field.value != None %}
-  {{ field.name }} = {{ field.value|lower }}{% if not loop.last  %},{% endif %}{{ '\r' }}
+{% if field.value != None %} {{ field.name }} = {{ field.value|lower }}{% if not loop.last  %},{% endif %}
 {% endif %}
 {% endfor %}
 );
@@ -138,8 +141,7 @@ ALTER MATERIALIZED VIEW {{ conn|qtIdent(data.schema, data.name) }} SET(
 {% if data['vacuum_data']['reset']|length == 0 and
 data['vacuum_data']['changed']|length == 0 and data['settings']|length > 0 %}
 ALTER MATERIALIZED VIEW {{ conn|qtIdent(view_schema, view_name) }} SET(
-{% for field in data['settings'] %}
-  {{ field }} = {{ data['settings'][field]|lower }}{% if not loop.last  %},{% endif %}{{ '\r' }}
+{% for field in data['settings'] %} {{ field }} = {{ data['settings'][field]|lower }}{% if not loop.last  %},{{ '\n' }}{% endif %}
 {% endfor %}
 );
 
@@ -147,17 +149,13 @@ ALTER MATERIALIZED VIEW {{ conn|qtIdent(view_schema, view_name) }} SET(
 {% if(data['vacuum_data']['changed']|length > 0) %}
 ALTER MATERIALIZED VIEW {{ conn|qtIdent(data.schema, data.name) }} SET(
 {% for field in data['vacuum_data']['changed'] %}
-{% if field.value != None %}
-  {{ field.name }} = {{ field.value|lower }}{% if not loop.last  %},{% endif %}{{ '\r' }}
-{% endif %}
+{% if field.value != None %}  {{ field.name }} = {{ field.value|lower }}{% if not loop.last  %},{% endif %}{{ '\n' }}{% endif %}
 {% endfor %}
 );
 {% endif %}
 {% if data['vacuum_data']['reset']|length > 0 %}
 ALTER MATERIALIZED VIEW {{ conn|qtIdent(view_schema, view_name) }} RESET(
-{% for field in data['vacuum_data']['reset'] %}
-  {{ field.name }}{% if not loop.last  %},{% endif %}{{ '\r' }}
-{% endfor %}
+{% for field in data['vacuum_data']['reset'] %}  {{ field.name }}{% if not loop.last  %},{% endif %}{{ '\n' }}{% endfor %}
 );
 {% endif %}
 {% endif %}{# ===== End check for custom autovacuum ===== #}

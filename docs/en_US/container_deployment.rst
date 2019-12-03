@@ -76,6 +76,13 @@ than using the default.
 Override the default file path for the server definition list. See the
 /pgadmin4/servers.json mapped file below for more information.
 
+**GUNICORN_ACCESS_LOGFILE**
+
+*Default: -* (stdout)
+
+Specify an output file in which to store the Gunicorn access logs, instead of
+sending them to stdout.
+
 **GUNICORN_THREADS**
 
 *Default: 25*
@@ -174,7 +181,7 @@ Run a TLS secured container using a shared config/storage directory in
         -v /private/var/lib/pgadmin:/var/lib/pgadmin \
         -v /path/to/certificate.cert:/certs/server.cert \
         -v /path/to/certificate.key:/certs/server.key \
-        -v /tmp/servers.json:/servers.json \
+        -v /tmp/servers.json:/pgadmin4/servers.json \
         -e 'PGADMIN_DEFAULT_EMAIL=user@domain.com' \
         -e 'PGADMIN_DEFAULT_PASSWORD=SuperSecret' \
         -e 'PGADMIN_ENABLE_TLS=True' \

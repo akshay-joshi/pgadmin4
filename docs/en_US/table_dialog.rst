@@ -50,9 +50,9 @@ the *Columns* table:
   the column. This can include array specifiers. For more information on the
   data types supported by PostgreSQL, refer to Chapter 8 of the core
   documentation.
-* If enabled, use the *Length* and *Precision* fields to specify the maximum
-  number of significant digits in a numeric value, or the maximum number of
-  characters in a text value.
+* If enabled, use the *Length/Precision* and *Scale* fields to specify the
+  maximum number of significant digits in a numeric value, or the maximum
+  number of characters in a text value.
 * Move the *Not NULL?* switch to the *Yes* position to require a value in the
   column field.
 * Move the *Primary key?* switch to the *Yes* position to specify the column is
@@ -482,8 +482,7 @@ Use the *Privileges* panel to assign privileges to a role. Click the *Add* icon
 * Select the name of the role from the drop-down listbox in the *Grantee* field.
 * Click inside the *Privileges* field. Check the boxes to the left of one or
   more privileges to grant the selected privilege to the specified user.
-* Select the name of the role from the drop-down listbox in the *Grantor* field.
-  The default grantor is the owner of the database.
+* The current user, who is the default grantor for granting the privilege, is displayed in the *Grantor* field.
 
 Click the *Add* icon (+) to assign additional privileges; to discard a
 privilege, click the trash icon to the left of the row and confirm deletion in

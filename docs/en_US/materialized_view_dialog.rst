@@ -35,7 +35,9 @@ Click the *Definition* tab to continue.
     :align: center
 
 Use the text editor field in the *Definition* tab to provide the query that will
-populate the materialized view.
+populate the materialized view. Please note that updating the definition of existing
+materialized view would result in loss of Parameter(Table, Toast), Security(Privileges & Security labels),
+Indexes and other dependent objects.
 
 Click the *Storage* tab to continue.
 
@@ -83,8 +85,7 @@ Use the *Privileges* panel to assign privileges to a role. Click the *Add* icon
 * Select the name of the role from the drop-down listbox in the *Grantee* field.
 * Click inside the *Privileges* field. Check the boxes to the left of one or
   more privileges to grant the selected privilege to the specified user.
-* Select the name of the role from the drop-down listbox in the *Grantor*
-  field. The default grantor is the owner of the database.
+* The current user, who is the default grantor for granting the privilege, is displayed in the *Grantor* field.
 
 Click the *Add* icon (+) to assign additional privileges; to discard a
 privilege, click the trash icon to the left of the row and confirm deletion in
