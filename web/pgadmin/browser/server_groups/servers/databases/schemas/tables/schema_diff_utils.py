@@ -345,6 +345,13 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                                 json_resp=False,
                                 schema_diff_table=True
                             )
+        else:
+            source = self.get_sql_from_table_diff(sid=src_sid, did=src_did,
+                                                  scid=src_scid, tid=src_oid,
+                                                  json_resp=False)
+            target = self.get_sql_from_table_diff(sid=tar_sid, did=tar_did,
+                                                  scid=tar_scid, tid=tar_oid,
+                                                  json_resp=False)
 
         return {'source_ddl': source,
                 'target_ddl': target,
