@@ -285,7 +285,7 @@ def create_app(app_name=None):
                 if user is not None:
                     user_id = user.id
             user_language = Preferences.raw_value(
-                'miscellaneous', 'user_language', None, user_id
+                'misc', 'user_language', 'user_language', user_id
             )
             if user_language is not None:
                 language = user_language
@@ -411,7 +411,7 @@ def create_app(app_name=None):
             language = data['language']
 
             # Set the user language preference
-            misc_preference = Preferences.module('miscellaneous')
+            misc_preference = Preferences.module('misc')
             user_languages = misc_preference.preference(
                 'user_language'
             )
@@ -620,13 +620,11 @@ def create_app(app_name=None):
 
         # Check the auth key is valid, if it's set, and we're not in server
         # mode, and it's not a help file request.
-        if not config.SERVER_MODE and app.PGADMIN_KEY != '':
-            if (
-                ('key' not in request.args or
-                 request.args['key'] != app.PGADMIN_KEY) and
-                request.cookies.get('PGADMIN_KEY') != app.PGADMIN_KEY and
-                request.endpoint != 'help.static'
-            ):
+        if not config.SERVER_MODE and app.PGADMIN_INT_KEY != '':
+            if (('key' not in request.args or
+                 request.args['key'] != app.PGADMIN_INT_KEY) and
+                request.cookies.get('PGADMIN_INT_KEY') !=
+                    app.PGADMIN_INT_KEY and request.endpoint != 'help.static'):
                 abort(401)
 
         if not config.SERVER_MODE and not current_user.is_authenticated:
@@ -659,7 +657,7 @@ def create_app(app_name=None):
             if config.COOKIE_DEFAULT_DOMAIN and \
                     config.COOKIE_DEFAULT_DOMAIN != 'localhost':
                 domain['domain'] = config.COOKIE_DEFAULT_DOMAIN
-            response.set_cookie('PGADMIN_KEY', value=request.args['key'],
+            response.set_cookie('PGADMIN_INT_KEY', value=request.args['key'],
                                 path=config.COOKIE_DEFAULT_PATH,
                                 **domain)
 

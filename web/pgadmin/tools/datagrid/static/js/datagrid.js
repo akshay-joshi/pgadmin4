@@ -113,7 +113,7 @@ define('pgadmin.datagrid', [
           enable: query_tool_menu_enabled,
           priority: 1,
           label: gettext('Query Tool'),
-          icon: 'fa fa-bolt',
+          icon: 'pg-font-icon icon-query-tool',
         }];
 
         // Create context menu
@@ -227,7 +227,7 @@ define('pgadmin.datagrid', [
         queryToolForm +=`
           </form>
             <script>
-              document.getElementById("title").value = "${panel_title}";
+              document.getElementById("title").value = "${_.escape(panel_title)}";
               document.getElementById("queryToolForm").submit();
             </script>
           `;

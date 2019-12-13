@@ -170,7 +170,7 @@
   background-position: center;
   padding: 0px 10px;
 
-  &.fa{
+  &.fa, &.pg-font-icon{
     padding: 0rem 0.25rem 0rem 0rem
   }
 }
@@ -271,7 +271,7 @@
   background-color: $dropdown-bg;
 }
 
-.wcMenuItemHover, .wcMenuItem:hover, .context-menu-item:not(.context-menu-not-selectable).hover, .context-menu-item:not(.context-menu-not-selectable):hover {
+.wcMenuItemHover, .wcMenuItem:hover, .context-menu-item:not(.context-menu-not-selectable).hover, .context-menu-item:not(.context-menu-not-selectable):hover, .context-menu-hover {
   color: $dropdown-link-hover-color;
   background-color: $dropdown-link-hover-bg !important;
 }
