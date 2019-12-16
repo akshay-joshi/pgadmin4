@@ -914,7 +914,3 @@ class FtsParserView(PGChildNodeView, SchemaDiffObjectCompare):
                 res[row['name']] = data
 
         return res
-
-
-SchemaDiffRegistry('FTS Parsers', FtsParserView)
-FtsParserView.register_node_view(blueprint)

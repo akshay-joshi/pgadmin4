@@ -68,7 +68,17 @@ class SchemaDiffModule(PgAdminModule):
             'schema_diff.connect_server',
             'schema_diff.connect_database',
             'schema_diff.get_server',
+            'schema_diff.generate_script'
         ]
+
+    def register_preferences(self):
+        self.preference.register(
+            'display', 'schema_diff_new_browser_tab',
+            gettext("Open in new browser tab"), 'boolean', False,
+            category_label=gettext('Display'),
+            help_str=gettext('If set to True, the Schema Diff '
+                             'will be opened in a new browser tab.')
+        )
 
 
 blueprint = SchemaDiffModule(MODULE_NAME, __name__, static_url_path='/static')
@@ -452,6 +462,58 @@ def poll(trans_id):
     msg, diff_percentage = diff_model_obj.get_comparison_info()
     return make_json_response(data={'compare_msg': msg,
                                     'diff_percentage': diff_percentage})
+
+
+@blueprint.route(
+    '/generate_script/<int:trans_id>/',
+    methods=["POST"],
+    endpoint="generate_script"
+)
+def generate_script(trans_id):
+    """This function will generate the scripts for the selected objects."""
+    data = request.form if request.form else json.loads(
+        request.data, encoding='utf-8'
+    )
+
+    status, error_msg, diff_model_obj, session_obj = \
+        check_transaction_status(trans_id)
+
+    if error_msg == gettext('Transaction ID not found in the session.'):
+        return make_json_response(success=0, errormsg=error_msg, status=404)
+
+    source_sid = int(data['source_sid'])
+    source_did = int(data['source_did'])
+    source_scid = int(data['source_scid'])
+    target_sid = int(data['target_sid'])
+    target_did = int(data['target_did'])
+    target_scid = int(data['target_scid'])
+    diff_ddl = ''
+
+    for d in data['sel_rows']:
+        node_type = d['node_type']
+        source_oid = int(d['source_oid'])
+        target_oid = int(d['target_oid'])
+        comp_status = d['comp_status']
+
+        view = SchemaDiffRegistry.get_node_view(node_type)
+        if view and hasattr(view, 'ddl_compare') and \
+                comp_status != SchemaDiffModel.COMPARISON_STATUS['identical']:
+            sql = view.ddl_compare(source_sid=source_sid,
+                                   source_did=source_did,
+                                   source_scid=source_scid,
+                                   target_sid=target_sid,
+                                   target_did=target_did,
+                                   target_scid=target_scid,
+                                   source_oid=source_oid,
+                                   target_oid=target_oid,
+                                   comp_status=comp_status)
+
+            diff_ddl += sql['diff_ddl']
+
+    return ajax_response(
+        status=200,
+        response={'diff_ddl': diff_ddl}
+    )
 
 
 @blueprint.route(

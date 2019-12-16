@@ -785,7 +785,3 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
                 res[row['name']] = data
 
         return res
-
-
-SchemaDiffRegistry('FTS Templates', FtsTemplateView)
-FtsTemplateView.register_node_view(blueprint)

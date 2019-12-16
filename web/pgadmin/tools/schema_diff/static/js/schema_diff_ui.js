@@ -85,6 +85,12 @@ export default class SchemaDiffUI {
     this.panel_obj = this.docker.addPanel('schema_diff_header_panel', wcDocker.DOCK.TOP, {w:'95%', h:'50%'});
     this.footer_panel_obj = this.docker.addPanel('schema_diff_footer_panel', wcDocker.DOCK.BOTTOM, this.panel_obj, {w:'95%', h:'50%'});
 
+    self.footer_panel_obj.on(wcDocker.EVENT.VISIBILITY_CHANGED, function() {
+      setTimeout(function() {
+        this.resize_grid();
+      }.bind(self), 200);
+    });
+
     self.footer_panel_obj.on(wcDocker.EVENT.RESIZE_ENDED, function() {
       setTimeout(function() {
         this.resize_panels();
@@ -129,6 +135,16 @@ export default class SchemaDiffUI {
     var self = this,
       url_params = self.model.toJSON();
 
+    if (url_params['source_sid'] == '' || _.isUndefined(url_params['source_sid']) ||
+      url_params['source_did'] == '' || _.isUndefined(url_params['source_did']) ||
+       url_params['source_scid'] == '' || _.isUndefined(url_params['source_scid']) ||
+       url_params['target_sid'] == '' || _.isUndefined(url_params['target_sid']) ||
+       url_params['target_did'] == '' || _.isUndefined(url_params['target_did']) ||
+       url_params['target_scid'] == '' || _.isUndefined(url_params['target_scid'])
+    ) {
+      Alertify.alert(gettext('Selection Error'), gettext('Please select source and target.'));
+      return false;
+    }
     url_params['trans_id'] = self.trans_id;
 
     _.each(url_params, function(key, val) {
@@ -137,6 +153,13 @@ export default class SchemaDiffUI {
 
     var baseUrl = url_for('schema_diff.compare', url_params);
 
+    self.model.set({
+      'source_ddl': undefined,
+      'target_ddl': undefined,
+      'diff_ddl': undefined,
+    });
+
+    self.footer.render();
     self.startDiffPoller();
 
     return $.ajax({
@@ -157,36 +180,106 @@ export default class SchemaDiffUI {
 
   generate_script() {
     var self = this,
-      baseUrl = url_for('schema_diff.get_server', {'sid': self.model.get('target_sid'),
-        'did': self.model.get('target_did')});
+      baseServerUrl = url_for('schema_diff.get_server', {'sid': self.model.get('target_sid'),
+        'did': self.model.get('target_did')}),
+      sel_rows = self.grid ? self.grid.getSelectedRows() : [],
+      sel_rows_data = [],
+      url_params = self.model.toJSON(),
+      generated_script = undefined,
+      open_query_tool;
 
-    $.ajax({
-      url: baseUrl,
-      method: 'GET',
-      dataType: 'json',
-      contentType: 'application/json',
-    })
-      .done(function (res) {
-        let data = res.data;
-        let server_data = {};
-        if (data) {
-          server_data['sgid'] = data.gid;
-          server_data['sid'] = data.sid;
-          server_data['stype'] = data.type;
-          server_data['server'] = data.name;
-          server_data['user'] = data.user;
-          server_data['did'] = self.model.get('target_did');
-          server_data['database'] = data.database;
+    _.each(url_params, function(key, val) {
+      url_params[key] = parseInt(val, 10);
+    });
 
-          let diff = 'BEGIN;' + '\n' + self.model.get('diff_ddl') + '\n' + 'END;';
-          window.top.pgAdmin.ddl_diff = diff;
-          generateScript(server_data, window.top.pgAdmin.DataGrid);
-        }
+    $('#diff_fetching_data').removeClass('d-none');
 
+
+    open_query_tool = function get_server_details() {
+      $.ajax({
+        url: baseServerUrl,
+        method: 'GET',
+        dataType: 'json',
+        contentType: 'application/json',
       })
-      .fail(function (xhr) {
-        self.raise_error_on_fail(gettext('Generate script error'), xhr);
-      });
+        .done(function (res) {
+          let data = res.data;
+          let server_data = {};
+          if (data) {
+            server_data['sgid'] = data.gid;
+            server_data['sid'] = data.sid;
+            server_data['stype'] = data.type;
+            server_data['server'] = data.name;
+            server_data['user'] = data.user;
+            server_data['did'] = self.model.get('target_did');
+            server_data['database'] = data.database;
+
+            if (_.isUndefined(generated_script))
+              generated_script = 'BEGIN;' + '\n' + self.model.get('diff_ddl') + '\n' + 'END;';
+
+            let preferences = (window.opener !== null) ? window.opener.pgAdmin.Browser.get_preferences_for_module('schema_diff') : window.top.pgAdmin.Browser.get_preferences_for_module('schema_diff');
+            if (preferences.schema_diff_new_browser_tab) {
+              window.opener.pgAdmin.ddl_diff = generated_script;
+              generateScript(server_data, window.opener.pgAdmin.DataGrid);
+            } else {
+              window.top.pgAdmin.ddl_diff = generated_script;
+              generateScript(server_data, window.top.pgAdmin.DataGrid);
+            }
+          }
+
+          $('#diff_fetching_data').addClass('d-none');
+
+        })
+        .fail(function (xhr) {
+          self.raise_error_on_fail(gettext('Generate script error'), xhr);
+          $('#diff_fetching_data').addClass('d-none');
+        });
+    };
+
+    if (sel_rows.length > 0) {
+      for (var row = 0; row < sel_rows.length; row++) {
+        let data = self.grid.getData().getItem(sel_rows[row]);
+
+        if (data.type) {
+          let tmp_data = {
+            'node_type': data.type,
+            'source_oid': parseInt(data.oid, 10),
+            'target_oid': parseInt(data.oid, 10),
+            'comp_status': data.status,
+          };
+
+          if(data.status && (data.status.toLowerCase() == 'different' || data.status.toLowerCase() == 'identical')) {
+            tmp_data['target_oid'] = data.target_oid;
+          }
+          sel_rows_data.push(tmp_data);
+        }
+      }
+
+      url_params['sel_rows'] = sel_rows_data;
+
+      let baseUrl = url_for('schema_diff.generate_script', {'trans_id': self.trans_id});
+
+      $.ajax({
+        url: baseUrl,
+        method: 'POST',
+        dataType: 'json',
+        contentType: 'application/json',
+        data: JSON.stringify(url_params),
+      })
+        .done(function (res) {
+          if (res) {
+            generated_script = 'BEGIN;' + '\n' + res.diff_ddl + '\n' + 'END;';
+          }
+          open_query_tool();
+        })
+        .fail(function (xhr) {
+          self.raise_error_on_fail(gettext('Generate script error'), xhr);
+          $('#diff_fetching_data').addClass('d-none');
+        });
+    } else if (!_.isUndefined(self.model.get('diff_ddl'))) {
+      open_query_tool();
+    }
+    return false;
   }
 
   render_grid(data) {
@@ -207,11 +300,13 @@ export default class SchemaDiffUI {
     };
 
     // Grid Columns
-    var grid_width = ($('#schema-diff-grid').width() - 30) / 2 ;
+    var grid_width =  (self.grid_width - 47) / 2 ;
     var columns = [
       checkboxSelector.getColumnDefinition(),
       {id: 'title', name: 'Schema Objects', field: 'title', minWidth: grid_width, formatter: formatColumnTitle},
       {id: 'status', name: 'Comparison Result', field: 'status', minWidth: grid_width},
+      {id: 'label', name: 'Schema Objects', field: 'label',  width: 0, minWidth: 0, maxWidth: 0,
+        cssClass: 'reallyHidden', headerCssClass: 'reallyHidden'},
       {id: 'type', name: 'Schema Objects', field: 'type',  width: 0, minWidth: 0, maxWidth: 0,
         cssClass: 'reallyHidden', headerCssClass: 'reallyHidden'},
       {id: 'id', name: 'id', field: 'id', width: 0, minWidth: 0, maxWidth: 0,
@@ -232,7 +327,7 @@ export default class SchemaDiffUI {
         getter: 'type',
         formatter: function (g) {
           let icon = 'icon-coll-' + g.value;
-          return '<i class="wcTabIcon '+ icon +'"></i><span>' + g.value.charAt(0).toUpperCase() + g.value.slice(1) + 's</span>';
+          return '<i class="wcTabIcon '+ icon +'"></i><span>' + g.rows[0].label + '</span>';
         },
         aggregateCollapsed: true,
         lazyTotalsCalculation: true,
@@ -291,9 +386,13 @@ export default class SchemaDiffUI {
     grid.onClick.subscribe(function(e, args) {
       if (args.row) {
         data = args.grid.getData().getItem(args.row);
-        this.ddlCompare(data);
+        if (data.status) this.ddlCompare(data);
       }
     }.bind(self));
+
+    grid.onSelectedRowsChanged.subscribe(self.handle_generate_button.bind(self));
+
+    self.model.on('change:diff_ddl', self.handle_generate_button.bind(self));
 
     $('#schema-diff-grid').on('keyup', function() {
       if ((event.keyCode == 38 || event.keyCode ==40) && this.grid.getActiveCell().row) {
@@ -312,19 +411,29 @@ export default class SchemaDiffUI {
     this.resize_grid();
   }
 
+  handle_generate_button(){
+    if (this.grid.getSelectedRows().length > 0 || (this.model.get('diff_ddl') != '' && !_.isUndefined(this.model.get('diff_ddl')))) {
+      this.header.$el.find('button#generate-script').removeAttr('disabled');
+    } else {
+      this.header.$el.find('button#generate-script').attr('disabled', true);
+    }
+  }
+
   resize_grid() {
     let $data_grid = $('#schema-diff-grid'),
-      grid_height = this.panel_obj.height() - 120;
+      grid_height = (this.panel_obj.height() > 0) ? this.panel_obj.height() - 100 : this.grid_height - 100;
+
     $data_grid.height(grid_height);
+    console.warn(grid_height);
     $data_grid.css({
       'height': grid_height + 'px',
     });
-
     if (this.grid) this.grid.resizeCanvas();
   }
 
   startDiffPoller() {
     let self = this;
+    $('#ddl_comp_fetching_data').addClass('d-none');
     $('#diff_fetching_data').removeClass('d-none');
 
     let thePollingFunc = function() {
@@ -364,10 +473,17 @@ export default class SchemaDiffUI {
     var self = this,
       node_type = data.type,
       source_oid = data.oid,
-      target_oid = data.oid,
-      url_params = self.model.toJSON();
+      target_oid = data.oid;
 
-    if(data.status.toLowerCase() == 'different' || data.status.toLowerCase() == 'identical') {
+    self.model.set({
+      'source_ddl': undefined,
+      'target_ddl': undefined,
+      'diff_ddl': undefined,
+    });
+
+    var url_params = self.model.toJSON();
+
+    if(data.status && (data.status.toLowerCase() == 'different' || data.status.toLowerCase() == 'identical')) {
       target_oid = data.target_oid;
     }
 
@@ -392,6 +508,7 @@ export default class SchemaDiffUI {
         $('#ddl_comp_fetching_data').addClass('d-none');
       },
       error: function() {
+        self.footer.render();
         $('#ddl_comp_fetching_data').addClass('d-none');
       },
     });
@@ -549,8 +666,10 @@ export default class SchemaDiffUI {
 
     footer_panel.$container.find('#schema-diff-ddl-comp').append(self.footer.render().$el);
     header_panel.$container.find('#schema-diff-grid').append(`<div class='obj_properties container-fluid'>
-    <div class='alert alert-info pg-panel-message'>` + gettext('Please select Source and Target.') + '</div></div>');
+    <div class='alert alert-info pg-panel-message'>` + gettext('Select the server, database and schema for the source and target and click <b>Compare</b> to compare them.') + '</div></div>');
 
+    self.grid_width = $('#schema-diff-grid').width();
+    self.grid_height = this.panel_obj.height();
   }
 
   refresh_filters(event) {

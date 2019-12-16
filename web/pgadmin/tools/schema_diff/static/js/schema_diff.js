@@ -14,8 +14,8 @@ define('pgadmin.schemadiff', [
   gettext, url_for, $, _, pgAdmin, csrfToken
 ) {
 
-  var wcDocker = window.wcDocker;
-  var pgBrowser = pgAdmin.Browser;
+  var wcDocker = window.wcDocker,
+    pgBrowser = pgAdmin.Browser;
   /* Return back, this has been called more than once */
   if (pgBrowser.SchemaDiff)
     return pgBrowser.SchemaDiff;
@@ -50,6 +50,21 @@ define('pgadmin.schemadiff', [
         isCloseable: true,
         isPrivate: true,
         url: 'about:blank',
+      });
+
+      let self = this;
+      /* Cache may take time to load for the first time
+       * Keep trying till available
+       */
+      let cacheIntervalId = setInterval(function() {
+        if(pgBrowser.preference_version() > 0) {
+          self.preferences = pgBrowser.get_preferences_for_module('schema_diff');
+          clearInterval(cacheIntervalId);
+        }
+      },0);
+
+      pgBrowser.onPreferencesChange('schema_diff', function() {
+        self.preferences = pgBrowser.get_preferences_for_module('schema_diff');
       });
 
       // Load the newly created frame
@@ -91,32 +106,38 @@ define('pgadmin.schemadiff', [
         },
         baseUrl = url_for('schema_diff.panel', url_params);
 
-      var propertiesPanel = pgBrowser.docker.findPanels('properties');
-      var schemaDiffPanel = pgBrowser.docker.addPanel('frm_schemadiff', wcDocker.DOCK.STACKED, propertiesPanel[0]);
+      if (this.preferences.schema_diff_new_browser_tab) {
+        window.open(baseUrl, '_blank');
+      } else {
 
-      // Set panel title and icon
-      schemaDiffPanel.title('<span title="'+panel_tooltip+'">'+panel_title+'</span>');
-      schemaDiffPanel.icon('icon-schema-diff');
-      schemaDiffPanel.focus();
+        var propertiesPanel = pgBrowser.docker.findPanels('properties'),
+          schemaDiffPanel = pgBrowser.docker.addPanel('frm_schemadiff', wcDocker.DOCK.STACKED, propertiesPanel[0]);
 
-      var openSchemaDiffURL = function(j) {
-        // add spinner element
-        $(j).data('embeddedFrame').$container.append(pgBrowser.SchemaDiff.spinner_el);
-        setTimeout(function() {
-          var frameInitialized = $(j).data('frameInitialized');
-          if (frameInitialized) {
-            var frame = $(j).data('embeddedFrame');
-            if (frame) {
-              frame.openURL(baseUrl);
-              frame.$container.find('.pg-sp-container').delay(1000).hide(1);
+        // Set panel title and icon
+        schemaDiffPanel.title('<span title="'+panel_tooltip+'">'+panel_title+'</span>');
+        schemaDiffPanel.icon('icon-schema-diff');
+        schemaDiffPanel.focus();
+
+        var openSchemaDiffURL = function(j) {
+          // add spinner element
+          $(j).data('embeddedFrame').$container.append(pgBrowser.SchemaDiff.spinner_el);
+          setTimeout(function() {
+            var frameInitialized = $(j).data('frameInitialized');
+            if (frameInitialized) {
+              var frame = $(j).data('embeddedFrame');
+              if (frame) {
+                frame.openURL(baseUrl);
+                frame.$container.find('.pg-sp-container').delay(1000).hide(1);
+              }
+            } else {
+              openSchemaDiffURL(j);
             }
-          } else {
-            openSchemaDiffURL(j);
-          }
-        }, 100);
-      };
+          }, 100);
+        };
 
-      openSchemaDiffURL(schemaDiffPanel);
+        openSchemaDiffURL(schemaDiffPanel);
+      }
+
     },
   };
 
