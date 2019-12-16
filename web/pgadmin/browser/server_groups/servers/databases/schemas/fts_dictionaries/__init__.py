@@ -896,7 +896,3 @@ class FtsDictionaryView(PGChildNodeView, SchemaDiffObjectCompare):
                 res[row['name']] = data
 
         return res
-
-
-SchemaDiffRegistry('FTS Dictionaries', FtsDictionaryView)
-FtsDictionaryView.register_node_view(blueprint)

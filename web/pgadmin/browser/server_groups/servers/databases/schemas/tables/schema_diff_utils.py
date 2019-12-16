@@ -116,7 +116,9 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                     target_tables[key][module] = target
 
         return compare_dictionaries(source_tables, target_tables,
-                                    self.node_type, self.keys_to_ignore)
+                                    self.node_type,
+                                    self.blueprint.COLLECTION_LABEL,
+                                    self.keys_to_ignore)
 
     @staticmethod
     def get_server_type(src_id, tar_id):
@@ -150,18 +152,6 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
 
         src_server_type, tar_server_type = self.get_server_type(src_sid,
                                                                 tar_sid)
-
-        source_tables = self.fetch_tables(sid=src_sid, did=src_did,
-                                          scid=src_scid)
-
-        target_tables = self.fetch_tables(sid=tar_sid, did=tar_did,
-                                          scid=tar_scid)
-
-        if self.manager.version < 100000:
-            ignore_sub_modules.append('partition')
-
-        if self.manager.version < 120000:
-            ignore_sub_modules.append('compound_trigger')
 
         status, target_schema = self.get_schema(tar_sid,
                                                 tar_did,
@@ -205,6 +195,12 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                 scid=tar_scid, tid=tar_oid,
                 keys_to_remove=self.keys_to_remove_ddl_comp
             )
+
+            if self.manager.version < 100000:
+                ignore_sub_modules.append('partition')
+
+            if self.manager.version < 120000:
+                ignore_sub_modules.append('compound_trigger')
 
             # In case of error return None
             if not (source or target):

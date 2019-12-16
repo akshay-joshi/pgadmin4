@@ -904,7 +904,3 @@ AND relkind != 'c'))"""
                 res[row['name']] = data
 
         return res
-
-
-SchemaDiffRegistry('Domains', DomainView)
-DomainView.register_node_view(blueprint)

@@ -85,6 +85,7 @@ class SchemaDiffObjectCompare():
 
         return compare_dictionaries(source, target,
                                     self.node_type,
+                                    self.blueprint.COLLECTION_LABEL,
                                     self.keys_to_ignore)
 
     def ddl_compare(self, **kwargs):

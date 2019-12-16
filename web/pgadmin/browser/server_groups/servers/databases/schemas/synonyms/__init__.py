@@ -750,7 +750,3 @@ class SynonymView(PGChildNodeView, SchemaDiffObjectCompare):
                 res[row['name']] = data
 
         return res
-
-
-SchemaDiffRegistry('Synonyms', SynonymView)
-SynonymView.register_node_view(blueprint)

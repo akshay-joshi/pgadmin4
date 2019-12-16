@@ -15,7 +15,8 @@ from pgadmin.tools.schema_diff.model import SchemaDiffModel
 count = 1
 
 
-def compare_dictionaries(source_dict, target_dict, node, ignore_keys=None):
+def compare_dictionaries(source_dict, target_dict, node, node_label,
+                         ignore_keys=None):
     """
     This function will compare the two dictionaries.
 
@@ -42,6 +43,7 @@ def compare_dictionaries(source_dict, target_dict, node, ignore_keys=None):
         source_only.append({
             'id': count,
             'type': node,
+            'label': node_label,
             'title': item,
             'oid': source_dict[item]['oid'],
             'status': SchemaDiffModel.COMPARISON_STATUS['source_only']
@@ -55,6 +57,7 @@ def compare_dictionaries(source_dict, target_dict, node, ignore_keys=None):
         target_only.append({
             'id': count,
             'type': node,
+            'label': node_label,
             'title': item,
             'oid': target_dict[item]['oid'],
             'status': SchemaDiffModel.COMPARISON_STATUS['target_only']
@@ -77,6 +80,7 @@ def compare_dictionaries(source_dict, target_dict, node, ignore_keys=None):
             identical.append({
                 'id': count,
                 'type': node,
+                'label': node_label,
                 'title': key,
                 'oid': source_dict[key]['oid'],
                 'source_oid': source_dict[key]['oid'],
@@ -87,6 +91,7 @@ def compare_dictionaries(source_dict, target_dict, node, ignore_keys=None):
             different.append({
                 'id': count,
                 'type': node,
+                'label': node_label,
                 'title': key,
                 'oid': source_dict[key]['oid'],
                 'source_oid': source_dict[key]['oid'],

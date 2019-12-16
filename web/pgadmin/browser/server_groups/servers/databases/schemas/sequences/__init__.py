@@ -911,7 +911,3 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
                 res[row['name']] = data
 
         return res
-
-
-SchemaDiffRegistry('Sequences', SequenceView)
-SequenceView.register_node_view(blueprint)
