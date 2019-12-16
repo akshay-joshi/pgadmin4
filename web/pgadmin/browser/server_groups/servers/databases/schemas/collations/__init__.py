@@ -792,3 +792,6 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
                 res[row['name']] = data
 
         return res
+
+
+CollationView.register_node_view(blueprint)
