@@ -2120,7 +2120,7 @@ define('tools.querytool', [
         alertify.confirm(
           gettext('Connection Warning'),
           '<p style="float:left">'+
-            '<span class="fa fa-exclamation-triangle warn-icon" aria-hidden="true">'+
+            '<span class="fa fa-exclamation-triangle warn-icon" aria-hidden="true" role="img">'+
             '</span>'+
           '</p>'+
           '<p style="display: inline-block;">'+
