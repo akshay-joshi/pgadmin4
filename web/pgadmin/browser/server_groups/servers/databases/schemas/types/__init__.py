@@ -1472,3 +1472,6 @@ class TypeView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                 res[row['name']] = data
 
         return res
+
+
+TypeView.register_node_view(blueprint)

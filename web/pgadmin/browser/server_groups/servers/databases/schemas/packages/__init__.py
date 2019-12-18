@@ -413,7 +413,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         )
 
     @check_precondition(action='delete')
-    def delete(self, gid, sid, did, scid, pkgid=None):
+    def delete(self, gid, sid, did, scid, pkgid=None, only_sql=False):
         """
         This function will drop the object
 
@@ -469,6 +469,9 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                                                 'delete.sql']),
                                       data=res['rows'][0],
                                       cascade=cascade)
+
+                if only_sql:
+                    return SQL
 
                 status, res = self.conn.execute_scalar(SQL)
                 if not status:
@@ -569,7 +572,8 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             status=200
         )
 
-    def getSQL(self, gid, sid, did, data, scid, pkgid=None, sqltab=False):
+    def getSQL(self, gid, sid, did, data, scid, pkgid=None, sqltab=False,
+               diff_schema=None):
         """
         This function will generate sql from model data.
 
@@ -638,6 +642,9 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                 if arg not in data:
                     data[arg] = old_data[arg]
 
+            if diff_schema:
+                data['schema'] = diff_schema
+
             SQL = render_template("/".join([self.template_path, 'update.sql']),
                                   data=data, o_data=old_data, conn=self.conn)
             return SQL, data['name'] if 'name' in data else old_data['name']
@@ -652,7 +659,8 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             return SQL, data['name']
 
     @check_precondition(action="sql")
-    def sql(self, gid, sid, did, scid, pkgid):
+    def sql(self, gid, sid, did, scid, pkgid, diff_schema=None,
+            json_resp=True):
         """
         This function will generate sql for sql panel
 
@@ -662,6 +670,8 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             did: Database ID
             scid: Schema ID
             pkgid: Package ID
+            diff_schema:  Schema diff target schema name
+            json_resp: json response or plain text response
         """
         try:
             SQL = render_template(
@@ -693,12 +703,17 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                 res['rows'][0].setdefault(row['deftype'], []).append(priv)
 
             result = res['rows'][0]
-            sql, name = self.getSQL(gid, sid, did, result, scid, pkgid, True)
+            sql, name = self.getSQL(gid, sid, did, result, scid, pkgid, True,
+                                    diff_schema)
             # Most probably this is due to error
             if not isinstance(sql, (str, unicode)):
                 return sql
 
             sql = sql.strip('\n').strip(' ')
+
+            # Return sql for schema diff
+            if not json_resp:
+                return sql
 
             sql_header = u"-- Package: {}\n\n-- ".format(
                 self.qtIdent(self.conn, self.schema, result['name'])
@@ -801,6 +816,26 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
 
         return res
 
+    def get_sql_from_diff(self, gid, sid, did, scid, oid, data=None,
+                          diff_schema=None, drop_sql=False):
+        sql = ''
+        if data:
+            if diff_schema:
+                data['schema'] = diff_schema
+            status, sql = self.getSQL(gid, sid, did, data, scid, oid)
+        else:
+            if drop_sql:
+                sql = self.delete(gid=gid, sid=sid, did=did,
+                                  scid=scid, pkgid=oid, only_sql=True)
 
-SchemaDiffRegistry('Packages', PackageView)
+            elif diff_schema:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, pkgid=oid,
+                               diff_schema=diff_schema, json_resp=False)
+            else:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, pkgid=oid,
+                               json_resp=False)
+        return sql
+
+
+SchemaDiffRegistry('package', PackageView)
 PackageView.register_node_view(blueprint)

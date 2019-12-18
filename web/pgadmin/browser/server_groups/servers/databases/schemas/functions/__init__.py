@@ -1055,6 +1055,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
 
             if diff_schema:
                 res['rows'][0]['nspname'] = diff_schema
+                resp_data['pronamespace'] = diff_schema
 
             name_with_default_args = self.qtIdent(
                 self.conn,
@@ -1875,5 +1876,5 @@ class TriggerFunctionView(FunctionView):
                 'prosrc']
 
 
-SchemaDiffRegistry('Trigger Functions', TriggerFunctionView)
+SchemaDiffRegistry('trigger_function', TriggerFunctionView)
 TriggerFunctionView.register_node_view(trigger_function_blueprint)

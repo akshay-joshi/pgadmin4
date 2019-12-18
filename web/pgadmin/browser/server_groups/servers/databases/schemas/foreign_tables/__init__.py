@@ -1383,3 +1383,6 @@ class ForeignTableView(PGChildNodeView, DataTypeReader,
                 res[row['name']] = data
 
         return res
+
+
+ForeignTableView.register_node_view(blueprint)

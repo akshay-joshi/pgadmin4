@@ -911,3 +911,6 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
                 res[row['name']] = data
 
         return res
+
+
+SequenceView.register_node_view(blueprint)

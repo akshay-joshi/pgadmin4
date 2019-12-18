@@ -403,20 +403,25 @@ def compare(trans_id, source_sid, source_did, source_scid,
         return not_implemented(errormsg=gettext("Version mismatch."))
 
     comparison_result = []
+
+    diff_model_obj.set_comparison_info("Comparing objects...", 0)
+    update_session_diff_transaction(trans_id, session_obj,
+                                    diff_model_obj)
+
     try:
         all_registered_nodes = SchemaDiffRegistry.get_registered_nodes()
         node_percent = round(100 / len(all_registered_nodes))
         total_percent = 0
 
         for node_name, node_view in all_registered_nodes.items():
-            msg = "Comparing " + node_name + " ..."
-            diff_model_obj.set_comparison_info(msg, total_percent)
-            # Update the message and total percentage done in session object
-            update_session_diff_transaction(trans_id, session_obj,
-                                            diff_model_obj)
-
             view = SchemaDiffRegistry.get_node_view(node_name)
             if hasattr(view, 'compare'):
+                msg = "Comparing " + view.blueprint.COLLECTION_LABEL + " ..."
+                diff_model_obj.set_comparison_info(msg, total_percent)
+                # Update the message and total percentage in session object
+                update_session_diff_transaction(trans_id, session_obj,
+                                                diff_model_obj)
+
                 from datetime import datetime
                 res = view.compare(source_sid=source_sid,
                                    source_did=source_did,
@@ -460,6 +465,12 @@ def poll(trans_id):
         return make_json_response(success=0, errormsg=error_msg, status=404)
 
     msg, diff_percentage = diff_model_obj.get_comparison_info()
+
+    if diff_percentage == 100:
+        diff_model_obj.set_comparison_info("Comparing objects...", 0)
+        update_session_diff_transaction(trans_id, session_obj,
+                                        diff_model_obj)
+
     return make_json_response(data={'compare_msg': msg,
                                     'diff_percentage': diff_percentage})
 

@@ -785,3 +785,6 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
                 res[row['name']] = data
 
         return res
+
+
+FtsTemplateView.register_node_view(blueprint)

@@ -904,3 +904,6 @@ AND relkind != 'c'))"""
                 res[row['name']] = data
 
         return res
+
+
+DomainView.register_node_view(blueprint)

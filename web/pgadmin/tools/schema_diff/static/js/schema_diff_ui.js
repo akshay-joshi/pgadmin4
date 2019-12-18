@@ -32,7 +32,8 @@ export default class SchemaDiffUI {
     this.filters = ['Identical', 'Different', 'Source Only', 'Target Only'];
     this.sel_filters = ['Identical', 'Different', 'Source Only', 'Target Only'];
     this.dataView = null;
-    this.grid = null;
+    this.grid = null,
+    this.selection = {};
 
     this.model = new Backbone.Model({
       source_sid: undefined,
@@ -145,6 +146,9 @@ export default class SchemaDiffUI {
       Alertify.alert(gettext('Selection Error'), gettext('Please select source and target.'));
       return false;
     }
+
+    this.selection = JSON.parse(JSON.stringify(url_params));
+
     url_params['trans_id'] = self.trans_id;
 
     _.each(url_params, function(key, val) {
@@ -159,6 +163,7 @@ export default class SchemaDiffUI {
       'diff_ddl': undefined,
     });
 
+    self.render_grid([]);
     self.footer.render();
     self.startDiffPoller();
 
@@ -180,11 +185,11 @@ export default class SchemaDiffUI {
 
   generate_script() {
     var self = this,
-      baseServerUrl = url_for('schema_diff.get_server', {'sid': self.model.get('target_sid'),
-        'did': self.model.get('target_did')}),
+      baseServerUrl = url_for('schema_diff.get_server', {'sid': self.selection['target_sid'],
+        'did': self.selection['target_did']}),
       sel_rows = self.grid ? self.grid.getSelectedRows() : [],
       sel_rows_data = [],
-      url_params = self.model.toJSON(),
+      url_params = self.selection,
       generated_script = undefined,
       open_query_tool;
 
@@ -193,6 +198,7 @@ export default class SchemaDiffUI {
     });
 
     $('#diff_fetching_data').removeClass('d-none');
+    $('#diff_fetching_data').find('.schema-diff-busy-text').text('Generating script...');
 
 
     open_query_tool = function get_server_details() {
@@ -227,11 +233,13 @@ export default class SchemaDiffUI {
             }
           }
 
+          $('#diff_fetching_data').find('.schema-diff-busy-text').text('');
           $('#diff_fetching_data').addClass('d-none');
 
         })
         .fail(function (xhr) {
           self.raise_error_on_fail(gettext('Generate script error'), xhr);
+          $('#diff_fetching_data').find('.schema-diff-busy-text').text('');
           $('#diff_fetching_data').addClass('d-none');
         });
     };
@@ -287,6 +295,11 @@ export default class SchemaDiffUI {
     var self = this;
     var grid;
 
+    if (self.grid) {
+      // Only render the data
+      self.render_grid_data(data);
+      return;
+    }
     // Checkbox Column
     var checkboxSelector = new Slick.CheckboxSelectColumn({
       cssClass: 'slick-cell-checkboxsel',
@@ -322,7 +335,7 @@ export default class SchemaDiffUI {
     };
 
     // Grouping by Schema Object
-    var groupBySchemaObject = function() {
+    self.groupBySchemaObject = function() {
       self.dataView.setGrouping({
         getter: 'type',
         formatter: function (g) {
@@ -372,10 +385,11 @@ export default class SchemaDiffUI {
     };
 
     // Grid filter
-    function filter(item) {
+    self.filter = function (item) {
+      let self = this;
       if (self.sel_filters.indexOf(item.status) !== -1) return true;
       return false;
-    }
+    };
 
     let $data_grid = $('#schema-diff-grid');
     grid = this.grid = new Slick.Grid($data_grid, self.dataView, columns, options);
@@ -401,14 +415,20 @@ export default class SchemaDiffUI {
       }
     }.bind(self));
 
+    self.render_grid_data(data);
+  }
 
+
+
+  render_grid_data(data) {
+    var self = this;
     self.dataView.beginUpdate();
     self.dataView.setItems(data);
-    self.dataView.setFilter(filter);
-    groupBySchemaObject();
+    self.dataView.setFilter(self.filter.bind(self));
+    self.groupBySchemaObject();
     self.dataView.endUpdate();
 
-    this.resize_grid();
+    self.resize_grid();
   }
 
   handle_generate_button(){
@@ -424,46 +444,46 @@ export default class SchemaDiffUI {
       grid_height = (this.panel_obj.height() > 0) ? this.panel_obj.height() - 100 : this.grid_height - 100;
 
     $data_grid.height(grid_height);
-    console.warn(grid_height);
     $data_grid.css({
       'height': grid_height + 'px',
     });
     if (this.grid) this.grid.resizeCanvas();
   }
 
-  startDiffPoller() {
-    let self = this;
-    $('#ddl_comp_fetching_data').addClass('d-none');
-    $('#diff_fetching_data').removeClass('d-none');
+  getCompareStatus() {
+    var self = this,
+      url_params = {'trans_id': self.trans_id},
+      baseUrl = url_for('schema_diff.poll', url_params);
 
-    let thePollingFunc = function() {
-      let url_params = {'trans_id': self.trans_id},
-        baseUrl = url_for('schema_diff.poll', url_params);
-
-      $.ajax({
-        url: baseUrl,
-        method: 'GET',
-        dataType: 'json',
-        contentType: 'application/json',
+    $.ajax({
+      url: baseUrl,
+      method: 'GET',
+      dataType: 'json',
+      contentType: 'application/json',
+    })
+      .done(function (res) {
+        let msg = res.data.compare_msg + res.data.diff_percentage + '% completed';
+        $('#diff_fetching_data').find('.schema-diff-busy-text').text(msg);
       })
-        .done(function (res) {
-          let msg = res.data.compare_msg + res.data.diff_percentage + '% completed';
-          $('#diff_fetching_data').find('.schema-diff-busy-text').text(msg);
-        })
-        .fail(function (xhr) {
-          self.raise_error_on_fail(gettext('Poll error'), xhr);
-          self.stopDiffPoller();
-        });
-    };
-
-    /* Execute once for the first time as setInterval will not do */
-    thePollingFunc();
-    self.diff_poller_int_id = setInterval(thePollingFunc, 2000);
+      .fail(function (xhr) {
+        self.raise_error_on_fail(gettext('Poll error'), xhr);
+        self.stopDiffPoller('fail');
+      });
   }
 
-  stopDiffPoller() {
-    let self = this;
-    clearInterval(self.diff_poller_int_id);
+  startDiffPoller() {
+    $('#ddl_comp_fetching_data').addClass('d-none');
+    $('#diff_fetching_data').removeClass('d-none');
+    /* Execute once for the first time as setInterval will not do */
+    this.getCompareStatus();
+    this.diff_poller_int_id = setInterval(this.getCompareStatus.bind(this), 1000);
+  }
+
+  stopDiffPoller(status) {
+    clearInterval(this.diff_poller_int_id);
+    // The last polling for comparison
+    if (status !== 'fail') this.getCompareStatus();
+
     $('#diff_fetching_data').find('.schema-diff-busy-text').text('');
     $('#diff_fetching_data').addClass('d-none');
 
@@ -481,7 +501,7 @@ export default class SchemaDiffUI {
       'diff_ddl': undefined,
     });
 
-    var url_params = self.model.toJSON();
+    var url_params = self.selection;
 
     if(data.status && (data.status.toLowerCase() == 'different' || data.status.toLowerCase() == 'identical')) {
       target_oid = data.target_oid;
