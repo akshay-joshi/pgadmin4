@@ -16,8 +16,6 @@ from pgadmin.utils import server_utils as server_utils
 from pgadmin.utils.route import BaseTestGenerator
 from regression import parent_node_dict
 from regression.python_test_utils import test_utils as utils
-from .source_sql import source_tables
-from .target_sql import target_tables
 from .utils import create_table, create_schema, restore_schema
 from pgadmin.browser.server_groups.servers.databases.tests import utils as \
     database_utils

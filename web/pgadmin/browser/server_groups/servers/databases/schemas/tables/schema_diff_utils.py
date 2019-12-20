@@ -474,7 +474,7 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                             if tmp_updated:
                                 tmp_updated['oid'] = tmp_tar['oid']
                                 updated.append(tmp_updated)
-                            target_cols.remove(tmp_tar)
+                            target_cols.remove(tmp)
                         elif tmp_tar and tmp_src == tmp_tar:
                             target_cols.remove(tmp)
                         elif tmp_tar is None:
