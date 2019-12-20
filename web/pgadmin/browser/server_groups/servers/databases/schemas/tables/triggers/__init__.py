@@ -250,7 +250,7 @@ class TriggerView(PGChildNodeView, SchemaDiffObjectCompare):
 
     # Schema Diff: Keys to ignore while comparing
     keys_to_ignore = ['oid', 'xmin', 'nspname', 'tfunction',
-                      'tgrelid', 'tgfoid']
+                      'tgrelid', 'tgfoid', 'prosrc']
 
     def check_precondition(f):
         """
@@ -792,7 +792,10 @@ class TriggerView(PGChildNodeView, SchemaDiffObjectCompare):
     def get_sql_from_diff(self, gid, sid, did, scid, tid, oid,
                           data=None, diff_schema=None, drop_sql=False):
         if data:
-            SQL, name = self.get_sql(scid, tid, oid, data)
+            SQL, name = trigger_utils.get_sql(self.conn, data, tid, oid,
+                                              self.datlastsysoid,
+                                              self.blueprint.show_system_objects)
+
             if not isinstance(SQL, (str, unicode)):
                 return SQL
             SQL = SQL.strip('\n').strip(' ')

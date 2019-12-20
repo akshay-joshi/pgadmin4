@@ -24,7 +24,8 @@ from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 class SchemaDiffTableCompare(SchemaDiffObjectCompare):
 
     keys_to_ignore = ['oid', 'schema', 'vacuum_table',
-                      'vacuum_toast', 'edit_types', 'attnum', 'col_type']
+                      'vacuum_toast', 'edit_types', 'attnum', 'col_type',
+                      'references', 'reltuples', 'rows_cnt']
 
     keys_to_ignore_ddl_comp = ['oid',
                                'schema',
@@ -32,21 +33,24 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                                'edit_types',
                                'primary_key',
                                'exclude_constraint',
-                               'check_constraint'
+                               'check_constraint',
+                               'foreign_key',
+                               'reltuples',
+                               'rows_cnt'
                                ]
 
     keys_to_remove = {
-        'columns': ['relname', 'nspname', 'parent_tbl', 'attrelid'],
+        'columns': ['relname', 'nspname', 'parent_tbl', 'attrelid', 'adrelid'],
         'primary_key': ['oid'],
         'unique_constraint': ['oid'],
         'check_constraint': ['oid', 'nspname'],
         'foreign_key': ['oid', 'fknsp', 'confrelid'],
         'exclude_constraint': ['oid'],
-        'partitions': ['oid']
+        'partitions': ['oid'],
     }
 
     keys_to_remove_ddl_comp = {
-        'columns': ['relname', 'nspname', 'parent_tbl', 'attrelid'],
+        'columns': ['relname', 'nspname', 'parent_tbl', 'attrelid', 'adrelid'],
         'check_constraint': ['nspname'],
         'foreign_key': ['fknsp', 'confrelid']
     }
@@ -144,6 +148,10 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
         tar_scid = kwargs.get('target_scid')
         tar_oid = kwargs.get('target_oid')
         comp_status = kwargs.get('comp_status')
+        generate_script = False
+
+        if 'generate_script' in kwargs and kwargs['generate_script']:
+            generate_script = True
 
         source = ''
         target = ''
@@ -162,18 +170,24 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
             return internal_server_error(errormsg=target_schema)
 
         if comp_status == SchemaDiffModel.COMPARISON_STATUS['source_only']:
-            source = self.get_sql_from_table_diff(sid=src_sid, did=src_did,
-                                                  scid=src_scid, tid=src_oid,
-                                                  json_resp=False)
+            if not generate_script:
+                source = self.get_sql_from_table_diff(sid=src_sid,
+                                                      did=src_did,
+                                                      scid=src_scid,
+                                                      tid=src_oid,
+                                                      json_resp=False)
             diff = self.get_sql_from_table_diff(sid=src_sid, did=src_did,
                                                 scid=src_scid, tid=src_oid,
                                                 diff_schema=target_schema,
                                                 json_resp=False)
 
         elif comp_status == SchemaDiffModel.COMPARISON_STATUS['target_only']:
-            target = self.get_sql_from_table_diff(sid=tar_sid, did=tar_did,
-                                                  scid=tar_scid, tid=tar_oid,
-                                                  json_resp=False)
+            if not generate_script:
+                target = self.get_sql_from_table_diff(sid=tar_sid,
+                                                      did=tar_did,
+                                                      scid=tar_scid,
+                                                      tid=tar_oid,
+                                                      json_resp=False)
             SQL = render_template(
                 "/".join([self.table_template_path, 'properties.sql']),
                 did=tar_did, scid=tar_scid, tid=tar_oid,
@@ -221,12 +235,17 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
 
             diff_dict['relacl'] = self.parce_acl(source, target)
 
-            source = self.get_sql_from_table_diff(sid=src_sid, did=src_did,
-                                                  scid=src_scid, tid=src_oid,
-                                                  json_resp=False)
-            target = self.get_sql_from_table_diff(sid=tar_sid, did=tar_did,
-                                                  scid=tar_scid, tid=tar_oid,
-                                                  json_resp=False)
+            if not generate_script:
+                source = self.get_sql_from_table_diff(sid=src_sid,
+                                                      did=src_did,
+                                                      scid=src_scid,
+                                                      tid=src_oid,
+                                                      json_resp=False)
+                target = self.get_sql_from_table_diff(sid=tar_sid,
+                                                      did=tar_did,
+                                                      scid=tar_scid,
+                                                      tid=tar_oid,
+                                                      json_resp=False)
             diff = self.get_sql_from_table_diff(sid=tar_sid, did=tar_did,
                                                 scid=tar_scid, tid=tar_oid,
                                                 diff_data=diff_dict,
@@ -434,26 +453,31 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                 if 'name' in source:
                     if type(target_cols) is list and len(
                             target_cols) > 0:
+                        tmp_src = copy.deepcopy(source)
+                        tmp_src.pop('oid')
+                        tmp_tar = None
                         tmp = None
                         for item in target_cols:
                             if item['name'] == source['name']:
+                                tmp_tar = copy.deepcopy(item)
                                 tmp = copy.deepcopy(item)
-                        if tmp and source != tmp:
+                                tmp_tar.pop('oid')
+                        if tmp_tar and tmp_src != tmp_tar:
                             tmp_updated = copy.deepcopy(source)
                             for key in non_editable_keys[constraint]:
                                 if key in tmp_updated and \
-                                        tmp_updated[key] != tmp[key]:
+                                        tmp_updated[key] != tmp_tar[key]:
                                     added.append(source)
                                     deleted.append(tmp_updated)
                                     tmp_updated = None
                                     break
                             if tmp_updated:
-                                tmp_updated['oid'] = tmp['oid']
+                                tmp_updated['oid'] = tmp_tar['oid']
                                 updated.append(tmp_updated)
+                            target_cols.remove(tmp_tar)
+                        elif tmp_tar and tmp_src == tmp_tar:
                             target_cols.remove(tmp)
-                        elif tmp and source == tmp:
-                            target_cols.remove(tmp)
-                        elif tmp is None:
+                        elif tmp_tar is None:
                             added.append(source)
                     else:
                         added.append(source)

@@ -422,7 +422,6 @@ def compare(trans_id, source_sid, source_did, source_scid,
                 update_session_diff_transaction(trans_id, session_obj,
                                                 diff_model_obj)
 
-                from datetime import datetime
                 res = view.compare(source_sid=source_sid,
                                    source_did=source_did,
                                    source_scid=source_scid,
@@ -517,7 +516,8 @@ def generate_script(trans_id):
                                    target_scid=target_scid,
                                    source_oid=source_oid,
                                    target_oid=target_oid,
-                                   comp_status=comp_status)
+                                   comp_status=comp_status,
+                                   generate_script=True)
 
             diff_ddl += sql['diff_ddl']
 

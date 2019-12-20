@@ -99,6 +99,7 @@ class SchemaDiffObjectCompare():
         diff = ''
         comp_status = kwargs.get('comp_status')
         only_diff = False
+        generate_script = False
 
         source_params = {'gid': 1,
                          'sid': kwargs.get('source_sid'),
@@ -121,6 +122,9 @@ class SchemaDiffObjectCompare():
             target_params['tid'] = kwargs['target_tid']
             only_diff = True
 
+        if 'generate_script' in kwargs and kwargs['generate_script']:
+            generate_script = True
+
         source_params_adv = copy.deepcopy(source_params)
         target_params_adv = copy.deepcopy(target_params)
 
@@ -135,14 +139,16 @@ class SchemaDiffObjectCompare():
             return internal_server_error(errormsg=target_schema)
 
         if comp_status == SchemaDiffModel.COMPARISON_STATUS['source_only']:
-            source = self.get_sql_from_diff(**source_params)
+            if not generate_script:
+                source = self.get_sql_from_diff(**source_params)
             source_params.update({
                 'diff_schema': target_schema
             })
             diff = self.get_sql_from_diff(**source_params)
 
         elif comp_status == SchemaDiffModel.COMPARISON_STATUS['target_only']:
-            target = self.get_sql_from_diff(**target_params)
+            if not generate_script:
+                target = self.get_sql_from_diff(**target_params)
             target_params.update(
                 {'drop_sql': True})
             diff = self.get_sql_from_diff(**target_params)
@@ -162,8 +168,10 @@ class SchemaDiffObjectCompare():
 
             diff_dict.update(self.parce_acl(source, target))
 
-            source = self.get_sql_from_diff(**source_params)
-            target = self.get_sql_from_diff(**target_params)
+            if not generate_script:
+                source = self.get_sql_from_diff(**source_params)
+                target = self.get_sql_from_diff(**target_params)
+
             target_params.update(
                 {'data': diff_dict})
             diff = self.get_sql_from_diff(**target_params)
