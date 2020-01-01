@@ -17,6 +17,8 @@ Housekeeping
 | `Issue #4988 <https://redmine.postgresql.org/issues/4988>`_ -  Refactored SQL of Table's and it's child nodes.
 | `Issue #5017 <https://redmine.postgresql.org/issues/5017>`_ -  Use cheroot as default production server for pgAdmin4.
 | `Issue #5023 <https://redmine.postgresql.org/issues/5023>`_ -  Refactored SQL of Views and Materialized Views.
+| `Issue #5024 <https://redmine.postgresql.org/issues/5024>`_ -  Refactored SQL of Functions and Procedures.
+| `Issue #5038 <https://redmine.postgresql.org/issues/5038>`_ -  Added support for on-demand loading of items in Select2.
 
 Bug fixes
 *********
@@ -27,3 +29,4 @@ Bug fixes
 | `Issue #5004 <https://redmine.postgresql.org/issues/5004>`_ -  Fix vulnerability issues reported by 'yarn audit'. Replace the deprecated uglifyjs-webpack-plugin with a terser-webpack-plugin.
 | `Issue #5008 <https://redmine.postgresql.org/issues/5008>`_ -  Ensure that the error message should not be displayed if Tablespace is not selected while creating the index.
 | `Issue #5009 <https://redmine.postgresql.org/issues/5009>`_ -  Fix an issue where operator, access method and operator class is not visible for exclusion constraints.
+| `Issue #5047 <https://redmine.postgresql.org/issues/5047>`_ -  Added tab navigation for tabs under explain panel in query tool.
