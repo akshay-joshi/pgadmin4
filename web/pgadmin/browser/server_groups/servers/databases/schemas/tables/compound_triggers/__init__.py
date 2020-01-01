@@ -752,7 +752,7 @@ class CompoundTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
                 self.conn, self.schema, self.table, tid, trid,
                 self.datlastsysoid)
         except Exception as e:
-            return internal_server_error(errormsg=SQL)
+            return internal_server_error(errormsg=str(e))
 
         return ajax_response(response=SQL)
 
