@@ -8,14 +8,10 @@
 //////////////////////////////////////////////////////////////
 
 define([
-  'sources/gettext', 'sources/url_for', 'jquery', 'underscore',
-  'alertify', 'sources/pgadmin', 'pgadmin.browser',
-  'backbone', 'pgadmin.backgrid', 'codemirror', 'pgadmin.backform',
-  'pgadmin.tools.schema_diff_ui','wcdocker', 'pgadmin.browser.frame',
-  'pgadmin.datagrid',
+  'sources/url_for', 'jquery',
+  'sources/pgadmin', 'pgadmin.tools.schema_diff_ui',
 ], function(
-  gettext, url_for, $, _, Alertify, pgAdmin, pgBrowser, Backbone, Backgrid,
-  CodeMirror, Backform, SchemaDiffUIModule
+  url_for, $, pgAdmin, SchemaDiffUIModule
 ) {
   var pgTools = pgAdmin.Tools = pgAdmin.Tools || {};
   var SchemaDiffUI = SchemaDiffUIModule.default;

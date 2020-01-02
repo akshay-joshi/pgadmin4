@@ -976,5 +976,5 @@ class CompoundTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         return res
 
 
-SchemaDiffRegistry('compound_trigger', CompoundTriggerView, 'table')
+SchemaDiffRegistry(blueprint.node_type, CompoundTriggerView, 'table')
 CompoundTriggerView.register_node_view(blueprint)

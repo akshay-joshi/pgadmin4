@@ -1113,5 +1113,5 @@ class DatabaseView(PGChildNodeView):
         )
 
 
-SchemaDiffRegistry('database', DatabaseView)
+SchemaDiffRegistry(blueprint.node_type, DatabaseView)
 DatabaseView.register_node_view(blueprint)

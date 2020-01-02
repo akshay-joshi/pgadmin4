@@ -636,5 +636,5 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
         return res
 
 
-SchemaDiffRegistry('rule', RuleView, 'table')
+SchemaDiffRegistry(blueprint.node_type, RuleView, 'table')
 RuleView.register_node_view(blueprint)

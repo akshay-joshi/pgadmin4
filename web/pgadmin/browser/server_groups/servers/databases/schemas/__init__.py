@@ -1024,6 +1024,6 @@ It may have been removed by another user.
         return ajax_response(response=SQL.strip("\n"))
 
 
-SchemaDiffRegistry('schema', SchemaView)
+SchemaDiffRegistry(schema_blueprint.node_type, SchemaView)
 SchemaView.register_node_view(schema_blueprint)
 CatalogView.register_node_view(catalog_blueprint)

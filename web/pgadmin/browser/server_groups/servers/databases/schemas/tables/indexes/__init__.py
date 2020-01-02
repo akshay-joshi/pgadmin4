@@ -1098,5 +1098,5 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
         return diff
 
 
-SchemaDiffRegistry('index', IndexesView, 'table')
+SchemaDiffRegistry(blueprint.node_type, IndexesView, 'table')
 IndexesView.register_node_view(blueprint)

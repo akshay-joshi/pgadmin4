@@ -7,7 +7,7 @@
 #
 ##########################################################################
 
-""" Implements Utility class for Table and Partitioned Table. """
+"""Schema diff object comparison."""
 
 import copy
 
@@ -90,7 +90,7 @@ class SchemaDiffObjectCompare():
 
     def ddl_compare(self, **kwargs):
         """
-        This function will compare index properties and
+        This function will compare object properties and
          return the difference of SQL
         """
 

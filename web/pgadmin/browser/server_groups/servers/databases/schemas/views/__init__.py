@@ -2019,7 +2019,7 @@ class MViewNode(ViewNode, VacuumSettings):
         return res
 
 
-SchemaDiffRegistry('view', ViewNode)
+SchemaDiffRegistry(view_blueprint.node_type, ViewNode)
 ViewNode.register_node_view(view_blueprint)
-SchemaDiffRegistry('mview', MViewNode)
+SchemaDiffRegistry(mview_blueprint.node_type, MViewNode)
 MViewNode.register_node_view(mview_blueprint)

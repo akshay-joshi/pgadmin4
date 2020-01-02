@@ -1628,5 +1628,5 @@ class ServerNode(PGChildNodeView):
         )
 
 
-SchemaDiffRegistry('server', ServerNode)
+SchemaDiffRegistry(blueprint.node_type, ServerNode)
 ServerNode.register_node_view(blueprint)

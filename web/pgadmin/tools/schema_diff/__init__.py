@@ -8,6 +8,7 @@
 ##########################################################################
 
 """A blueprint module implementing the schema_diff frame."""
+
 MODULE_NAME = 'schema_diff'
 
 import simplejson as json
@@ -20,8 +21,7 @@ from flask_security import current_user, login_required
 from flask_babelex import gettext
 from pgadmin.utils import PgAdminModule
 from pgadmin.utils.ajax import make_json_response, bad_request, \
-    internal_server_error, gone, make_response as ajax_response, \
-    not_implemented
+    make_response as ajax_response, not_implemented
 from pgadmin.model import Server
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 from pgadmin.tools.schema_diff.model import SchemaDiffModel

@@ -8,6 +8,15 @@
   background-color: $color-gray-light;
 }
 
+#schema-diff-grid {
+  background: $color-bg;
+  outline: 0;
+  font-size: 9pt;
+  margin-top: 28px;
+  background: none;
+  background-color: $color-gray-light;
+}
+
 #schema-diff-grid .slick-header .slick-header-columns {
   background: $color-bg;
   height: 40px;
@@ -34,11 +43,6 @@
   border-bottom: $panel-border;
   border-right: $panel-border;
   z-index: 0;
-}
-
-#schema-diff-grid {
-  background: none;
-  background-color: $color-gray-light;
 }
 
 #schema-diff-grid .slick-row .slick-cell.l0.r0.selected {

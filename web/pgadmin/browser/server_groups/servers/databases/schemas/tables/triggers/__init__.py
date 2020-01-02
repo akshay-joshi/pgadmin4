@@ -792,9 +792,10 @@ class TriggerView(PGChildNodeView, SchemaDiffObjectCompare):
     def get_sql_from_diff(self, gid, sid, did, scid, tid, oid,
                           data=None, diff_schema=None, drop_sql=False):
         if data:
-            SQL, name = trigger_utils.get_sql(self.conn, data, tid, oid,
-                                              self.datlastsysoid,
-                                              self.blueprint.show_system_objects)
+            SQL, name = trigger_utils.get_sql(
+                self.conn, data, tid, oid,
+                self.datlastsysoid,
+                self.blueprint.show_system_objects)
 
             if not isinstance(SQL, (str, unicode)):
                 return SQL
@@ -972,5 +973,5 @@ class TriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         return res
 
 
-SchemaDiffRegistry('trigger', TriggerView, 'table')
+SchemaDiffRegistry(blueprint.node_type, TriggerView, 'table')
 TriggerView.register_node_view(blueprint)

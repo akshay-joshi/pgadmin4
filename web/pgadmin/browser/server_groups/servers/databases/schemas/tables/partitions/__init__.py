@@ -835,5 +835,5 @@ class PartitionsView(BaseTableView, DataTypeReader, VacuumSettings,
         return diff
 
 
-SchemaDiffRegistry('partition', PartitionsView, 'table')
+SchemaDiffRegistry(blueprint.node_type, PartitionsView, 'table')
 PartitionsView.register_node_view(blueprint)

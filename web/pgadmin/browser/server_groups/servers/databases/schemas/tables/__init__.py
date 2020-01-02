@@ -1235,9 +1235,6 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
 
             if status:
                 data = res['rows'][0]
-                # data = super(TableView, self).properties(
-                #     0, sid, did, scid, tid, res, False
-                # )
 
             if diff_schema:
                 data['schema'] = diff_schema
@@ -1665,5 +1662,5 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
             return res
 
 
-SchemaDiffRegistry('table', TableView)
+SchemaDiffRegistry(blueprint.node_type, TableView)
 TableView.register_node_view(blueprint)

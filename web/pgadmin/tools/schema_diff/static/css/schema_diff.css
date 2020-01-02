@@ -37,7 +37,7 @@
   background-image: url('../img/script.svg') !important;
 }
 
-.reallyHidden {
+.really-hidden {
   display: none !important;
 }
 
@@ -48,13 +48,6 @@
 #schema-diff-header .control-label {
   width: 120px !important;
   padding: 5px 5px !important;
-}
-
-#schema-diff-grid {
-  background: white;
-  outline: 0;
-  font-size: 9pt;
-  margin-top: 28px;
 }
 
 .slick-header-column.ui-state-default {
@@ -111,17 +104,24 @@
   display: block;
 }
 
-
-.slick-group-toggle.collapsed {
-  width: 30px;
-  background: url(../../../../static/img/collapse_expand.svg) 10px 1px no-repeat !important;
+.slick-group-toggle.collapsed, .slick-group-toggle.expanded {
+  background: none !important;
+  width: 20px;
 }
 
-.slick-group-toggle.expanded {
-  width: 30px;
-  background: url(../../../../static/img/collapse_expand.svg) -10px 1px no-repeat !important;
+.slick-group-toggle.collapsed::before {
+  font-family: "FontAwesome";
+  content: "\f054";
+  font-size: 0.6rem;
+  border: none;
 }
 
+.slick-group-toggle.expanded::before {
+  font-family: "FontAwesome";
+  content: "\f078";
+  font-size: 0.6rem;
+  margin-left: 0rem;
+}
 
 .slick-group-toggle {
   margin-right: 0px !important;
@@ -152,7 +152,7 @@
 }
 
 #ddl_comp_fetching_data.pg-sp-container {
-  min-height: 45%;
+  height: 100%;
   bottom: 10px;
 
   .pg-sp-content {

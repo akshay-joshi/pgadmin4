@@ -17,6 +17,7 @@ import pgAdmin from 'sources/pgadmin';
 import {setPGCSRFToken} from 'sources/csrf';
 import {generateScript} from 'tools/datagrid/static/js/show_query_tool';
 import 'pgadmin.sqleditor';
+import pgWindow from 'sources/window';
 
 import {SchemaDiffSelect2Control, SchemaDiffHeaderView,
   SchemaDiffFooterView, SchemaDiffSqlControl} from './schema_diff.backform';
@@ -76,7 +77,15 @@ export default class SchemaDiffUI {
       isCloseable: false,
       isPrivate: true,
       height: '60',
-      content: '<div id="schema-diff-ddl-comp" class="pg-el-container" el="sm"></div>',
+      content: `<div id="schema-diff-ddl-comp" class="pg-el-container" el="sm">
+      <div id="ddl_comp_fetching_data" class="pg-sp-container schema-diff-busy-fetching d-none">
+        <div class="pg-sp-content">
+            <div class="row">
+                <div class="col-12 pg-sp-icon"></div>
+            </div>
+            <div class="row"><div class="col-12 pg-sp-text">` + gettext('Comparing objects...') + `</div></div>
+        </div>
+    </div></div>`,
     });
 
     this.header_panel.load(this.docker);
@@ -223,13 +232,13 @@ export default class SchemaDiffUI {
             if (_.isUndefined(generated_script))
               generated_script = 'BEGIN;' + '\n' + self.model.get('diff_ddl') + '\n' + 'END;';
 
-            let preferences = (window.opener !== null) ? window.opener.pgAdmin.Browser.get_preferences_for_module('schema_diff') : window.top.pgAdmin.Browser.get_preferences_for_module('schema_diff');
+            let preferences = pgWindow.pgAdmin.Browser.get_preferences_for_module('schema_diff');
             if (preferences.schema_diff_new_browser_tab) {
-              window.opener.pgAdmin.ddl_diff = generated_script;
-              generateScript(server_data, window.opener.pgAdmin.DataGrid);
+              pgWindow.pgAdmin.ddl_diff = generated_script;
+              generateScript(server_data, pgWindow.pgAdmin.DataGrid);
             } else {
-              window.top.pgAdmin.ddl_diff = generated_script;
-              generateScript(server_data, window.top.pgAdmin.DataGrid);
+              pgWindow.pgAdmin.ddl_diff = generated_script;
+              generateScript(server_data, pgWindow.pgAdmin.DataGrid);
             }
           }
 
@@ -319,11 +328,11 @@ export default class SchemaDiffUI {
       {id: 'title', name: 'Schema Objects', field: 'title', minWidth: grid_width, formatter: formatColumnTitle},
       {id: 'status', name: 'Comparison Result', field: 'status', minWidth: grid_width},
       {id: 'label', name: 'Schema Objects', field: 'label',  width: 0, minWidth: 0, maxWidth: 0,
-        cssClass: 'reallyHidden', headerCssClass: 'reallyHidden'},
+        cssClass: 'really-hidden', headerCssClass: 'really-hidden'},
       {id: 'type', name: 'Schema Objects', field: 'type',  width: 0, minWidth: 0, maxWidth: 0,
-        cssClass: 'reallyHidden', headerCssClass: 'reallyHidden'},
+        cssClass: 'really-hidden', headerCssClass: 'really-hidden'},
       {id: 'id', name: 'id', field: 'id', width: 0, minWidth: 0, maxWidth: 0,
-        cssClass: 'reallyHidden', headerCssClass: 'reallyHidden' },
+        cssClass: 'really-hidden', headerCssClass: 'really-hidden' },
 
     ];
 
@@ -719,8 +728,8 @@ export default class SchemaDiffUI {
           callback(res.data);
         }
       })
-      .fail(function() {
-        // Fail
+      .fail(function(xhr, error) {
+        Alertify.pgNotifier(error, xhr, gettext('Failed to connect the database.'));
       });
 
   }
