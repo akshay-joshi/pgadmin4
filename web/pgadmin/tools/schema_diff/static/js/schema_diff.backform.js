@@ -43,7 +43,7 @@ let SchemaDiffSqlControl =
     },
 
     template: _.template([
-      '<% if (copyRequired) { %><button class="btn btn-secondary ddl-copy d-none">Copy</button> <% } %>',
+      '<% if (copyRequired) { %><button class="btn btn-secondary ddl-copy d-none">' + gettext('Copy') + '</button> <% } %>',
       '<div class="pgadmin-controls pg-el-9 pg-el-12 sql_field_layout <%=extraClasses.join(\' \')%>">',
       '  <textarea ',
       '    class="<%=Backform.controlClassName%> " name="<%=name%>"',
@@ -296,14 +296,14 @@ let SchemaDiffHeaderView = Backform.Form.extend({
       <div class="col-6 target row"></div>
       <div class="col-5 target-buttons">
           <div class="action-btns d-flex">
-              <button class="btn btn-primary mr-auto"><i class="icon-schema-diff-white"></i>&nbsp;Compare</button>
-              <button id="generate-script" class="btn btn-secondary mr-1" disabled><i class="icon-script sql-icon-lg"></i>&nbsp;Generate Script</button>
+              <button class="btn btn-primary mr-auto"><i class="icon-schema-diff-white"></i>&nbsp;` + gettext('Compare') + `</button>
+              <button id="generate-script" class="btn btn-secondary mr-1" disabled><i class="fa fa-file-code-o sql-icon-lg"></i>&nbsp;` + gettext('Generate Script') + `</button>
               <div class="btn-group mr-1" role="group" aria-label="">
                 <button id="btn-filter" type="button" class="btn btn-sm btn-secondary"
                         title=""
                         accesskey=""
                         tabindex="0">
-                    <i class="fa fa-filter sql-icon-lg" aria-hidden="true"></i>&nbsp;Filter
+                    <i class="fa fa-filter sql-icon-lg" aria-hidden="true"></i>&nbsp;` + gettext('Filter') + `
                 </button>
                 <button id="btn-filter-dropdown" type="button" class="btn btn-sm btn-secondary dropdown-toggle dropdown-toggle-split"
                         data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
