@@ -588,26 +588,14 @@ def check_version_compatibility(sid, tid):
     tar_server = Server.query.filter_by(id=tid).first()
     tar_manager = driver.connection_manager(tar_server.id)
 
-    src_server_version = src_manager.version
-    tar_server_version = tar_manager.version
+    def get_round_val(x):
+        if x < 10000:
+            return x if x % 100 == 0 else x + 100 - x % 100
+        else:
+            return x if x % 10000 == 0 else x + 10000 - x % 10000
 
-    server_versions = [120000, 110000, 100000, 90600, 90500, 90400,
-                       90300, 90200, 90100, 90000]
-
-    for version in server_versions:
-        if version > src_server_version:
-            continue
-
-        src_server_version = version
-        break
-
-    for version in server_versions:
-        if version > tar_server_version:
-            continue
-
-        tar_server_version = version
-        break
-
-    if src_server_version == tar_server_version:
+    if get_round_val(src_manager.version) == \
+            get_round_val(tar_manager.version):
         return True
+
     return False
