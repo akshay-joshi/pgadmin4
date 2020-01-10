@@ -91,12 +91,12 @@
     "snapsvg": "^0.5.1",
     "spectrum-colorpicker": "^1.8.0",
     "split.js": "^1.5.10",
-    "tablesorter": "^2.31.1",
+    "tablesorter": "^2.31.2",
     "tempusdominus-bootstrap-4": "^5.1.2",
     "tempusdominus-core": "^5.0.3",
     "underscore": "^1.9.1",
     "watchify": "~3.11.1",
-    "webcabin-docker": "git+https://github.com/EnterpriseDB/wcDocker/#c95d295382ac61159e571af9c3b8f4f8ae81746d",
+    "webcabin-docker": "git+https://github.com/EnterpriseDB/wcDocker/#4748acfe929eb65c54a464230672ce4372442c89",
     "wkx": "^0.4.6"
   },
   "scripts": {

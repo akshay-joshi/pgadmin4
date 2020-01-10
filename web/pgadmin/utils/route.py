@@ -2,7 +2,7 @@
 #
 # pgAdmin 4 - PostgreSQL Tools
 #
-# Copyright (C) 2013 - 2019, The pgAdmin Development Team
+# Copyright (C) 2013 - 2020, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
 #
 ##############################################################
@@ -48,7 +48,12 @@ class TestsGeneratorRegistry(ABCMeta):
         # Avoid registering the BaseDriver itself
 
         if name != 'BaseTestGenerator' and name != 'BaseFeatureTest':
-            TestsGeneratorRegistry.registry[d['__module__']] = cls
+            # Store/append test classes in 'registry' if test modules has
+            # multiple classes
+            if d['__module__'] in TestsGeneratorRegistry.registry:
+                TestsGeneratorRegistry.registry[d['__module__']].append(cls)
+            else:
+                TestsGeneratorRegistry.registry[d['__module__']] = [cls]
 
         ABCMeta.__init__(cls, name, bases, d)
 

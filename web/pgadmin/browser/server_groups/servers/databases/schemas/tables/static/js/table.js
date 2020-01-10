@@ -2,7 +2,7 @@
 //
 // pgAdmin 4 - PostgreSQL Tools
 //
-// Copyright (C) 2013 - 2019, The pgAdmin Development Team
+// Copyright (C) 2013 - 2020, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
 //
 //////////////////////////////////////////////////////////////
@@ -349,20 +349,8 @@ define('pgadmin.node.table', [
             return (!(d && d.label.match(/pg_global/)));
           },
           deps: ['is_partitioned'],
-          disabled: function(m) {
+          disabled: function() {
             if(this.node_info &&  'catalog' in this.node_info) {
-              return true;
-            }
-
-            if(!_.isUndefined(m.node_info) && !_.isUndefined(m.node_info.server)
-              && !_.isUndefined(m.node_info.server.version) &&
-                m.node_info.server.version >= 120000 &&
-                m.get('is_partitioned')) {
-
-              setTimeout( function() {
-                m.set('spcname', undefined);
-              }, 10);
-
               return true;
             }
 

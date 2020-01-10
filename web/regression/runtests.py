@@ -2,7 +2,7 @@
 #
 # pgAdmin 4 - PostgreSQL Tools
 #
-# Copyright (C) 2013 - 2019, The pgAdmin Development Team
+# Copyright (C) 2013 - 2020, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
 #
 ##########################################################################
@@ -20,6 +20,7 @@ import sys
 import traceback
 import json
 import random
+import coverage
 
 import unittest
 
@@ -47,6 +48,8 @@ if sys.path[0] != root:
 
 from pgadmin import create_app
 import config
+
+COVERAGE_CONFIG_FILE = os.path.join(CURRENT_PATH, ".coveragerc")
 
 if config.SERVER_MODE is True:
     config.SECURITY_RECOVERABLE = True
@@ -147,8 +150,10 @@ def get_suite(module_list, test_server, test_app_client, server_information,
 
     # Get the each test module and add into list
     for key, klass in module_list:
-        gen = klass
-        modules.append(gen)
+        # Separate each test class from list of classes and store in modules
+        for item in klass:
+            gen = item
+            modules.append(gen)
 
     # Set the test client to each module & generate the scenarios
     for module in modules:
@@ -297,6 +302,8 @@ def add_arguments():
         help='Skips execution of the test cases of particular package and '
              'sub-packages'
     )
+    parser.add_argument('--coverage', nargs='?', const=True, type=bool,
+                        default=False, help='Enable code coverage feature')
     parser.add_argument(
         '--default_browser',
         help='Executes the feature test in specific browser'
@@ -394,6 +401,7 @@ if __name__ == '__main__':
     # Failure detected?
     failure = False
     test_result = dict()
+    cov = None
 
     # Set signal handler for cleanup
     signal_list = dir(signal)
@@ -430,6 +438,12 @@ if __name__ == '__main__':
     node_name = "all"
     if args['pkg'] is not None:
         node_name = args['pkg'].split('.')[-1]
+
+    # Start coverage
+    if test_utils.is_coverage_enabled(args):
+        cov = coverage.Coverage(config_file=COVERAGE_CONFIG_FILE)
+        cov.start()
+
     try:
         for server in servers_info:
             print("\n=============Running the test cases for '%s'============="
@@ -556,6 +570,15 @@ if __name__ == '__main__':
         "===\n",
         file=sys.stderr
     )
+
+    # Stop code coverage
+    if test_utils.is_coverage_enabled(args):
+        cov.stop()
+        cov.save()
+
+    # # Print coverage only if coverage args given in command line
+    if test_utils.is_coverage_enabled(args):
+        test_utils.print_and_store_coverage_report(cov)
 
     print("Please check output in file: %s/regression.log\n" % CURRENT_PATH)
 
