@@ -25,7 +25,6 @@ from pgadmin.browser.server_groups.servers.databases.schemas.utils \
 from pgadmin.browser.server_groups.servers.utils import parse_priv_from_db, \
     parse_priv_to_db
 from pgadmin.browser.utils import PGChildNodeView
-from pgadmin.utils import IS_PY2
 from pgadmin.utils.compile_template_name import compile_template_path
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
@@ -453,8 +452,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                         column_utils.type_formatter(c['cltype'])
 
         if json_resp:
-            sql_header = u"-- Table: {0}\n\n-- ".format(
-                self.qtIdent(self.conn, data['schema'], data['name']))
+            sql_header = u"-- Table: {0}.{1}\n\n-- ".format(
+                data['schema'], data['name'])
 
             sql_header += render_template("/".join([self.table_template_path,
                                                     'delete.sql']),
@@ -588,6 +587,10 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             if not json_resp:
                 display_comments = False
             res_data = parse_rule_definition(res)
+            # Update the correct table name for rules
+            if 'view' in res_data:
+                res_data['view'] = table
+
             rules_sql += render_template("/".join(
                 [self.rules_template_path, 'create.sql']),
                 data=res_data, display_comments=display_comments)
@@ -676,17 +679,19 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
     def get_partition_scheme(self, data):
         partition_scheme = None
-        if 'partition_type' in data \
-                and data['partition_type'] == 'range':
+        part_type = 'sub_partition_type' if 'sub_partition_type' in data \
+            else 'partition_type'
+        part_keys = 'sub_partition_keys' if 'sub_partition_keys' in data \
+            else 'partition_keys'
+
+        if part_type in data and data[part_type] == 'range':
             partition_scheme = 'RANGE ('
-        elif 'partition_type' in data \
-                and data['partition_type'] == 'list':
+        elif part_type in data and data[part_type] == 'list':
             partition_scheme = 'LIST ('
-        elif 'partition_type' in data \
-                and data['partition_type'] == 'hash':
+        elif part_type in data and data[part_type] == 'hash':
             partition_scheme = 'HASH ('
 
-        for row in data['partition_keys']:
+        for row in data[part_keys]:
             if row['key_type'] == 'column':
                 partition_scheme += self.qtIdent(
                     self.conn, row['pt_column']) + ', '
@@ -694,7 +699,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 partition_scheme += row['expression'] + ', '
 
         # Remove extra space and comma
-        if len(data['partition_keys']) > 0:
+        if len(data[part_keys]) > 0:
             partition_scheme = partition_scheme[:-2]
         partition_scheme += ')'
 
@@ -747,14 +752,9 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         Returns:
             Updated data dict
         """
-        # For Python2, it can be int, long, float
-        if IS_PY2 and hasattr(str, 'decode'):
-            if isinstance(data['name'], (int, long, float)):
-                data['name'] = str(data['name'])
-        else:
-            # For Python3, it can be int, float
-            if isinstance(data['name'], (int, float)):
-                data['name'] = str(data['name'])
+        if isinstance(data['name'], (int, float)):
+            data['name'] = str(data['name'])
+
         return data
 
     def get_sql(self, did, scid, tid, data, res):
@@ -881,7 +881,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                                 old_col_data['cltype'])
 
                         # Sql for alter column
-                        if 'inheritedfrom' not in c:
+                        if 'inheritedfrom' not in c and\
+                                'inheritedfromtable' not in c:
                             column_sql += render_template("/".join(
                                 [self.column_template_path, 'update.sql']),
                                 data=c, o_data=old_col_data, conn=self.conn
@@ -895,7 +896,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
                         c = column_utils.convert_length_precision_to_string(c)
 
-                        if 'inheritedfrom' not in c:
+                        if 'inheritedfrom' not in c and\
+                                'inheritedfromtable' not in c:
                             column_sql += render_template("/".join(
                                 [self.column_template_path, 'create.sql']),
                                 data=c, conn=self.conn).strip('\n') + '\n\n'
@@ -947,6 +949,11 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
                 # Combine all the SQL together
                 SQL += '\n' + partitions_sql.strip('\n')
+
+            data['columns_to_be_dropped'] = []
+            if 'columns' in data and 'deleted' in data['columns']:
+                data['columns_to_be_dropped'] = list(map(
+                    lambda d: d['name'], data['columns']['deleted']))
 
             # Check if index constraints are added/changed/deleted
             index_constraint_sql = \
@@ -1021,6 +1028,11 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 # create partition scheme
                 data['partition_scheme'] = self.get_partition_scheme(data)
                 partitions_sql = self.get_partitions_sql(data)
+
+            # Update the vacuum table settings.
+            self.update_vacuum_settings('vacuum_table', data)
+            # Update the vacuum toast table settings.
+            self.update_vacuum_settings('vacuum_toast', data)
 
             SQL = render_template("/".join([self.table_template_path,
                                             'create.sql']),
@@ -1135,13 +1147,18 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     partitions_oid['created'] = created
                     partitions_oid['attached'] = attached
 
-            icon = self.get_icon_css_class(res['rows'][0])
-
-            if 'relkind' in res['rows'][0] and \
-                    res['rows'][0]['relkind'] == 'p':
-                is_partitioned = True
+            if 'is_partitioned' in res['rows'][0]:
+                is_partitioned = res['rows'][0]['is_partitioned']
             else:
                 is_partitioned = False
+
+            # If partitioned_table_name in result set then get partition
+            # icon css class else table icon.
+            if 'partitioned_table_name' in res['rows'][0]:
+                res['rows'][0]['is_sub_partitioned'] = is_partitioned
+                icon = self.get_partition_icon_css_class(res['rows'][0])
+            else:
+                icon = self.get_icon_css_class(res['rows'][0])
 
             return jsonify(
                 node=self.blueprint.generate_browser_node(
@@ -1179,21 +1196,20 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         """
         data = res['rows'][0]
 
-        data['vacuum_settings_str'] = ""
+        data['vacuum_settings_str'] = ''
 
-        if data['table_vacuum_settings_str'] is not None:
-            data['vacuum_settings_str'] += data[
-                'table_vacuum_settings_str'].replace(',', '\n')
+        if data['reloptions'] is not None:
+            data['vacuum_settings_str'] += '\n'.join(data['reloptions'])
 
-        if data['toast_table_vacuum_settings_str'] is not None:
-            data['vacuum_settings_str'] += '\n' + '\n'.join(
-                ['toast_' + setting for setting in data[
-                    'toast_table_vacuum_settings_str'
-                ].split(',')]
-            )
+        if data['toast_reloptions'] is not None:
+            data['vacuum_settings_str'] += '\n' \
+                if data['vacuum_settings_str'] != '' else ''
+            data['vacuum_settings_str'] += '\n'.\
+                join(map(lambda o: 'toast.' + o, data['toast_reloptions']))
+
         data['vacuum_settings_str'] = data[
             'vacuum_settings_str'
-        ].replace("=", " = ")
+        ].replace('=', ' = ')
 
         data = self._formatter(did, scid, tid, data)
 
@@ -1235,7 +1251,9 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                         'partition_name': partition_name,
                         'values_from': range_from,
                         'values_to': range_to,
-                        'is_default': is_default
+                        'is_default': is_default,
+                        'is_sub_partitioned': row['is_sub_partitioned'],
+                        'sub_partition_scheme': row['sub_partition_scheme']
                     })
                 elif data['partition_type'] == 'list':
                     if row['partition_value'] == 'DEFAULT':
@@ -1251,7 +1269,9 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                         'oid': row['oid'],
                         'partition_name': partition_name,
                         'values_in': range_in,
-                        'is_default': is_default
+                        'is_default': is_default,
+                        'is_sub_partitioned': row['is_sub_partitioned'],
+                        'sub_partition_scheme': row['sub_partition_scheme']
                     })
                 else:
                     range_part = row['partition_value'].split(
@@ -1265,7 +1285,9 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                         'oid': row['oid'],
                         'partition_name': partition_name,
                         'values_modulus': range_modulus,
-                        'values_remainder': range_remainder
+                        'values_remainder': range_remainder,
+                        'is_sub_partitioned': row['is_sub_partitioned'],
+                        'sub_partition_scheme': row['sub_partition_scheme']
                     })
 
             data['partitions'] = partitions
@@ -1278,11 +1300,12 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             status=200
         )
 
-    def get_partitions_sql(self, partitions):
+    def get_partitions_sql(self, partitions, schema_diff=False):
         """
         This function will iterate all the partitions and create SQL.
 
         :param partitions: List of partitions
+        :param schema_diff: If true then create sql accordingly.
         """
         sql = ''
 
@@ -1339,18 +1362,31 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                                                + ', REMAINDER ' +\
                                                remainder_str + ')'
 
+            # Check if partition is again declare as partitioned table.
+            if 'is_sub_partitioned' in row and row['is_sub_partitioned']:
+                part_data['partition_scheme'] = row['sub_partition_scheme'] \
+                    if 'sub_partition_scheme' in row else \
+                    self.get_partition_scheme(row)
+
+                part_data['is_partitioned'] = True
+
             if 'is_attach' in row and row['is_attach']:
                 partition_sql = render_template(
                     "/".join([self.partition_template_path, 'attach.sql']),
                     data=part_data, conn=self.conn
                 )
             else:
+                # For schema diff we create temporary partitions to copy the
+                # data from original table to temporary table.
+                if schema_diff:
+                    part_data['name'] = row['temp_partition_name']
+
                 partition_sql = render_template(
                     "/".join([self.partition_template_path, 'create.sql']),
                     data=part_data, conn=self.conn
                 )
 
-            sql += partition_sql + '\n'
+            sql += partition_sql
 
         return sql
 
@@ -1464,7 +1500,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
         return schema_name, table_name
 
-    def update_vacuum_settings(self, vacuum_key, old_data, data):
+    def update_vacuum_settings(self, vacuum_key, old_data, data=None):
         """
         This function iterate the vacuum and vacuum toast table and create
         two new dictionaries. One for set parameter and another for reset.
@@ -1475,19 +1511,26 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         :return:
         """
 
+        # When creating a table old_data is the actual data
+        if data is None:
+            if vacuum_key in old_data:
+                for opt in old_data[vacuum_key]:
+                    if 'value' in opt and opt['value'] is None:
+                        opt.pop('value')
         # Iterate vacuum table
-        if vacuum_key in data and 'changed' in data[vacuum_key] \
+        elif vacuum_key in data and 'changed' in data[vacuum_key] \
                 and vacuum_key in old_data:
             set_values = []
             reset_values = []
             for data_row in data[vacuum_key]['changed']:
                 for old_data_row in old_data[vacuum_key]:
                     if data_row['name'] == old_data_row['name']:
-                        if data_row['value'] is not None:
-                            set_values.append(data_row)
-                        elif data_row['value'] is None and \
-                                'value' in old_data_row:
-                            reset_values.append(data_row)
+                        if 'value' in data_row:
+                            if data_row['value'] is not None:
+                                set_values.append(data_row)
+                            elif data_row['value'] is None and \
+                                    'value' in old_data_row:
+                                reset_values.append(data_row)
 
             if len(set_values) > 0:
                 data[vacuum_key]['set_values'] = set_values

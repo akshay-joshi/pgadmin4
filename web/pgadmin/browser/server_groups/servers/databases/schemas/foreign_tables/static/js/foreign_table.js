@@ -542,6 +542,7 @@ define('pgadmin.node.foreign_table', [
           oid: undefined,
           owner: undefined,
           basensp: undefined,
+          is_sys_obj: undefined,
           description: undefined,
           ftsrvname: undefined,
           strftoptions: undefined,
@@ -568,12 +569,15 @@ define('pgadmin.node.foreign_table', [
           control: 'node-list-by-name', cache_level: 'database', type: 'text',
           node: 'schema', mode:['create', 'edit'],
         },{
+          id: 'is_sys_obj', label: gettext('System foreign table?'),
+          cell:'boolean', type: 'switch', mode: ['properties'],
+        },{
           id: 'description', label: gettext('Comment'), cell: 'string',
           type: 'multiline',
         },{
           id: 'ftsrvname', label: gettext('Foreign server'), cell: 'string', control: 'node-ajax-options',
           type: 'text', group: gettext('Definition'), url: 'get_foreign_servers',
-          disabled: function(m) { return !m.isNew(); }, cache_node: 'database',
+          readonly: function(m) { return !m.isNew(); }, cache_node: 'database',
         },{
           id: 'inherits', label: gettext('Inherits'), group: gettext('Definition'),
           type: 'array', min_version: 90500, control: NodeAjaxOptionsMultipleControl,

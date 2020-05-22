@@ -262,7 +262,7 @@ define('tools.querytool', [
         height: '100%',
         isCloseable: false,
         isPrivate: true,
-        content: '<div class="sql-editor-message" tabindex="0"></div>',
+        content: '<div role="status" class="sql-editor-message" tabindex="0"></div>',
       });
 
       var history = new pgAdmin.Browser.Panel({
@@ -329,6 +329,16 @@ define('tools.querytool', [
       self.explain_panel = self.docker.findPanels('explain')[0];
       self.messages_panel = self.docker.findPanels('messages')[0];
       self.notifications_panel = self.docker.findPanels('notifications')[0];
+
+      if (_.isUndefined(self.sql_panel_obj) || _.isUndefined(self.history_panel) ||
+       _.isUndefined(self.data_output_panel) || _.isUndefined(self.explain_panel) ||
+       _.isUndefined(self.messages_panel) || _.isUndefined(self.notifications_panel)) {
+        alertify.alert(
+          gettext('Panel Loading Error'),
+          gettext('Something went wrong while loading the panels.'
+          + ' Please make sure to reset the layout (File > Reset Layout) for the better user experience.')
+        );
+      }
 
       // Refresh Code mirror on SQL panel resize to
       // display its value properly
@@ -659,6 +669,11 @@ define('tools.querytool', [
           }
         }, 1000);
       }
+
+      /* Register to log the activity */
+      pgBrowser.register_to_activity_listener(document, ()=>{
+        alertify.alert(gettext('Timeout'), gettext('Your session has timed out due to inactivity. Please close the window and login again.'));
+      });
     },
 
     /* Regarding SlickGrid usage in render_grid function.
@@ -1300,7 +1315,8 @@ define('tools.querytool', [
           let msg = httpErrorHandler.handleQueryToolAjaxError(
             pgAdmin, self, e, null, [], false
           );
-          self.update_msg_history(false, msg);
+          if (msg)
+            self.update_msg_history(false, msg);
         });
     },
 
@@ -2154,8 +2170,12 @@ define('tools.querytool', [
               if (args.indexOf('connect') == -1) {
                 args.push('connect');
               }
+              if (fn in self) {
+                self[fn].apply(self, args);
+              } else {
+                console.warn('The callback is not valid for this context');
+              }
 
-              self[fn].apply(self, args);
             }
           }, function() {
             self.saveState();
@@ -2190,9 +2210,10 @@ define('tools.querytool', [
             let msg = httpErrorHandler.handleQueryToolAjaxError(
               pgAdmin, self, xhr, null, [], false
             );
-            alertify.dlgGetServerPass(
-              gettext('Connect to Server'), msg
-            );
+            if (msg)
+              alertify.dlgGetServerPass(
+                gettext('Connect to Server'), msg
+              );
           });
       },
       /* This function is used to create instance of SQLEditorView,
@@ -2232,7 +2253,7 @@ define('tools.querytool', [
 
         self.trigger('pgadmin-sqleditor:loading-icon:hide');
 
-        self.gridView.set_editor_title(`(${gettext('Obtaining connection...')} ${_.unescape(url_params.title)}`);
+        self.gridView.set_editor_title('(' + gettext('Obtaining connection...') + ` ${_.unescape(url_params.title)}`);
 
         let afterConn = function() {
           let enableBtns = [];
@@ -2274,6 +2295,7 @@ define('tools.querytool', [
           }
         });
 
+        self.init_events();
         if (self.is_query_tool) {
           // Fetch the SQL for Scripts (eg: CREATE/UPDATE/DELETE/SELECT)
           // Call AJAX only if script type url is present
@@ -2287,27 +2309,22 @@ define('tools.querytool', [
                 if (res && res !== '') {
                   self.gridView.query_tool_obj.setValue(res);
                 }
-                self.init_events();
               })
               .fail(function(jqx) {
                 let msg = '';
-                self.init_events();
 
                 msg = httpErrorHandler.handleQueryToolAjaxError(
                   pgAdmin, self, jqx, null, [], false
                 );
-
-                pgBrowser.report_error(
-                  gettext('Error fetching SQL for script: %s.', msg)
-                );
+                if (msg)
+                  pgBrowser.report_error(
+                    gettext('Error fetching SQL for script: %s.', msg)
+                  );
               });
-          } else {
-            self.init_events();
           }
         }
         else {
           // Disable codemirror by setting readOnly option to true, background to dark, and cursor, hidden.
-          self.init_events();
           self.gridView.query_tool_obj.setOption('readOnly', true);
           var cm = self.gridView.query_tool_obj.getWrapperElement();
           if (cm) {
@@ -2362,6 +2379,8 @@ define('tools.querytool', [
         // Indentation related
         self.on('pgadmin-sqleditor:indent_selected_code', self._indent_selected_code, self);
         self.on('pgadmin-sqleditor:unindent_selected_code', self._unindent_selected_code, self);
+
+        window.parent.$(window.parent.document).on('pgadmin-sqleditor:rows-copied', self._copied_in_other_session);
       },
 
       // Checks if there is any dirty data in the grid before executing a query
@@ -2483,7 +2502,8 @@ define('tools.querytool', [
             let msg = httpErrorHandler.handleQueryToolAjaxError(
               pgAdmin, self, e, '_execute_view_data_query', [], true
             );
-            self.update_msg_history(false, msg);
+            if (msg)
+              self.update_msg_history(false, msg);
           });
       },
 
@@ -2508,6 +2528,7 @@ define('tools.querytool', [
         }
 
         const executeQuery = new ExecuteQuery.ExecuteQuery(this, pgAdmin.Browser.UserManagement);
+        executeQuery.poll = pgBrowser.override_activity_event_decorator(executeQuery.poll).bind(executeQuery);
         executeQuery.execute(sql, explain_prefix, shouldReconnect);
       },
 
@@ -3235,7 +3256,8 @@ define('tools.querytool', [
             // Enable query tool buttons and cancel button only if query tool
             if(self.is_query_tool)
               self.disable_tool_buttons(false);
-            self.update_msg_history(false, msg);
+            if (msg)
+              self.update_msg_history(false, msg);
           });
       },
 
@@ -3329,8 +3351,8 @@ define('tools.querytool', [
               return true;
             }
           ).set('labels', {
-            ok: 'Yes',
-            cancel: 'No',
+            ok: gettext('Yes'),
+            cancel: gettext('No'),
           });
         } else {
           self._open_select_file_manager();
@@ -3393,7 +3415,8 @@ define('tools.querytool', [
             let msg = httpErrorHandler.handleQueryToolAjaxError(
               pgAdmin, self, e, '_select_file_handler', stateParams, false
             );
-            alertify.error(msg);
+            if (msg)
+              alertify.error(msg);
             // hide cursor
             $busy_icon_div.removeClass('show_progress');
           });
@@ -3444,7 +3467,8 @@ define('tools.querytool', [
             let msg = httpErrorHandler.handleQueryToolAjaxError(
               pgAdmin, self, e, '_save_file_handler', stateParams, false
             );
-            alertify.error(msg);
+            if (msg)
+              alertify.error(msg);
           });
       },
 
@@ -3573,7 +3597,8 @@ define('tools.querytool', [
             let msg = httpErrorHandler.handleQueryToolAjaxError(
               pgAdmin, self, e, '_include_filter', [], true
             );
-            alertify.alert(gettext('Filter By Selection Error'), msg);
+            if (msg)
+              alertify.alert(gettext('Filter By Selection Error'), msg);
           });
       },
 
@@ -3632,7 +3657,8 @@ define('tools.querytool', [
             let msg = httpErrorHandler.handleQueryToolAjaxError(
               pgAdmin, self, e, '_exclude_filter', [], true
             );
-            alertify.alert(gettext('Filter Exclude Selection Error'), msg);
+            if (msg)
+              alertify.alert(gettext('Filter Exclude Selection Error'), msg);
           });
       },
 
@@ -3670,7 +3696,8 @@ define('tools.querytool', [
             let msg = httpErrorHandler.handleQueryToolAjaxError(
               pgAdmin, self, e, '_remove_filter', [], true
             );
-            alertify.alert(gettext('Remove Filter Error'), msg);
+            if (msg)
+              alertify.alert(gettext('Remove Filter Error'), msg);
           });
       },
 
@@ -3681,33 +3708,45 @@ define('tools.querytool', [
         $('.copy-with-header').toggleClass('visibility-hidden');
       },
 
+      // This function will enable Paste button if data is copied in some other active session
+      _copied_in_other_session: function(e, copiedWithHeaders) {
+        pgAdmin.SqlEditor.copiedInOtherSessionWithHeaders = copiedWithHeaders;
+        $('#btn-paste-row').prop('disabled', false);
+      },
+
       // This function will paste the selected row.
       _paste_row: function() {
-        var self = this,
-          grid = self.slickgrid,
-          dataView = grid.getData(),
-          data = dataView.getItems(),
-          count = dataView.getLength(),
-          rows = grid.getSelectedRows().sort(
-            function(a, b) {
-              return a - b;
-            }
-          ),
-          copied_rows = rows.map(function(rowIndex) {
-            return data[rowIndex];
-          }),
-          array_types = [];
 
-        // for quick look up create list of array data types
-        for (var k in self.columns) {
-          if (self.columns[k].is_array) {
-            array_types.push(self.columns[k].name);
-          }
+        var self = this;
+        let rowsText = clipboard.getTextFromClipboard();
+        let copied_rows = rowsText.split('\n');
+        // Do not parse row if rows are copied with headers
+        if(pgAdmin.SqlEditor.copiedInOtherSessionWithHeaders) {
+          copied_rows = copied_rows.slice(1);
         }
+        copied_rows = copied_rows.reduce((partial, item) => {
+          // split each row with field separator character
+          const values = item.split(self.preferences.results_grid_field_separator);
+          let row = {};
+          for (let k in self.columns) {
+            let v = null;
+            if (values.length > k) {
+              v = values[k].replace(new RegExp(`^\\${self.preferences.results_grid_quote_char}`), '').replace(new RegExp(`\\${self.preferences.results_grid_quote_char}$`), '');
+            }
 
-        rows = rows.length == 0 ? self.last_copied_rows : rows;
-
-        self.last_copied_rows = rows;
+            // set value to default or null depending on column metadata
+            if(v === '') {
+              if(self.columns[k].has_default_val) {
+                v = undefined;
+              } else {
+                v = null;
+              }
+            }
+            row[self.columns[k].name] = v;
+          }
+          partial.push(row);
+          return partial;
+        }, []);
 
         // If there are rows to paste?
         if (copied_rows.length > 0) {
@@ -3715,10 +3754,21 @@ define('tools.querytool', [
           // save newly pasted rows on server
           $('#btn-save-data').prop('disabled', false);
 
-          var arr_to_object = function(arr) {
+          var grid = self.slickgrid,
+            dataView = grid.getData(),
+            count = dataView.getLength(),
+            array_types = [];
+          // for quick look up create list of array data types
+          for (var k in self.columns) {
+            if (self.columns[k].is_array) {
+              array_types.push(self.columns[k].name);
+            }
+          }
+
+          var arr_to_object = function (arr) {
             var obj = {};
 
-            _.each(arr, function(val, i) {
+            _.each(arr, function (val, i) {
               if (arr[i] !== undefined) {
                 // Do not stringify array types.
                 if (_.isObject(arr[i]) && array_types.indexOf(i) == -1) {
@@ -3740,13 +3790,13 @@ define('tools.querytool', [
           // Reset selection
 
           dataView.beginUpdate();
-          _.each(copied_rows, function(row) {
+          _.each(copied_rows, function (row) {
             var new_row = arr_to_object(row),
               _key = (self.gridView.client_primary_key_counter++).toString();
             new_row.is_row_copied = true;
             self.temp_new_rows.push(count);
             new_row[self.client_primary_key] = _key;
-            if(self.has_oids && new_row.oid) {
+            if (self.has_oids && new_row.oid) {
               new_row.oid = null;
             }
 
@@ -3759,7 +3809,9 @@ define('tools.querytool', [
             count++;
           });
           dataView.endUpdate();
+          grid.invalidateRow(grid.getSelectedRows());
           grid.updateRowCount();
+          grid.render();
           // Pasted row/s always append so bring last row in view port.
           grid.scrollRowIntoView(dataView.getLength());
           grid.setSelectedRows([]);
@@ -3801,7 +3853,8 @@ define('tools.querytool', [
             let msg = httpErrorHandler.handleQueryToolAjaxError(
               pgAdmin, self, e, '_set_limit', [], true
             );
-            alertify.alert(gettext('Change limit Error'), msg);
+            if (msg)
+              alertify.alert(gettext('Change limit Error'), msg);
           });
       },
 
@@ -3946,7 +3999,8 @@ define('tools.querytool', [
             let msg = httpErrorHandler.handleQueryToolAjaxError(
               pgAdmin, self, e, '_cancel_query', [], false
             );
-            alertify.alert(gettext('Cancel Query Error'), msg);
+            if (msg)
+              alertify.alert(gettext('Cancel Query Error'), msg);
           });
       },
 
@@ -4010,7 +4064,6 @@ define('tools.querytool', [
           self.trigger('pgadmin-sqleditor:loading-icon:hide');
         }).fail(function(err) {
           let msg = '';
-
           // Enable the execute button
           $('#btn-flash').prop('disabled', false);
           $('#btn-download').prop('disabled', false);
@@ -4022,10 +4075,12 @@ define('tools.querytool', [
             msg = gettext('CSV Download cancelled.');
           } else {
             msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, err, gettext('Download CSV'), [], true
+              pgAdmin, self, err, 'trigger_csv_download', [], true
             );
           }
-          alertify.alert(gettext('Download CSV error'), msg);
+          // Check if error message is present
+          if (msg)
+            alertify.alert(gettext('Download CSV error'), msg);
         });
       },
 
@@ -4066,7 +4121,8 @@ define('tools.querytool', [
             let msg = httpErrorHandler.handleQueryToolAjaxError(
               pgAdmin, self, e, '_auto_rollback', [], true
             );
-            alertify.alert(gettext('Auto Rollback Error'), msg);
+            if (msg)
+              alertify.alert(gettext('Auto Rollback Error'), msg);
           });
       },
 
@@ -4098,7 +4154,8 @@ define('tools.querytool', [
             let msg = httpErrorHandler.handleQueryToolAjaxError(
               pgAdmin, self, e, '_auto_commit', [], true
             );
-            alertify.alert(gettext('Auto Commit Error'), msg);
+            if (msg)
+              alertify.alert(gettext('Auto Commit Error'), msg);
           });
 
       },
@@ -4273,7 +4330,7 @@ define('tools.querytool', [
           };
         });
 
-        let msg = gettext('The current transaction is not commited to the database.'
+        let msg = gettext('The current transaction is not commited to the database. '
                            + 'Do you want to commit or rollback the transaction?');
 
         alertify.confirmCommit(gettext('Commit transaction?'), msg, is_commit_disabled);

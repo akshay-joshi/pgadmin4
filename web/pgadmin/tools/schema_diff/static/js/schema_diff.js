@@ -2,7 +2,7 @@
 //
 // pgAdmin 4 - PostgreSQL Tools
 //
-// Copyright (C) 2013 - 2019, The pgAdmin Development Team
+// Copyright (C) 2013 - 2020, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
 //
 //////////////////////////////////////////////////////////////
@@ -37,7 +37,7 @@ define('pgadmin.schemadiff', [
         applies: ['tools'],
         callback: 'show_schema_diff_tool',
         priority: 1,
-        label: gettext('Schema Diff'),
+        label: gettext('Schema Diff (Beta)'),
         enable: true,
       }];
 
@@ -71,7 +71,7 @@ define('pgadmin.schemadiff', [
       schemaDiffFrameType.load(pgBrowser.docker);
       return this;
     },
-    
+
     // Callback to draw schema diff for objects
     show_schema_diff_tool: function() {
       var self = this,
@@ -85,7 +85,7 @@ define('pgadmin.schemadiff', [
       })
         .done(function(res) {
           self.trans_id = res.data.schemaDiffTransId;
-          res.data.panel_title = 'Schema Diff'; //TODO: Set the panel title
+          res.data.panel_title = gettext('Schema Diff (Beta)'); //TODO: Set the panel title
           // TODO: Following function is used to test the fetching of the
           // databases this should be moved to server selection event later.
           self.launch_schema_diff(res.data);
@@ -115,7 +115,7 @@ define('pgadmin.schemadiff', [
 
         // Set panel title and icon
         schemaDiffPanel.title('<span title="'+panel_tooltip+'">'+panel_title+'</span>');
-        schemaDiffPanel.icon('icon-schema-diff');
+        schemaDiffPanel.icon('pg-font-icon icon-schema-diff');
         schemaDiffPanel.focus();
 
         var openSchemaDiffURL = function(j) {

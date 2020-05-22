@@ -113,7 +113,7 @@ define([
         url_with_id: false,
         select2: {
           allowClear: true,
-          placeholder: 'Select an item...',
+          placeholder: gettext('Select an item...'),
           width: 'style',
         },
       }),
@@ -256,7 +256,7 @@ define([
       },
       select2: {
         allowClear: true,
-        placeholder: 'Select an item...',
+        placeholder: gettext('Select an item...'),
         width: 'style',
         templateResult: formatNode,
         templateSelection: formatNode,
@@ -341,13 +341,18 @@ define([
         backgridDivTop = backgridDiv.offset().top,
         backgridDivHeight = backgridDiv.height(),
         backformTab = $(this).closest(cls), // Backform-tab
-        gridScroll = backformTab[0].offsetHeight - backgridDivTop;
+        gridScroll = null;
+
+      if(backformTab.length == 0) {
+        return false;
+      }
+      gridScroll = backformTab[0].offsetHeight - backgridDivTop;
 
       if (backgridDivHeight > gridScroll) {
         var top = elem.get(0).offsetTop + elem.height();
         backformTab.find('.tab-content').scrollTop(top);
       }
-      return;
+      return true;
     });
   };
 
@@ -370,7 +375,7 @@ define([
       url_with_id: false,
       select2: {
         allowClear: true,
-        placeholder: 'Select an item...',
+        placeholder: gettext('Select an item...'),
         width: 'style',
       },
       opt: {
@@ -505,7 +510,7 @@ define([
         return res;
       },
       select2: {
-        placeholder: 'Select an item...',
+        placeholder: gettext('Select an item...'),
         width: 'style',
         templateResult: formatNode,
         templateSelection: formatNode,
@@ -550,7 +555,7 @@ define([
         return res;
       },
       select2: {
-        placeholder: 'Select an item...',
+        placeholder: gettext('Select an item...'),
         width: 'style',
         templateResult: formatNode,
         templateSelection: formatNode,
@@ -565,7 +570,7 @@ define([
       url_with_id: false,
       select2: {
         allowClear: true,
-        placeholder: 'Select an item...',
+        placeholder: gettext('Select an item...'),
         width: 'style',
         multiple: true,
       },

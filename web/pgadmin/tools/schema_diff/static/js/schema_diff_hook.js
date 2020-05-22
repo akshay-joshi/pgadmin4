@@ -2,7 +2,7 @@
 //
 // pgAdmin 4 - PostgreSQL Tools
 //
-// Copyright (C) 2013 - 2019, The pgAdmin Development Team
+// Copyright (C) 2013 - 2020, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
 //
 //////////////////////////////////////////////////////////////
@@ -24,7 +24,7 @@ define([
     load: function(trans_id) {
       window.onbeforeunload = function() {
         $.ajax({
-          url: url_for('schemadiff.index') + 'close/'+trans_id,
+          url: url_for('schema_diff.close', {'trans_id': trans_id}),
           method: 'DELETE',
         });
       };

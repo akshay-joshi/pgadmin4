@@ -16,6 +16,7 @@ const nodeModulesDir = path.resolve(__dirname, 'node_modules');
 const regressionDir = path.resolve(__dirname, 'regression');
 
 module.exports = {
+  mode: 'development',
   devtool: 'inline-source-map',
   plugins: [
     new webpack.ProvidePlugin({
@@ -75,7 +76,7 @@ module.exports = {
       'alertify': path.join(__dirname, './node_modules/alertifyjs/build/alertify'),
       'jquery.event.drag': path.join(__dirname, './node_modules/slickgrid/lib/jquery.event.drag-2.3.0'),
       'jquery.ui': path.join(__dirname, './node_modules/slickgrid/lib/jquery-ui-1.11.3'),
-      'spectrum': path.join(__dirname, './node_modules/spectrum-colorpicker/spectrum'),
+      'color-picker': path.join(__dirname, './node_modules/@simonwep/pickr/dist/pickr.min'),
       'bignumber': path.join(__dirname, './node_modules/bignumber.js/bignumber'),
       'bootstrap.datetimepicker': path.join(__dirname, './node_modules/tempusdominus-bootstrap-4/build/js/tempusdominus-bootstrap-4.min'),
       'bootstrap.toggle': path.join(__dirname, './node_modules/bootstrap4-toggle/js/bootstrap4-toggle'),
@@ -102,7 +103,9 @@ module.exports = {
       'pgadmin.schema.dir': path.resolve(__dirname, 'pgadmin/browser/server_groups/servers/databases/schemas/static/js'),
       'pgadmin.browser.layout': path.join(__dirname, './pgadmin/browser/static/js/layout'),
       'pgadmin.browser.preferences': path.join(__dirname, './pgadmin/browser/static/js/preferences'),
+      'pgadmin.browser.activity': path.join(__dirname, './pgadmin/browser/static/js/activity'),
       'bundled_codemirror': path.join(__dirname, './pgadmin/static/bundle/codemirror'),
+      'tools': path.join(__dirname, './pgadmin/tools/'),
     },
   },
 };

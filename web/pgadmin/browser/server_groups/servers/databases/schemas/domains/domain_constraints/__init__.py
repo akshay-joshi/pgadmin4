@@ -211,9 +211,8 @@ class DomainConstraintView(PGChildNodeView):
                             status=410,
                             success=0,
                             errormsg=gettext(
-                                "Could not find the required parameter (%s)." %
-                                arg
-                            )
+                                "Could not find the required parameter ({})."
+                            ).format(arg)
                         )
 
             try:
@@ -246,6 +245,10 @@ class DomainConstraintView(PGChildNodeView):
             self.manager = driver.connection_manager(kwargs['sid'])
             self.conn = self.manager.connection(did=kwargs['did'])
             self.qtIdent = driver.qtIdent
+            self.datlastsysoid = \
+                self.manager.db_info[kwargs['did']]['datlastsysoid'] \
+                if self.manager.db_info is not None and \
+                kwargs['did'] in self.manager.db_info else 0
 
             # Set the template path for the SQL scripts
             self.template_path = 'domain_constraints/sql/#{0}#'.format(
@@ -390,6 +393,8 @@ class DomainConstraintView(PGChildNodeView):
             )
 
         data = res['rows'][0]
+        data['is_sys_obj'] = (
+            data['oid'] <= self.datlastsysoid)
         return ajax_response(
             response=data,
             status=200

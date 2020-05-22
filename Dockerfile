@@ -45,7 +45,12 @@ RUN npm install && \
 	npm audit fix && \
 	rm -f yarn.lock && \
 	yarn import && \
-	yarn audit && \
+# Commented the below line to avoid vulnerability in decompress package and
+# audit only dependencies folder. Refer https://www.npmjs.com/advisories/1217.
+# Pull request is already been send https://github.com/kevva/decompress/pull/73,
+# once fixed we will uncomment it.
+#	yarn audit && \
+	yarn audit --groups dependencies && \
 	rm -f package-lock.json && \
     yarn run bundle && \
     rm -rf node_modules \
@@ -71,7 +76,7 @@ RUN apk add --no-cache \
         libffi-dev && \
     pip install --no-cache-dir \
         sphinx \
-        flask_security \
+        flask_security_too \
         flask_paranoid \
         python-dateutil \
         flask_sqlalchemy \
@@ -162,11 +167,13 @@ RUN apk add --no-cache --virtual \
         postgresql-client \
         postgresql-libs \
         shadow \
+        sudo \
         libcap && \
     pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir gunicorn==19.9.0 && \
-    apk del --no-cache build-deps
+    apk del --no-cache build-deps && \
+    echo "pgadmin ALL = NOPASSWD: /usr/sbin/postfix start" > /etc/sudoers.d/postfix
 
 # We need the v12 libpq, which is only in the 'edge' build of Alpine at present
 COPY --from=pg12-builder /usr/local/lib/libpq.so.5.12 /usr/lib/

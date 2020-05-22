@@ -136,9 +136,13 @@ def check_precondition(f):
             kwargs['sid']
         )
         if not self.manager:
-            return gone(errormsg="Could not find the server.")
+            return gone(errormsg=gettext("Could not find the server."))
 
         self.conn = self.manager.connection(did=kwargs['did'])
+        self.datlastsysoid = \
+            self.manager.db_info[kwargs['did']]['datlastsysoid'] \
+            if self.manager.db_info is not None and \
+            kwargs['did'] in self.manager.db_info else 0
         # Set the template path for the SQL scripts
         if self.manager.server_type == 'gpdb':
             _temp = self.gpdb_template_path(self.manager.version)
@@ -539,6 +543,8 @@ It may have been removed by another user.
 
         # Making copy of output for future use
         copy_data = dict(res['rows'][0])
+        copy_data['is_sys_obj'] = (
+            copy_data['oid'] <= self.datlastsysoid)
         copy_data = self._formatter(copy_data, scid)
 
         return ajax_response(
@@ -570,9 +576,8 @@ It may have been removed by another user.
                     status=410,
                     success=0,
                     errormsg=gettext(
-                        "Could not find the required parameter (%s)." %
-                        required_args[arg]
-                    )
+                        "Could not find the required parameter ({})."
+                    ).format(arg)
                 )
         try:
             self.format_request_acls(data)

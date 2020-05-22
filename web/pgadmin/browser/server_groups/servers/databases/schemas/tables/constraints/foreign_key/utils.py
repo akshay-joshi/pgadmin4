@@ -82,10 +82,10 @@ def get_foreign_keys(conn, tid, fkid=None, template_path=None):
         coveringindex = search_coveringindex(conn, tid, cols)
         fk['coveringindex'] = coveringindex
         if coveringindex:
-            fk['autoindex'] = True
+            fk['autoindex'] = False
             fk['hasindex'] = True
         else:
-            fk['autoindex'] = False
+            fk['autoindex'] = True
             fk['hasindex'] = False
 
     return True, result['rows']
@@ -275,8 +275,21 @@ def get_sql(conn, data, tid, fkid=None, template_path=None):
         # Get the parent schema and table.
         schema, table = get_parent(conn,
                                    data['columns'][0]['references'])
-        data['remote_schema'] = schema
-        data['remote_table'] = table
+
+        # Below handling will be used in Schema diff in case
+        # of different database comparison
+
+        if schema and table:
+            data['remote_schema'] = schema
+            data['remote_table'] = table
+
+        if 'remote_schema' not in data:
+            data['remote_schema'] = None
+        elif 'schema' in data and (schema is None or schema == ''):
+            data['remote_schema'] = data['schema']
+
+        if 'remote_table' not in data:
+            data['remote_table'] = None
 
         sql = render_template("/".join([template_path, 'create.sql']),
                               data=data, conn=conn)

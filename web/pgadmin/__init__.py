@@ -38,17 +38,14 @@ from datetime import timedelta
 from pgadmin.setup import get_version, set_version
 from pgadmin.utils.ajax import internal_server_error
 from pgadmin.utils.csrf import pgCSRFProtect
-
+from pgadmin import authenticate
 
 # If script is running under python3, it will not have the xrange function
 # defined
 winreg = None
-if sys.version_info[0] >= 3:
-    xrange = range
-    if os.name == 'nt':
-        import winreg
-elif os.name == 'nt':
-    import _winreg as winreg
+xrange = range
+if os.name == 'nt':
+    import winreg
 
 
 class PgAdmin(Flask):
@@ -398,6 +395,7 @@ def create_app(app_name=None):
     # Load all available server drivers
     ##########################################################################
     driver.init_app(app)
+    authenticate.init_app(app)
 
     ##########################################################################
     # Register language to the preferences after login
@@ -471,7 +469,7 @@ def create_app(app_name=None):
 
             try:
                 proc_arch64 = os.environ['PROCESSOR_ARCHITEW6432'].lower()
-            except Exception as e:
+            except Exception:
                 proc_arch64 = None
 
             if proc_arch == 'x86' and not proc_arch64:
@@ -485,7 +483,7 @@ def create_app(app_name=None):
                     try:
                         root_key = winreg.OpenKey(
                             winreg.HKEY_LOCAL_MACHINE,
-                            "SOFTWARE\\" + server_type + "\Services", 0,
+                            "SOFTWARE\\" + server_type + "\\Services", 0,
                             winreg.KEY_READ | arch_key
                         )
                         for i in xrange(0, winreg.QueryInfoKey(root_key)[0]):
@@ -501,16 +499,14 @@ def create_app(app_name=None):
                             svr_port = winreg.QueryValueEx(inst_key, 'Port')[0]
                             svr_discovery_id = inst_id
                             svr_comment = gettext(
-                                "Auto-detected %s installation with the data "
-                                "directory at %s" % (
+                                "Auto-detected {0} installation with the data "
+                                "directory at {1}").format(
                                     winreg.QueryValueEx(
                                         inst_key, 'Display Name'
                                     )[0],
                                     winreg.QueryValueEx(
                                         inst_key, 'Data Directory'
-                                    )[0]
-                                )
-                            )
+                                    )[0])
 
                             add_server(
                                 user_id, servergroup_id, svr_name,
@@ -519,14 +515,11 @@ def create_app(app_name=None):
                             )
 
                             inst_key.Close()
-                    except Exception as e:
+                    except Exception:
                         pass
         else:
             # We use the postgres-winreg.ini file on non-Windows
-            try:
-                from configparser import ConfigParser
-            except ImportError:
-                from ConfigParser import ConfigParser  # Python 2
+            from configparser import ConfigParser
 
             registry = ConfigParser()
 
@@ -558,17 +551,14 @@ def create_app(app_name=None):
                     if hasattr(str, 'decode'):
                         description = description.decode('utf-8')
                         data_directory = data_directory.decode('utf-8')
-                    svr_comment = gettext(u"Auto-detected %s installation "
-                                          u"with the data directory at %s" % (
-                                              description,
-                                              data_directory
-                                          )
-                                          )
+                    svr_comment = gettext(u"Auto-detected {0} installation "
+                                          u"with the data directory at {1}"
+                                          ).format(description, data_directory)
                     add_server(user_id, servergroup_id, svr_name,
                                svr_superuser, svr_port, svr_discovery_id,
                                svr_comment)
 
-        except Exception as e:
+        except Exception:
             pass
 
     @user_logged_in.connect_via(app)
@@ -620,12 +610,13 @@ def create_app(app_name=None):
 
         # Check the auth key is valid, if it's set, and we're not in server
         # mode, and it's not a help file request.
-        if not config.SERVER_MODE and app.PGADMIN_INT_KEY != '':
-            if (('key' not in request.args or
-                 request.args['key'] != app.PGADMIN_INT_KEY) and
-                request.cookies.get('PGADMIN_INT_KEY') !=
-                    app.PGADMIN_INT_KEY and request.endpoint != 'help.static'):
-                abort(401)
+        if not config.SERVER_MODE and app.PGADMIN_INT_KEY != '' and ((
+            'key' not in request.args or
+            request.args['key'] != app.PGADMIN_INT_KEY) and
+            request.cookies.get('PGADMIN_INT_KEY') != app.PGADMIN_INT_KEY and
+            request.endpoint != 'help.static'
+        ):
+            abort(401)
 
         if not config.SERVER_MODE and not current_user.is_authenticated:
             user = user_datastore.get_user(config.DESKTOP_USER)
@@ -644,11 +635,10 @@ def create_app(app_name=None):
         # if the server is restarted the in memory key will be lost
         # but the user session may still be active. Logout the user
         # to get the key again when login
-        if config.SERVER_MODE and current_user.is_authenticated:
-            if current_app.keyManager.get() is None and \
-                    request.endpoint not in ('security.login',
-                                             'security.logout'):
-                logout_user()
+        if config.SERVER_MODE and current_user.is_authenticated and \
+                current_app.keyManager.get() is None and \
+                request.endpoint not in ('security.login', 'security.logout'):
+            logout_user()
 
     @app.after_request
     def after_request(response):

@@ -8,8 +8,8 @@
 //////////////////////////////////////////////////////////////
 
 define([
-  'sources/gettext', 'alertify', 'jquery',
-], function(gettext, alertify, $) {
+  'sources/gettext', 'alertify', 'jquery', 'sources/utils',
+], function(gettext, alertify, $, commonUtils) {
   alertify.defaults.transition = 'zoom';
   alertify.defaults.theme.ok = 'btn btn-primary fa fa-lg fa-check pg-alertify-button';
   alertify.defaults.theme.cancel = 'btn btn-secondary fa fa-lg fa-times pg-alertify-button';
@@ -127,8 +127,8 @@ define([
               alertMessage = '\
                   <div class="media text-danger text-14">\
                     <div class="media-body media-middle">\
-                      <div class="alert-text" role="status">' + promptmsg + '</div><br/>\
-                      <div class="alert-text">' + gettext('Click for details.') + '</div>\
+                      <div class="alert-text" role="alert">' + promptmsg + '</div><br/>\
+                      <div class="alert-text" role="alert">' + gettext('Click for details.') + '</div>\
                     </div>\
                   </div>';
             }
@@ -172,8 +172,8 @@ define([
           var alertMessage = '\
                 <div class="media text-danger text-14">\
                   <div class="media-body media-middle">\
-                    <div class="alert-text" role="status">' + gettext('INTERNAL SERVER ERROR') + '</div><br/>\
-                    <div class="alert-text">' + gettext('Click for details.') + '</div>\
+                    <div class="alert-text" role="alert">' + gettext('INTERNAL SERVER ERROR') + '</div><br/>\
+                    <div class="alert-text" role="alert">' + gettext('Click for details.') + '</div>\
                   </div>\
                 </div>';
 
@@ -263,6 +263,15 @@ define([
       $(this.elements.commands.close).attr('aria-label', gettext('Close'));
       $(this.elements.commands.maximize).attr('aria-label', gettext('Maximize'));
       alertifyDialogResized.apply(this, arguments);
+      let self = this;
+
+      let cmds = Object.values(this.elements.commands);
+      $(cmds).on('keydown', 'button', (event) => {
+        if (event.shiftKey && event.keyCode == 9 && $(this).nextAll('button:not([disabled])').length == 0){
+          let container = $(self.elements.footer);
+          commonUtils.findAndSetFocus(container.find('button:not([disabled]):last'));
+        }
+      });
     });
     this.set('onresize', alertifyDialogStartResizing.bind(this, true));
     this.set('onresized', alertifyDialogResized.bind(this, true));
@@ -279,6 +288,15 @@ define([
         this.__internal.buttons[i]['key'] = null;
       }
     }
+    let self = this;
+
+    $(this.elements.footer).on('keydown', 'button', function(event) {
+      if (!event.shiftKey && event.keyCode == 9 && $(this).nextAll('button:not([disabled])').length == 0) {
+        // set focus back to first editable input element of current active tab once we cycle through all enabled buttons.
+        commonUtils.findAndSetFocus($(self.elements.dialog));
+        return false;
+      }
+    });
   };
 
   alertify.pgHandleItemError = function(xhr, error, message, args) {
@@ -457,12 +475,33 @@ define([
       $(this.elements.commands.close).attr('title', gettext('Close'));
       $(this.elements.commands.maximize).attr('title', gettext('Maximize'));
       $(this.elements.content).addClass('ajs-wrap-text');
+      $(this.elements.header).attr('id', 'confirm-dialog-header');
+      $(this.elements.body).attr('id', 'confirm-dialog-body');
+      $(this.elements.dialog).attr({
+        role: 'alertdialog',
+        'aria-modal': 'true',
+        'aria-labelledby': 'confirm-dialog-header',
+        'aria-describedby': 'confirm-dialog-body',
+      });
     },
     reverseButtons: true,
   });
 
   alertify.prompt().set({
     reverseButtons: true,
+  });
+
+  alertify.alert().set({
+    onshow:function() {
+      $(this.elements.header).attr('id', 'alert-dialog-header');
+      $(this.elements.body).attr('id', 'alert-dialog-body');
+      $(this.elements.modal).attr({
+        role: 'alertdialog',
+        'aria-modal': 'true',
+        'aria-labelledby': 'alert-dialog-header',
+        'aria-describedby': 'alert-dialog-body',
+      });
+    },
   });
 
   /* Suppress the enter key events occurring from select2 boxes

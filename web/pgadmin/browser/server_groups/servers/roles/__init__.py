@@ -158,6 +158,10 @@ class RoleView(PGChildNodeView):
                     )
 
             if u'rolconnlimit' in data:
+                # If roleconnlimit is empty string then set it to -1
+                if data[u'rolconnlimit'] == '':
+                    data[u'rolconnlimit'] = -1
+
                 if data[u'rolconnlimit'] is not None:
                     data[u'rolconnlimit'] = int(data[u'rolconnlimit'])
                     if type(data[u'rolconnlimit']) != int or \
@@ -469,6 +473,11 @@ rolmembership:{
                         _("Connection to the server has been lost.")
                     )
 
+                self.datlastsysoid = \
+                    self.manager.db_info[self.manager.did]['datlastsysoid'] \
+                    if self.manager.db_info is not None and \
+                    self.manager.did in self.manager.db_info else 0
+
                 self.sql_path = 'roles/sql/#{0}#'.format(self.manager.version)
 
                 self.alterKeys = [
@@ -682,6 +691,9 @@ rolmembership:{
         self.transform(res)
         if len(res['rows']) == 0:
             return gone(_("Could not find the role information."))
+
+        res['rows'][0]['is_sys_obj'] = (
+            res['rows'][0]['oid'] <= self.datlastsysoid)
 
         return ajax_response(
             response=res['rows'][0],

@@ -177,6 +177,14 @@ define('pgadmin.browser.node', [
 
       // Show query tool only in context menu of supported nodes.
       if (_.indexOf(pgAdmin.unsupported_nodes, self.type) == -1) {
+        let enable = function(itemData) {
+          if (itemData._type == 'database' && itemData.allowConn)
+            return true;
+          else if (itemData._type != 'database')
+            return true;
+          else
+            return false;
+        };
         pgAdmin.Browser.add_menus([{
           name: 'show_query_tool',
           node: self.type,
@@ -186,14 +194,15 @@ define('pgadmin.browser.node', [
           priority: 998,
           label: gettext('Query Tool...'),
           icon: 'pg-font-icon icon-query-tool',
-          enable: function(itemData) {
-            if (itemData._type == 'database' && itemData.allowConn)
-              return true;
-            else if (itemData._type != 'database')
-              return true;
-            else
-              return false;
-          },
+          enable: enable,
+        }]);
+
+        // show search objects same as query tool
+        pgAdmin.Browser.add_menus([{
+          name: 'search_objects', node: self.type, module: pgAdmin.SearchObjects,
+          applies: ['context'], callback: 'show_search_objects',
+          priority: 997, label: gettext('Search Objects...'),
+          icon: 'fa fa-search', enable: enable,
         }]);
       }
 
@@ -216,7 +225,7 @@ define('pgadmin.browser.node', [
             callback: 'show_script',
             priority: 4,
             label: type_label,
-            category: 'Scripts',
+            category: gettext('Scripts'),
             data: {
               'script': stype,
             },
@@ -329,7 +338,7 @@ define('pgadmin.browser.node', [
                 <div class="pr-2">
                   <i class="fa fa-exclamation-triangle text-danger" aria-hidden="true" role="img"></i>
                 </div>
-                <div class="alert-text">${msg}</div>
+                <div role="alert" class="alert-text">${msg}</div>
                 <div class="ml-auto close-error-bar">
                   <a class="close-error fa fa-times text-danger"></a>
                 </div>
@@ -396,7 +405,7 @@ define('pgadmin.browser.node', [
 
           if (!newModel.isNew()) {
             // This is definetely not in create mode
-            var msgDiv = '<div class="alert alert-info pg-panel-message pg-panel-properties-message">' +
+            var msgDiv = '<div role="status" class="pg-panel-message pg-panel-properties-message">' +
               gettext('Retrieving data from the server...') + '</div>',
               $msgDiv = $(msgDiv);
             var timer = setTimeout(function(ctx) {
@@ -500,7 +509,7 @@ define('pgadmin.browser.node', [
         isPrivate: true,
         isLayoutMember: false,
         elContainer: true,
-        content: '<div class="obj_properties container-fluid"><div class="alert alert-info pg-panel-message">' + gettext('Please wait while we fetch information about the node from the server...') + '</div></div>',
+        content: '<div class="obj_properties container-fluid"><div role="status" class="pg-panel-message">' + gettext('Please wait while we fetch information about the node from the server...') + '</div></div>',
         onCreate: function(myPanel, $container) {
           $container.addClass('pg-no-overflow');
         },
@@ -752,9 +761,7 @@ define('pgadmin.browser.node', [
         obj = pgBrowser.Nodes[d._type];
         var objName = d.label;
 
-        var msg, title, drop_label;
-
-        if (obj.dropAsRemove) drop_label = 'Remove'; else drop_label = 'Drop';
+        var msg, title;
 
         if (input.url == 'delete') {
 
@@ -771,8 +778,13 @@ define('pgadmin.browser.node', [
             return;
           }
         } else {
-          msg = gettext('Are you sure you want to %s %s "%s"?', drop_label.toLowerCase(), obj.label.toLowerCase(), d.label);
-          title = gettext('%s %s?', drop_label, obj.label);
+          if (obj.dropAsRemove) {
+            msg = gettext('Are you sure you want to remove %s "%s"?', obj.label.toLowerCase(), d.label);
+            title = gettext('Remove %s?', obj.label);
+          } else {
+            msg = gettext('Are you sure you want to drop %s "%s"?', obj.label.toLowerCase(), d.label);
+            title = gettext('Drop %s?', obj.label);
+          }
 
           if (!(_.isFunction(obj.canDrop) ?
             obj.canDrop.apply(obj, [d, i]) : obj.canDrop)) {
@@ -813,7 +825,11 @@ define('pgadmin.browser.node', [
 
               });
           },
-          null).show();
+          null
+        ).set('labels', {
+          ok: gettext('Yes'),
+          cancel: gettext('No'),
+        }).show();
       },
       // Callback for creating script(s) & opening them in Query editor
       show_script: function(args, item) {
@@ -1049,7 +1065,7 @@ define('pgadmin.browser.node', [
         tree = pgAdmin.Browser.tree,
         j = panel.$container.find('.obj_properties').first(),
         view = j.data('obj-view'),
-        content = $('<div tabindex="1"></div>')
+        content = $('<div></div>')
           .addClass('pg-prop-content col-12'),
         confirm_close = true;
 
@@ -1532,10 +1548,21 @@ define('pgadmin.browser.node', [
             }], 'footer', 'pg-prop-btn-group-below');
 
             btn_grp.on('keydown', 'button', function(event) {
-              if (event.keyCode == 9 && $(this).nextAll('button:not([disabled])').length == 0) {
-                // set focus back to first editable input element of current active tab once we cycle through all enabled buttons.
-                commonUtils.findAndSetFocus(view.$el.find('.tab-content div.active'));
+              if (!event.shiftKey && event.keyCode == 9 && $(this).nextAll('button:not([disabled])').length == 0) {
+                // set focus back to first focusable element on dialog
+                view.$el.closest('.wcFloating').find('[tabindex]:not([tabindex="-1"]').first().focus();
                 return false;
+              }
+              let btnGroup = $(panel.$container.find('.pg-prop-btn-group'));
+              let el = $(btnGroup).find('button:first');
+              if (panel.$container.find('.number-cell.editable:last').is(':visible')){
+                if (event.keyCode === 9 && event.shiftKey) {
+                  if ($(el).is($(event.target))){
+                    $(panel.$container.find('td.editable:last').trigger('click'));
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }
+                }
               }
             });
 
@@ -1553,6 +1580,15 @@ define('pgadmin.browser.node', [
 
           // Show contents before buttons
           j.prepend(content);
+          view.$el.closest('.wcFloating').find('.wcFrameButtonBar > .wcFrameButton[style!="display: none;"]').on('keydown', function(e) {
+
+            if(e.shiftKey && e.keyCode === 9) {
+              e.stopPropagation();
+              setTimeout(() => {
+                view.$el.closest('.wcFloating').find('[tabindex]:not([tabindex="-1"]):not([disabled])').last().focus();
+              }, 10);
+            }
+          });
         }.bind(panel),
         closePanel = function(confirm_close_flag) {
           if(!_.isUndefined(confirm_close_flag)) {

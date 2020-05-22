@@ -254,7 +254,7 @@ REM Main build sequence Ends
     CD "%WD%\runtime"
 
     ECHO Running qmake...
-    CALL "%QMAKE%" || EXIT /B 1
+    CALL set "PGADMIN_PYTHON_DIR=%PYTHON_HOME%" && "%QMAKE%" || EXIT /B 1
 
     ECHO Cleaning the build directory...
     CALL %MAKE% clean || EXIT /B 1
@@ -270,11 +270,14 @@ REM Main build sequence Ends
     COPY "%QTDIR%\bin\Qt5Gui.dll"    "%PGBUILDPATH%\runtime" > nul || EXIT /B 1
     COPY "%QTDIR%\bin\Qt5Widgets.dll" "%PGBUILDPATH%\runtime" > nul  || EXIT /B 1
     COPY "%QTDIR%\bin\Qt5Network.dll" "%PGBUILDPATH%\runtime" > nul || EXIT /B 1
+    COPY "%QTDIR%\bin\Qt5Svg.dll" "%PGBUILDPATH%\runtime" > nul || EXIT /B 1
     IF EXIST "%QTDIR%\bin\libgcc_s_dw2-1.dll" COPY "%QTDIR%\bin\libgcc_s_dw2-1.dll" "%PGBUILDPATH%\runtime" > nul || EXIT /B 1
     IF EXIST "%QTDIR%\bin\libstdc++-6.dll" COPY "%QTDIR%\bin\libstdc++-6.dll" "%PGBUILDPATH%\runtime" > nul || EXIT /B 1
     IF EXIST "%QTDIR%\bin\libwinpthread-1.dll" COPY "%QTDIR%\bin\libwinpthread-1.dll" "%PGBUILDPATH%\runtime" > nul || EXIT /B 1
     MKDIR "%PGBUILDPATH%\runtime\platforms" > nul || EXIT /B 1
     COPY "%QTDIR%\plugins\platforms\qwindows.dll" "%PGBUILDPATH%\runtime\platforms" > nul || EXIT /B 1
+    MKDIR "%PGBUILDPATH%\runtime\imageformats" > nul || EXIT /B 1
+    COPY "%QTDIR%\plugins\imageformats\qsvg.dll" "%PGBUILDPATH%\runtime\imageformats" > nul || EXIT /B 1
     ECHO [Paths] > "%PGBUILDPATH%\runtime\qt.conf"
     ECHO Plugins=plugins >> "%PGBUILDPATH%\runtime\qt.conf"
 

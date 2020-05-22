@@ -118,10 +118,6 @@ var webpackShimConfig = {
     'pgadmin.browser.messages': {
       'deps': ['pgadmin.browser.datamodel'],
     },
-    'spectrum': {
-      'deps': ['jquery'],
-      'exports': '$.fn.spectrum',
-    },
   },
 
   // Map module id to file path used in 'define(['baseurl', 'misc']). It is
@@ -153,7 +149,7 @@ var webpackShimConfig = {
     'bignumber': path.join(__dirname, './node_modules/bignumber.js/bignumber'),
     'json-bignumber': path.join(__dirname, './node_modules/json-bignumber/dist/JSONBigNumber.min'),
     'snap.svg': path.join(__dirname, './node_modules/snapsvg/dist/snap.svg-min'),
-    'spectrum': path.join(__dirname, './node_modules/spectrum-colorpicker/spectrum'),
+    'color-picker': path.join(__dirname, './node_modules/@simonwep/pickr/dist/pickr.es5.min'),
     'mousetrap': path.join(__dirname, './node_modules/mousetrap'),
     'tablesorter-metric': path.join(__dirname, './node_modules/tablesorter/dist/js/parsers/parser-metric.min'),
 
@@ -172,7 +168,7 @@ var webpackShimConfig = {
     'bootstrap.toggle': path.join(__dirname, './node_modules/bootstrap4-toggle/js/bootstrap4-toggle'),
     'select2': path.join(__dirname, './node_modules/select2/dist/js/select2.full'),
     'backgrid.filter': path.join(__dirname, './node_modules/backgrid-filter/backgrid-filter'),
-    'backgrid.select.all': path.join(__dirname, './node_modules/backgrid-select-all/backgrid-select-all'),
+    'backgrid.select.all': path.join(__dirname, './pgadmin/static/vendor/backgrid/backgrid-select-all'),
     'pgadmin.alertifyjs': path.join(__dirname, './pgadmin/static/js/alertify.pgadmin.defaults'),
     'pgadmin.backform': path.join(__dirname, './pgadmin/static/js/backform.pgadmin'),
     'pgadmin.backgrid': path.join(__dirname, './pgadmin/static/js/backgrid.pgadmin'),
@@ -189,6 +185,7 @@ var webpackShimConfig = {
     'pgadmin.browser.layout': path.join(__dirname, './pgadmin/browser/static/js/layout'),
     'pgadmin.browser.preferences': path.join(__dirname, './pgadmin/browser/static/js/preferences'),
     'pgadmin.browser.menu': path.join(__dirname, './pgadmin/browser/static/js/menu'),
+    'pgadmin.browser.activity': path.join(__dirname, './pgadmin/browser/static/js/activity'),
     'pgadmin.browser.messages': '/browser/js/messages',
     'pgadmin.browser.node': path.join(__dirname, './pgadmin/browser/static/js/node'),
     'pgadmin.browser.node.ui': path.join(__dirname, './pgadmin/browser/static/js/node.ui'),
@@ -280,6 +277,8 @@ var webpackShimConfig = {
     'pgadmin.tools.restore': path.join(__dirname, './pgadmin/tools/restore/static/js/restore'),
     'pgadmin.tools.schema_diff': path.join(__dirname, './pgadmin/tools/schema_diff/static/js/schema_diff'),
     'pgadmin.tools.schema_diff_ui': path.join(__dirname, './pgadmin/tools/schema_diff/static/js/schema_diff_ui'),
+    'pgadmin.tools.search_objects': path.join(__dirname, './pgadmin/tools/search_objects/static/js/search_objects'),
+    'pgadmin.search_objects': path.join(__dirname, './pgadmin/tools/search_objects/static/js'),
     'pgadmin.tools.user_management': path.join(__dirname, './pgadmin/tools/user_management/static/js/user_management'),
     'pgadmin.user_management.current_user': '/user_management/current_user',
     'slick.pgadmin.editors': path.join(__dirname, './pgadmin/tools/../static/js/slickgrid/editors'),

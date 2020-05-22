@@ -124,32 +124,28 @@ define('pgadmin.node.procedure', [
               m.get('lanname') != 'edbspl') {
 
               setTimeout(function() {
-                m.set('provolatile', undefined);
-                m.set('proisstrict', undefined);
-                m.set('procost', undefined);
-                m.set('proleakproof', undefined);
+                m.set('provolatile', null);
+                m.set('proisstrict', false);
+                m.set('procost', null);
+                m.set('proleakproof', false);
               }, 10);
               return true;
             }
             else{
               return false;
             }
-
           case 'variables':
           case 'prosecdef':
             return this.node_info.server.version < 90500;
           case 'prorows':
             var server = this.node_info.server;
             return !(server.version >= 90500 && m.get('proretset') == true);
-          case 'funcowner':
-          case 'proargs':
-            return true;
           case 'proparallel':
             if (this.node_info.server.version < 90600 ||
               this.node_info.server.server_type != 'ppas' ||
               m.get('lanname') != 'edbspl') {
               setTimeout(function() {
-                m.set('proparallel', undefined);
+                m.set('proparallel', null);
               }, 10);
               return true;
             }

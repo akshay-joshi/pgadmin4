@@ -9,13 +9,7 @@ from .parseutils.utils import (
 from .parseutils.tables import extract_tables
 from .parseutils.ctes import isolate_query_ctes
 
-PY2 = sys.version_info[0] == 2
-PY3 = sys.version_info[0] == 3
-
-if PY3:
-    string_types = str
-else:
-    string_types = basestring
+string_types = str
 
 
 Special = namedtuple('Special', [])
@@ -385,7 +379,7 @@ def suggest_based_on_last_token(token, stmt):
         # `SELECT 1 FROM functions WHERE function:`
         try:
             prev = stmt.get_previous_token(token).value.lower()
-            if prev in('drop', 'alter', 'create', 'create or replace'):
+            if prev in ('drop', 'alter', 'create', 'create or replace'):
                 return (Function(schema=schema, usage='signature'),)
         except ValueError:
             pass
@@ -517,5 +511,5 @@ def _allow_join(statement):
     last_tok = statement.token_prev(len(statement.tokens))[1]
     return (
         last_tok.value.lower().endswith('join') and
-        last_tok.value.lower() not in('cross join', 'natural join')
+        last_tok.value.lower() not in ('cross join', 'natural join')
     )

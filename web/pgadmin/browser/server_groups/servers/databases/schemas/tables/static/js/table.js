@@ -82,23 +82,23 @@ define('pgadmin.node.table', [
         },{
           name: 'truncate_table', node: 'table', module: this,
           applies: ['object', 'context'], callback: 'truncate_table',
-          category: 'Truncate', priority: 3, label: gettext('Truncate'),
+          category: gettext('Truncate'), priority: 3, label: gettext('Truncate'),
           icon: 'fa fa-eraser', enable : 'canCreate',
         },{
           name: 'truncate_table_cascade', node: 'table', module: this,
           applies: ['object', 'context'], callback: 'truncate_table_cascade',
-          category: 'Truncate', priority: 3, label: gettext('Truncate Cascade'),
+          category: gettext('Truncate'), priority: 3, label: gettext('Truncate Cascade'),
           icon: 'fa fa-eraser', enable : 'canCreate',
         },{
           // To enable/disable all triggers for the table
           name: 'enable_all_triggers', node: 'table', module: this,
           applies: ['object', 'context'], callback: 'enable_triggers_on_table',
-          category: 'Trigger(s)', priority: 4, label: gettext('Enable All'),
+          category: gettext('Trigger(s)'), priority: 4, label: gettext('Enable All'),
           icon: 'fa fa-check', enable : 'canCreate_with_trigger_enable',
         },{
           name: 'disable_all_triggers', node: 'table', module: this,
           applies: ['object', 'context'], callback: 'disable_triggers_on_table',
-          category: 'Trigger(s)', priority: 4, label: gettext('Disable All'),
+          category: gettext('Trigger(s)'), priority: 4, label: gettext('Disable All'),
           icon: 'fa fa-times', enable : 'canCreate_with_trigger_disable',
         },{
           name: 'reset_table_stats', node: 'table', module: this,
@@ -291,6 +291,8 @@ define('pgadmin.node.table', [
           triggercount: undefined,
           relpersistence: undefined,
           fillfactor: undefined,
+          toast_tuple_target: undefined,
+          parallel_workers: undefined,
           reloftype: undefined,
           typname: undefined,
           labels: undefined,
@@ -298,8 +300,8 @@ define('pgadmin.node.table', [
           is_sys_table: undefined,
           coll_inherits: [],
           hastoasttable: true,
-          toast_autovacuum_enabled: false,
-          autovacuum_enabled: false,
+          toast_autovacuum_enabled: 'x',
+          autovacuum_enabled: 'x',
           primary_key: [],
           partitions: [],
           partition_type: 'range',
@@ -349,15 +351,9 @@ define('pgadmin.node.table', [
             return (!(d && d.label.match(/pg_global/)));
           },
           deps: ['is_partitioned'],
-          disabled: function() {
-            if(this.node_info &&  'catalog' in this.node_info) {
-              return true;
-            }
-
-            return false;
-          },
+          disabled: 'inSchema',
         },{
-          id: 'partition', type: 'group', label: gettext('Partition'),
+          id: 'partition', type: 'group', label: gettext('Partitions'),
           mode: ['edit', 'create'], min_version: 100000,
           visible: function(m) {
             // Always show in case of create mode
@@ -376,11 +372,15 @@ define('pgadmin.node.table', [
 
             return false;
           },
-          disabled: function(m) {
+          readonly: function(m) {
             if (!m.isNew())
               return true;
             return false;
           },
+        },{
+          id: 'is_sys_table', label: gettext('System table?'), cell: 'switch',
+          type: 'switch', mode: ['properties'],
+          disabled: 'inSchema',
         },{
           id: 'description', label: gettext('Comment'), type: 'multiline',
           mode: ['properties', 'create', 'edit'], disabled: 'inSchema',
@@ -777,8 +777,34 @@ define('pgadmin.node.table', [
         },{
           id: 'fillfactor', label: gettext('Fill factor'), type: 'int',
           mode: ['create', 'edit'], min: 10, max: 100,
-          disabled: 'inSchema', group: gettext('advanced'),
+          group: gettext('advanced'),
+          disabled: function(m) {
+            if(m.get('is_partitioned')) {
+              return true;
+            }
+            return m.inSchema();
+          },
         },{
+          id: 'toast_tuple_target', label: gettext('Toast tuple target'), type: 'int',
+          mode: ['create', 'edit'], min: 128, min_version: 110000,
+          group: gettext('advanced'),
+          disabled: function(m) {
+            if(m.get('is_partitioned')) {
+              return true;
+            }
+            return m.inSchema();
+          },
+        },{
+          id: 'parallel_workers', label: gettext('Parallel workers'), type: 'int',
+          mode: ['create', 'edit'], group: gettext('advanced'), min_version: 90600,
+          disabled: function(m) {
+            if(m.get('is_partitioned')) {
+              return true;
+            }
+            return m.inSchema();
+          },
+        },
+        {
           id: 'relhasoids', label: gettext('Has OIDs?'), cell: 'switch',
           type: 'switch', mode: ['properties', 'create', 'edit'],
           group: gettext('advanced'),
@@ -830,37 +856,33 @@ define('pgadmin.node.table', [
           type: 'switch', mode: ['properties'], group: gettext('advanced'),
           disabled: 'inSchema',
         },{
-          id: 'is_sys_table', label: gettext('System table?'), cell: 'switch',
-          type: 'switch', mode: ['properties'],
-          disabled: 'inSchema',
-        },{
           type: 'nested', control: 'fieldset', label: gettext('Like'),
           group: gettext('advanced'),
           schema:[{
             id: 'like_relation', label: gettext('Relation'),
-            type: 'text', mode: ['create', 'edit'], deps: ['typname'],
+            type: 'text', mode: ['create'], deps: ['typname', 'like_relation'],
             control: 'node-ajax-options', url: 'get_relations',
             disabled: 'isLikeDisable', group: gettext('Like'),
           },{
             id: 'like_default_value', label: gettext('With default values?'),
-            type: 'switch', mode: ['create', 'edit'], deps: ['typname'],
-            disabled: 'isLikeDisable', group: gettext('Like'),
+            type: 'switch', mode: ['create'], deps: ['like_relation'],
+            disabled: 'isRelationDisable', group: gettext('Like'),
           },{
             id: 'like_constraints', label: gettext('With constraints?'),
-            type: 'switch', mode: ['create', 'edit'], deps: ['typname'],
-            disabled: 'isLikeDisable', group: gettext('Like'),
+            type: 'switch', mode: ['create'], deps: ['like_relation'],
+            disabled: 'isRelationDisable', group: gettext('Like'),
           },{
             id: 'like_indexes', label: gettext('With indexes?'),
-            type: 'switch', mode: ['create', 'edit'], deps: ['typname'],
-            disabled: 'isLikeDisable', group: gettext('Like'),
+            type: 'switch', mode: ['create'], deps: ['like_relation'],
+            disabled: 'isRelationDisable', group: gettext('Like'),
           },{
             id: 'like_storage', label: gettext('With storage?'),
-            type: 'switch', mode: ['create', 'edit'], deps: ['typname'],
-            disabled: 'isLikeDisable', group: gettext('Like'),
+            type: 'switch', mode: ['create'], deps: ['like_relation'],
+            disabled: 'isRelationDisable', group: gettext('Like'),
           },{
             id: 'like_comments', label: gettext('With comments?'),
-            type: 'switch', mode: ['create', 'edit'], deps: ['typname'],
-            disabled: 'isLikeDisable', group: gettext('Like'),
+            type: 'switch', mode: ['create'], deps: ['like_relation'],
+            disabled: 'isRelationDisable', group: gettext('Like'),
           }],
         },{
           id: 'partition_type', label:gettext('Partition Type'),
@@ -892,10 +914,11 @@ define('pgadmin.node.table', [
             return false;
           },
           disabled: function(m) {
-            if (!m.isNew() || !m.get('is_partitioned'))
+            if (!m.get('is_partitioned'))
               return true;
             return false;
           },
+          readonly: function(m) {return !m.isNew();},
         },{
           id: 'partition_keys', label:gettext('Partition Keys'),
           model: Backform.PartitionKeyModel,
@@ -1004,7 +1027,7 @@ define('pgadmin.node.table', [
           editable: true, type: 'collection',
           group: 'partition', mode: ['edit', 'create'],
           deps: ['is_partitioned', 'partition_type', 'typname'],
-          canEdit: false, canDelete: true,
+          canEdit: true, canDelete: true,
           customDeleteTitle: gettext('Detach Partition'),
           customDeleteMsg: gettext('Are you sure you wish to detach this partition?'),
           columns:['is_attach', 'partition_name', 'is_default', 'values_from', 'values_to', 'values_in', 'values_modulus', 'values_remainder'],
@@ -1126,6 +1149,16 @@ define('pgadmin.node.table', [
           id: 'vacuum_settings_str', label: gettext('Storage settings'),
           type: 'multiline', group: 'advanced', mode: ['properties'],
         }],
+        sessChanged: function() {
+          /* If only custom autovacuum option is enabled the check if the options table is also changed. */
+          if(_.size(this.sessAttrs) == 2 && this.sessAttrs['autovacuum_custom'] && this.sessAttrs['toast_autovacuum']) {
+            return this.get('vacuum_table').sessChanged() || this.get('vacuum_toast').sessChanged();
+          }
+          if(_.size(this.sessAttrs) == 1 && (this.sessAttrs['autovacuum_custom'] || this.sessAttrs['toast_autovacuum'])) {
+            return this.get('vacuum_table').sessChanged() || this.get('vacuum_toast').sessChanged();
+          }
+          return pgBrowser.DataModel.prototype.sessChanged.apply(this);
+        },
         validate: function() {
           var msg,
             name = this.get('name'),
@@ -1223,6 +1256,25 @@ define('pgadmin.node.table', [
             return false;
           }
           return true;
+        },
+
+        // We will disable other Like option if Relation is not defined
+        isRelationDisable: function(m) {
+          if ( _.isUndefined(m.get('like_relation')) ||
+          _.isNull(m.get('like_relation')) ||
+          String(m.get('like_relation')).replace(/^\s+|\s+$/g, '') == ''){
+            if (m.isNew()){
+              setTimeout(function() {
+                m.set('like_default_value', false);
+                m.set('like_constraints', false);
+                m.set('like_indexes', false);
+                m.set('like_storage', false);
+                m.set('like_comments', false);
+              }, 10);
+            }
+            return true;
+          }
+          return false;
         },
         // Check for column grid when to Add
         check_grid_add_condition: function(m) {
