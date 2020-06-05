@@ -815,8 +815,7 @@ class ForeignTableView(PGChildNodeView, DataTypeReader,
             return internal_server_error(errormsg=str(e))
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, foid=None, diff_schema=None,
-            json_resp=True):
+    def sql(self, gid, sid, did, scid, foid=None, json_resp=True):
         """
         Returns the SQL for the Foreign Table object.
 
@@ -826,16 +825,12 @@ class ForeignTableView(PGChildNodeView, DataTypeReader,
             did: Database Id
             scid: Schema Id
             foid: Foreign Table Id
-            diff_schema: Target Schema for schema diff
             json_resp: True then return json response
         """
         status, data = self._fetch_properties(gid, sid, did, scid, foid,
                                               inherits=True)
         if not status:
             return data
-
-        if diff_schema:
-            data['basensp'] = diff_schema
 
         col_data = []
         for c in data['columns']:
@@ -1426,7 +1421,7 @@ class ForeignTableView(PGChildNodeView, DataTypeReader,
         return res
 
     def get_sql_from_diff(self, gid, sid, did, scid, oid, data=None,
-                          diff_schema=None, drop_sql=False):
+                          drop_sql=False):
         """
         This function is used to get the DDL/DML statements.
         :param gid: Group ID
@@ -1435,14 +1430,11 @@ class ForeignTableView(PGChildNodeView, DataTypeReader,
         :param scid: Schema ID
         :param oid: Collation ID
         :param data: Difference data
-        :param diff_schema: Target Schema
         :param drop_sql: True if need to drop the domains
         :return:
         """
         sql = ''
         if data:
-            if diff_schema:
-                data['schema'] = diff_schema
             sql, name = self.get_sql(gid=gid, sid=sid, did=did, scid=scid,
                                      data=data, foid=oid,
                                      is_schema_diff=True)
@@ -1450,9 +1442,6 @@ class ForeignTableView(PGChildNodeView, DataTypeReader,
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, foid=oid, only_sql=True)
-            elif diff_schema:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, foid=oid,
-                               diff_schema=diff_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, foid=oid,
                                json_resp=False)

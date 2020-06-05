@@ -786,7 +786,7 @@ class TriggerView(PGChildNodeView, SchemaDiffObjectCompare):
 
     @check_precondition
     def get_sql_from_diff(self, gid, sid, did, scid, tid, oid,
-                          data=None, diff_schema=None, drop_sql=False):
+                          data=None, drop_sql=False):
         if data:
             SQL, name = trigger_utils.get_sql(
                 self.conn, data, tid, oid,
@@ -803,8 +803,6 @@ class TriggerView(PGChildNodeView, SchemaDiffObjectCompare):
                                   only_sql=True)
             else:
                 schema = self.schema
-                if diff_schema:
-                    schema = diff_schema
                 SQL = trigger_utils.get_reverse_engineered_sql(
                     self.conn, schema,
                     self.table, tid, oid,
@@ -986,8 +984,7 @@ class TriggerView(PGChildNodeView, SchemaDiffObjectCompare):
                                           did=src_params['did'],
                                           scid=src_params['scid'],
                                           tid=src_params['tid'],
-                                          oid=source['oid'],
-                                          diff_schema=target_schema)
+                                          oid=source['oid'])
         elif comp_status == 'target_only':
             diff = self.get_sql_from_diff(gid=tgt_params['gid'],
                                           sid=tgt_params['sid'],

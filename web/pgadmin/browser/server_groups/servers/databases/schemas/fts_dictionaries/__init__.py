@@ -775,8 +775,7 @@ class FtsDictionaryView(PGChildNodeView, SchemaDiffObjectCompare):
         )
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, dcid, diff_schema=None,
-            json_resp=True):
+    def sql(self, gid, sid, did, scid, dcid, json_resp=True):
         """
         This function will reverse generate sql for sql panel
         :param gid: group id
@@ -784,7 +783,6 @@ class FtsDictionaryView(PGChildNodeView, SchemaDiffObjectCompare):
         :param did: database id
         :param scid: schema id
         :param dcid: FTS Dictionary id
-        :param diff_schema: Target Schema for schema diff
         :param json_resp: True then return json response
         """
 
@@ -830,9 +828,6 @@ class FtsDictionaryView(PGChildNodeView, SchemaDiffObjectCompare):
 
         # Replace schema oid with schema name
         res['rows'][0]['schema'] = schema
-
-        if diff_schema:
-            res['rows'][0]['schema'] = diff_schema
 
         sql = render_template("/".join([self.template_path, 'create.sql']),
                               data=res['rows'][0],
@@ -915,7 +910,7 @@ class FtsDictionaryView(PGChildNodeView, SchemaDiffObjectCompare):
         return res
 
     def get_sql_from_diff(self, gid, sid, did, scid, oid, data=None,
-                          diff_schema=None, drop_sql=False):
+                          drop_sql=False):
         """
         This function is used to get the DDL/DML statements.
         :param gid: Group ID
@@ -924,23 +919,17 @@ class FtsDictionaryView(PGChildNodeView, SchemaDiffObjectCompare):
         :param scid: Schema ID
         :param oid: Collation ID
         :param data: Difference data
-        :param diff_schema: Target Schema
         :param drop_sql: True if need to drop the fts configuration
         :return:
         """
         sql = ''
         if data:
-            if diff_schema:
-                data['schema'] = diff_schema
             sql, name = self.get_sql(gid=gid, sid=sid, did=did, scid=scid,
                                      data=data, dcid=oid)
         else:
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, dcid=oid, only_sql=True)
-            elif diff_schema:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, dcid=oid,
-                               diff_schema=diff_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, dcid=oid,
                                json_resp=False)

@@ -873,7 +873,7 @@ class CompoundTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
 
     @check_precondition
     def get_sql_from_diff(self, gid, sid, did, scid, tid, oid,
-                          data=None, diff_schema=None, drop_sql=False):
+                          data=None, drop_sql=False):
         if data:
             sql, name = compound_trigger_utils.get_sql(self.conn,
                                                        data,
@@ -911,9 +911,6 @@ class CompoundTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
                     data['columns'] = self._column_details(tid, columns)
 
                 data = trigger_definition(data)
-
-                if diff_schema:
-                    data['schema'] = diff_schema
 
                 SQL, name = compound_trigger_utils.get_sql(self.conn,
                                                            data,
@@ -990,8 +987,7 @@ class CompoundTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
                                           did=src_params['did'],
                                           scid=src_params['scid'],
                                           tid=src_params['tid'],
-                                          oid=source['oid'],
-                                          diff_schema=target_schema)
+                                          oid=source['oid'])
         elif comp_status == 'target_only':
             diff = self.get_sql_from_diff(gid=tgt_params['gid'],
                                           sid=tgt_params['sid'],

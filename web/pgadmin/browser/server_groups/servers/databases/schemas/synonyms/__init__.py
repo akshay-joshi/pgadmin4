@@ -660,8 +660,7 @@ class SynonymView(PGChildNodeView, SchemaDiffObjectCompare):
         return SQL.strip('\n'), name
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, syid, diff_schema=None,
-            json_resp=True):
+    def sql(self, gid, sid, did, scid, syid, json_resp=True):
         """
         This function will generates reverse engineered sql for synonym object
 
@@ -671,7 +670,6 @@ class SynonymView(PGChildNodeView, SchemaDiffObjectCompare):
            did: Database ID
            scid: Schema ID
            syid: Synonym ID
-           diff_schema:
            json_resp:
         """
         SQL = render_template("/".join([self.template_path,
@@ -687,9 +685,6 @@ class SynonymView(PGChildNodeView, SchemaDiffObjectCompare):
             return gone(
                 gettext('The specified synonym could not be found.')
             )
-
-        if diff_schema:
-            data['schema'] = diff_schema
 
         SQL = render_template("/".join([self.template_path,
                                         'create.sql']),
@@ -768,7 +763,7 @@ class SynonymView(PGChildNodeView, SchemaDiffObjectCompare):
         return res
 
     def get_sql_from_diff(self, gid, sid, did, scid, oid, data=None,
-                          diff_schema=None, drop_sql=False):
+                          drop_sql=False):
         """
         This function is used to get the DDL/DML statements.
         :param gid: Group ID
@@ -777,23 +772,16 @@ class SynonymView(PGChildNodeView, SchemaDiffObjectCompare):
         :param scid: Schema ID
         :param oid: Synonyms ID
         :param data: Difference data
-        :param diff_schema: Target Schema
         :param drop_sql: True if need to drop the domains
         :return:
         """
         sql = ''
         if data:
-            if diff_schema:
-                data['schema'] = diff_schema
             sql, name = self.get_sql(gid, sid, data, scid, oid)
         else:
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, syid=oid, only_sql=True)
-
-            elif diff_schema:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, syid=oid,
-                               diff_schema=diff_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, syid=oid,
                                json_resp=False)

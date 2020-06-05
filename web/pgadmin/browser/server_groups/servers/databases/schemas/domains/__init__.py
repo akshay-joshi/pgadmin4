@@ -690,8 +690,7 @@ AND relkind != 'c'))"""
         )
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, doid=None, diff_schema=None,
-            json_resp=True):
+    def sql(self, gid, sid, did, scid, doid=None, json_resp=True):
         """
         Returns the SQL for the Domain object.
 
@@ -701,7 +700,6 @@ AND relkind != 'c'))"""
             did: Database Id
             scid: Schema Id
             doid: Domain Id
-            diff_schema: Target Schema for schema diff
             json_resp: True then return json response
         """
 
@@ -717,9 +715,6 @@ AND relkind != 'c'))"""
             )
 
         data = res['rows'][0]
-
-        if diff_schema:
-            data['basensp'] = diff_schema
 
         # Get Type Length and Precision
         data.update(self._parse_type(data['fulltype']))
@@ -919,7 +914,7 @@ AND relkind != 'c'))"""
         return res
 
     def get_sql_from_diff(self, gid, sid, did, scid, oid, data=None,
-                          diff_schema=None, drop_sql=False):
+                          drop_sql=False):
         """
         This function is used to get the DDL/DML statements.
         :param gid: Group ID
@@ -928,14 +923,11 @@ AND relkind != 'c'))"""
         :param scid: Schema ID
         :param oid: Collation ID
         :param data: Difference data
-        :param diff_schema: Target Schema
         :param drop_sql: True if need to drop the domains
         :return:
         """
         sql = ''
         if data:
-            if diff_schema:
-                data['schema'] = diff_schema
             sql, name = self.get_sql(gid=gid, sid=sid, scid=scid,
                                      data=data, doid=oid,
                                      is_schema_diff=True)
@@ -943,9 +935,6 @@ AND relkind != 'c'))"""
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, doid=oid, only_sql=True)
-            elif diff_schema:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, doid=oid,
-                               diff_schema=diff_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, doid=oid,
                                json_resp=False)

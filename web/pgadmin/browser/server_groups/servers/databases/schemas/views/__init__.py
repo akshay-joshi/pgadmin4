@@ -1209,8 +1209,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         return SQL_data
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, vid, diff_schema=None,
-            json_resp=True):
+    def sql(self, gid, sid, did, scid, vid, json_resp=True):
         """
         This function will generate sql to render into the sql panel
         """
@@ -1236,11 +1235,6 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
             )
 
         result = res['rows'][0]
-        if diff_schema:
-            result['definition'] = result['definition'].replace(
-                result['schema'],
-                diff_schema)
-            result['schema'] = diff_schema
 
         # sending result to formtter
         frmtd_reslt = self.formatter(result)
@@ -1526,11 +1520,9 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         return res
 
     def get_sql_from_diff(self, gid, sid, did, scid, oid, data=None,
-                          diff_schema=None, drop_sql=False):
+                          drop_sql=False):
         sql = ''
         if data:
-            if diff_schema:
-                data['schema'] = diff_schema
             sql, nameOrError = self.getSQL(gid, sid, did, data, oid)
             if sql.find('DROP VIEW') != -1:
                 sql = gettext("""
@@ -1543,9 +1535,6 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, vid=oid, only_sql=True)
-            elif diff_schema:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, vid=oid,
-                               diff_schema=diff_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, vid=oid,
                                json_resp=False)
@@ -1758,8 +1747,7 @@ class MViewNode(ViewNode, VacuumSettings):
         return SQL, data['name'] if 'name' in data else old_data['name']
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, vid, diff_schema=None,
-            json_resp=True):
+    def sql(self, gid, sid, did, scid, vid, json_resp=True):
         """
         This function will generate sql to render into the sql panel
         """
@@ -1774,12 +1762,6 @@ class MViewNode(ViewNode, VacuumSettings):
 
         if not status:
             return result
-
-        if diff_schema:
-            result['definition'] = result['definition'].replace(
-                result['schema'],
-                diff_schema)
-            result['schema'] = diff_schema
 
         # merge vacuum lists into one
         vacuum_table = [item for item in result['vacuum_table']

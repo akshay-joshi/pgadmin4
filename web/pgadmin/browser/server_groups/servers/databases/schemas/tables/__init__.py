@@ -1241,8 +1241,6 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         tid = kwargs['tid']
         diff_data = kwargs['diff_data'] if 'diff_data' in kwargs else None
         json_resp = kwargs['json_resp'] if 'json_resp' in kwargs else True
-        diff_schema = kwargs['diff_schema'] if 'diff_schema' in kwargs else\
-            None
 
         if diff_data:
             return self._fetch_sql(did, scid, tid, diff_data, json_resp)
@@ -1264,9 +1262,6 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
 
             if status:
                 data = res['rows'][0]
-
-            if diff_schema:
-                data['schema'] = diff_schema
 
             sql, partition_sql = BaseTableView.get_reverse_engineered_sql(
                 self, did, scid, tid, main_sql, data, json_resp)

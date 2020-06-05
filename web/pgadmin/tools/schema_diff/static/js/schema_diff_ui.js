@@ -39,10 +39,8 @@ export default class SchemaDiffUI {
     this.model = new Backbone.Model({
       source_sid: undefined,
       source_did: undefined,
-      source_scid: undefined,
       target_sid: undefined,
       target_did: undefined,
-      target_scid: undefined,
       source_ddl: undefined,
       target_ddl: undefined,
       diff_ddl: undefined,
@@ -146,11 +144,9 @@ export default class SchemaDiffUI {
       url_params = self.model.toJSON();
 
     if (url_params['source_sid'] == '' || _.isUndefined(url_params['source_sid']) ||
-      url_params['source_did'] == '' || _.isUndefined(url_params['source_did']) ||
-       url_params['source_scid'] == '' || _.isUndefined(url_params['source_scid']) ||
-       url_params['target_sid'] == '' || _.isUndefined(url_params['target_sid']) ||
-       url_params['target_did'] == '' || _.isUndefined(url_params['target_did']) ||
-       url_params['target_scid'] == '' || _.isUndefined(url_params['target_scid'])
+        url_params['source_did'] == '' || _.isUndefined(url_params['source_did']) ||
+        url_params['target_sid'] == '' || _.isUndefined(url_params['target_sid']) ||
+        url_params['target_did'] == '' || _.isUndefined(url_params['target_did'])
     ) {
       Alertify.alert(gettext('Selection Error'), gettext('Please select source and target.'));
       return false;
@@ -322,7 +318,15 @@ export default class SchemaDiffUI {
 
     // Grouping by Schema Object
     self.groupBySchemaObject = function() {
-      self.dataView.setGrouping({
+      self.dataView.setGrouping([{
+        getter: 'schema',
+        formatter: function (g) {
+          let icon = 'icon-coll-schema';
+          return '<i class="wcTabIcon '+ icon +'"></i><span>' + g.rows[0].schema;
+        },
+        aggregateCollapsed: true,
+        lazyTotalsCalculation: true,
+      }, {
         getter: 'type',
         formatter: function (g) {
           let icon = 'icon-coll-' + g.value;
@@ -337,7 +341,7 @@ export default class SchemaDiffUI {
         },
         aggregateCollapsed: true,
         lazyTotalsCalculation: true,
-      });
+      }]);
     };
 
     var groupItemMetadataProvider = new Slick.Data.GroupItemMetadataProvider({ checkboxSelect: true,
@@ -603,37 +607,6 @@ export default class SchemaDiffUI {
           self.connect_database(this.model.get('source_sid'), arguments[0], arguments[1]);
         },
       }, {
-        name: 'source_scid',
-        control: SchemaDiffSelect2Control,
-        group: 'source',
-        deps: ['source_sid', 'source_did'],
-        url: function() {
-          if (this.get('source_sid') && this.get('source_did'))
-            return url_for('schema_diff.schemas', {'sid': this.get('source_sid'), 'did': this.get('source_did')});
-          return false;
-        },
-        select2: {
-          allowClear: true,
-          placeholder: gettext('Select schema...'),
-        },
-        disabled: function(m) {
-          let self = this;
-          if (!_.isUndefined(m.get('source_did')) && !_.isNull(m.get('source_did'))
-              && m.get('source_did') !== '') {
-            setTimeout(function() {
-              if (self.options.length > 0) {
-                m.set('source_scid', self.options[0].value);
-              }
-            }, 10);
-            return false;
-          }
-
-          setTimeout(function() {
-            m.set('source_scid', undefined);
-          }, 10);
-          return true;
-        },
-      }, {
         name: 'target_sid', label: false,
         control: SchemaDiffSelect2Control,
         group: 'target',
@@ -681,37 +654,6 @@ export default class SchemaDiffUI {
         },
         connect: function() {
           self.connect_database(this.model.get('target_sid'), arguments[0], arguments[1]);
-        },
-      }, {
-        name: 'target_scid',
-        control: SchemaDiffSelect2Control,
-        group: 'target',
-        deps: ['target_sid', 'target_did'],
-        url: function() {
-          if (this.get('target_sid') && this.get('target_did'))
-            return url_for('schema_diff.schemas', {'sid': this.get('target_sid'), 'did': this.get('target_did')});
-          return false;
-        },
-        select2: {
-          allowClear: true,
-          placeholder: gettext('Select schema...'),
-        },
-        disabled: function(m) {
-          let self = this;
-          if (!_.isUndefined(m.get('target_did')) && !_.isNull(m.get('target_did'))
-              && m.get('target_did') !== '') {
-            setTimeout(function() {
-              if (self.options.length > 0) {
-                m.set('target_scid', self.options[0].value);
-              }
-            }, 10);
-            return false;
-          }
-
-          setTimeout(function() {
-            m.set('target_scid', undefined);
-          }, 10);
-          return true;
         },
       }],
     });

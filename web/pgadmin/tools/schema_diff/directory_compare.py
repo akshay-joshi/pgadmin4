@@ -19,7 +19,7 @@ list_keys_array = ['name', 'colname', 'argid', 'token', 'option', 'conname',
 
 
 def compare_dictionaries(view_object, source_params, target_params,
-                         target_schema, source_dict, target_dict, node,
+                         schema_name, source_dict, target_dict, node,
                          node_label,
                          ignore_keys=None):
     """
@@ -28,7 +28,7 @@ def compare_dictionaries(view_object, source_params, target_params,
     :param view_object: View Object
     :param source_params: Source Parameters
     :param target_params: Target Parameters
-    :param target_schema: Target Schema Name
+    :param schema_name: Schema Name
     :param source_dict: First Dictionary
     :param target_dict: Second Dictionary
     :param node: node type
@@ -63,17 +63,11 @@ def compare_dictionaries(view_object, source_params, target_params,
             temp_src_params['json_resp'] = False
             source_ddl = \
                 view_object.get_sql_from_table_diff(**temp_src_params)
-            temp_src_params.update({
-                'diff_schema': target_schema
-            })
             diff_ddl = view_object.get_sql_from_table_diff(**temp_src_params)
         else:
             temp_src_params = copy.deepcopy(source_params)
             temp_src_params['oid'] = source_object_id
             source_ddl = view_object.get_sql_from_diff(**temp_src_params)
-            temp_src_params.update({
-                'diff_schema': target_schema
-            })
             diff_ddl = view_object.get_sql_from_diff(**temp_src_params)
 
         source_only.append({
@@ -85,7 +79,8 @@ def compare_dictionaries(view_object, source_params, target_params,
             'status': SchemaDiffModel.COMPARISON_STATUS['source_only'],
             'source_ddl': source_ddl,
             'target_ddl': '',
-            'diff_ddl': diff_ddl
+            'diff_ddl': diff_ddl,
+            'schema': schema_name
         })
         count += 1
 
@@ -124,7 +119,8 @@ def compare_dictionaries(view_object, source_params, target_params,
             'status': SchemaDiffModel.COMPARISON_STATUS['target_only'],
             'source_ddl': '',
             'target_ddl': target_ddl,
-            'diff_ddl': diff_ddl
+            'diff_ddl': diff_ddl,
+            'schema': schema_name
         })
         count += 1
 
@@ -148,7 +144,8 @@ def compare_dictionaries(view_object, source_params, target_params,
                 'oid': source_object_id,
                 'source_oid': source_object_id,
                 'target_oid': target_object_id,
-                'status': SchemaDiffModel.COMPARISON_STATUS['identical']
+                'status': SchemaDiffModel.COMPARISON_STATUS['identical'],
+                'schema': schema_name
             })
         else:
             if node == 'table':
@@ -176,8 +173,8 @@ def compare_dictionaries(view_object, source_params, target_params,
                 target_ddl = \
                     view_object.get_sql_from_table_diff(**temp_tgt_params)
                 diff_ddl = view_object.get_sql_from_submodule_diff(
-                    temp_src_params, temp_tgt_params, target_schema,
-                    dict1[key], dict2[key], diff_dict)
+                    temp_src_params, temp_tgt_params, dict1[key], dict2[key],
+                    diff_dict)
             else:
                 temp_src_params = copy.deepcopy(source_params)
                 temp_tgt_params = copy.deepcopy(target_params)
@@ -206,7 +203,8 @@ def compare_dictionaries(view_object, source_params, target_params,
                 'status': SchemaDiffModel.COMPARISON_STATUS['different'],
                 'source_ddl': source_ddl,
                 'target_ddl': target_ddl,
-                'diff_ddl': diff_ddl
+                'diff_ddl': diff_ddl,
+                'schema': schema_name
             })
         count += 1
 

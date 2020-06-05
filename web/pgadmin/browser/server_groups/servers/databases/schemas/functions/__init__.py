@@ -928,8 +928,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             )
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, fnid=None, diff_schema=None,
-            json_resp=True):
+    def sql(self, gid, sid, did, scid, fnid=None, json_resp=True):
         """
         Returns the SQL for the Function object.
 
@@ -939,6 +938,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             did: Database Id
             scid: Schema Id
             fnid: Function Id
+            json_resp:
         """
         resp_data = self._fetch_properties(gid, sid, did, scid, fnid)
         # Most probably this is due to error
@@ -1003,9 +1003,6 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             if not status:
                 return internal_server_error(errormsg=res)
 
-            if diff_schema:
-                res['rows'][0]['nspname'] = diff_schema
-
             # Add newline and tab before each argument to format
             name_with_default_args = self.qtIdent(
                 self.conn,
@@ -1055,10 +1052,6 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             status, res = self.conn.execute_2darray(SQL)
             if not status:
                 return internal_server_error(errormsg=res)
-
-            if diff_schema:
-                res['rows'][0]['nspname'] = diff_schema
-                resp_data['pronamespace'] = diff_schema
 
             # Add newline and tab before each argument to format
             name_with_default_args = self.qtIdent(
@@ -1629,11 +1622,9 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         )
 
     def get_sql_from_diff(self, gid, sid, did, scid, oid, data=None,
-                          diff_schema=None, drop_sql=False):
+                          drop_sql=False):
         sql = ''
         if data:
-            if diff_schema:
-                data['schema'] = diff_schema
             status, sql = self._get_sql(gid, sid, did, scid, data, oid, False,
                                         True)
             # Check if return type is changed then we need to drop the
@@ -1647,9 +1638,6 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, fnid=oid, only_sql=True)
-            elif diff_schema:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, fnid=oid,
-                               diff_schema=diff_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, fnid=oid,
                                json_resp=False)

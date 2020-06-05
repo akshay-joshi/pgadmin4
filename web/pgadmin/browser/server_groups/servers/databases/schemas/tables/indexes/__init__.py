@@ -821,7 +821,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
 
     @check_precondition
     def get_sql_from_index_diff(self, sid, did, scid, tid, idx, data=None,
-                                diff_schema=None, drop_req=False):
+                                create_mode=None, drop_req=False):
 
         sql = ''
         if data:
@@ -835,11 +835,9 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
 
             sql = sql.strip('\n').strip(' ')
 
-        elif diff_schema:
-            schema = diff_schema
-
+        elif create_mode:
             sql = index_utils.get_reverse_engineered_sql(
-                self.conn, schema,
+                self.conn, self.schema,
                 self.table, did, tid, idx,
                 self.datlastsysoid,
                 template_path=None, with_header=False)
@@ -1027,7 +1025,6 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
         tgt_params = kwargs.get('target_params')
         source = kwargs.get('source')
         target = kwargs.get('target')
-        target_schema = kwargs.get('target_schema')
         comp_status = kwargs.get('comp_status')
 
         diff = ''
@@ -1037,7 +1034,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
                                                 scid=src_params['scid'],
                                                 tid=src_params['tid'],
                                                 idx=source['oid'],
-                                                diff_schema=target_schema)
+                                                create_mode=True)
         elif comp_status == 'target_only':
             diff = self.delete(gid=1, sid=tgt_params['sid'],
                                did=tgt_params['did'], scid=tgt_params['scid'],
@@ -1073,7 +1070,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
                                                     scid=tgt_params['scid'],
                                                     tid=tgt_params['tid'],
                                                     idx=target['oid'],
-                                                    diff_schema=target_schema,
+                                                    create_mode=True,
                                                     drop_req=True)
             else:
                 diff = self.get_sql_from_index_diff(sid=tgt_params['sid'],

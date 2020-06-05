@@ -696,8 +696,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         )
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, tid, diff_schema=None,
-            json_resp=True):
+    def sql(self, gid, sid, did, scid, tid, json_resp=True):
         """
         This function will reverse generate sql for sql panel
         :param gid: group id
@@ -705,7 +704,6 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         :param did: database id
         :param scid: schema id
         :param tid: fts tempate id
-        :param diff_schema: Target Schema for schema diff
         :param json_resp: True then return json response
         """
         sql = render_template(
@@ -728,22 +726,6 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
                     "Could not generate reversed engineered query for "
                     "FTS Template node.")
             )
-
-        # Used for schema diff tool
-        if diff_schema:
-            data = {'schema': scid}
-            # Fetch schema name from schema oid
-            sql = render_template("/".join([self.template_path,
-                                            'schema.sql']),
-                                  data=data,
-                                  conn=self.conn,
-                                  )
-
-            status, schema = self.conn.execute_scalar(sql)
-            if not status:
-                return internal_server_error(errormsg=schema)
-
-            res = res.replace(schema, diff_schema)
 
         if not json_resp:
             return res
@@ -814,7 +796,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         return res
 
     def get_sql_from_diff(self, gid, sid, did, scid, oid, data=None,
-                          diff_schema=None, drop_sql=False):
+                          drop_sql=False):
         """
         This function is used to get the DDL/DML statements.
         :param gid: Group ID
@@ -823,23 +805,17 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         :param scid: Schema ID
         :param oid: Collation ID
         :param data: Difference data
-        :param diff_schema: Target Schema
         :param drop_sql: True if need to drop the fts configuration
         :return:
         """
         sql = ''
         if data:
-            if diff_schema:
-                data['schema'] = diff_schema
             sql, name = self.get_sql(gid=gid, sid=sid, did=did, scid=scid,
                                      data=data, tid=oid)
         else:
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, tid=oid, only_sql=True)
-            elif diff_schema:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, tid=oid,
-                               diff_schema=diff_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, tid=oid,
                                json_resp=False)

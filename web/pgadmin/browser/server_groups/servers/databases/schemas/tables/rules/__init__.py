@@ -516,7 +516,6 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
 
     @check_precondition
     def get_sql_from_diff(self, gid, sid, did, scid, tid, oid, data=None,
-                          source_schema=None, diff_schema=None,
                           drop_sql=False):
 
         if drop_sql:
@@ -538,25 +537,12 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
             SQL = ''
 
             if data:
-                if source_schema:
-                    if 'statements' in data:
-                        # Replace the source schema with the target schema
-                        data['statements'] = data['statements'].replace(
-                            source_schema, diff_schema)
                 old_data = res_data
                 SQL = render_template(
                     "/".join([self.template_path, 'update.sql']),
                     data=data, o_data=old_data
                 )
             else:
-                if diff_schema:
-                    if 'statements' in res_data:
-                        # Replace the source schema with the target schema
-                        res_data['statements'] = \
-                            res_data['statements'].replace(
-                                res_data['schema'], diff_schema)
-                    res_data['schema'] = diff_schema
-
                 SQL = render_template("/".join(
                     [self.template_path, 'create.sql']),
                     data=res_data, display_comments=True)
@@ -650,7 +636,6 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
         tgt_params = kwargs.get('target_params')
         source = kwargs.get('source')
         target = kwargs.get('target')
-        target_schema = kwargs.get('target_schema')
         comp_status = kwargs.get('comp_status')
 
         diff = ''
@@ -660,8 +645,7 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
                                           did=src_params['did'],
                                           scid=src_params['scid'],
                                           tid=src_params['tid'],
-                                          oid=source['oid'],
-                                          diff_schema=target_schema)
+                                          oid=source['oid'])
         elif comp_status == 'target_only':
             diff = self.get_sql_from_diff(gid=tgt_params['gid'],
                                           sid=tgt_params['sid'],
@@ -683,8 +667,6 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
                                           scid=tgt_params['scid'],
                                           tid=tgt_params['tid'],
                                           oid=target['oid'],
-                                          source_schema=source['schema'],
-                                          diff_schema=target_schema,
                                           data=diff_dict)
 
         return diff

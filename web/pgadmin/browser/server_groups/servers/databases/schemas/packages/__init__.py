@@ -572,7 +572,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         )
 
     def getSQL(self, gid, sid, did, data, scid, pkgid=None, sqltab=False,
-               diff_schema=None):
+               is_schema_diff=None):
         """
         This function will generate sql from model data.
 
@@ -583,17 +583,14 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             scid: Schema ID
             pkgid: Package ID
             sqltab: True
-            diff_schema: Target Schema
+            is_schema_diff:
         """
 
         required_args = [
             u'name'
         ]
 
-        if diff_schema:
-            data['schema'] = diff_schema
-        else:
-            data['schema'] = self.schema
+        data['schema'] = self.schema
 
         if pkgid is not None and not sqltab:
             SQL = render_template(
@@ -647,12 +644,9 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                 if arg not in data:
                     data[arg] = old_data[arg]
 
-            if diff_schema:
-                data['schema'] = diff_schema
-
             SQL = render_template("/".join([self.template_path, 'update.sql']),
                                   data=data, o_data=old_data, conn=self.conn,
-                                  is_schema_diff=diff_schema)
+                                  is_schema_diff=is_schema_diff)
             return SQL, data['name'] if 'name' in data else old_data['name']
         else:
             # To format privileges coming from client
@@ -665,7 +659,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             return SQL, data['name']
 
     @check_precondition(action="sql")
-    def sql(self, gid, sid, did, scid, pkgid, diff_schema=None,
+    def sql(self, gid, sid, did, scid, pkgid, is_schema_diff=None,
             json_resp=True):
         """
         This function will generate sql for sql panel
@@ -676,7 +670,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             did: Database ID
             scid: Schema ID
             pkgid: Package ID
-            diff_schema:  Schema diff target schema name
+            is_schema_diff:
             json_resp: json response or plain text response
         """
         try:
@@ -710,7 +704,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
 
             result = res['rows'][0]
             sql, name = self.getSQL(gid, sid, did, result, scid, pkgid, True,
-                                    diff_schema)
+                                    is_schema_diff)
             # Most probably this is due to error
             if not isinstance(sql, str):
                 return sql
@@ -822,7 +816,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         return res
 
     def get_sql_from_diff(self, gid, sid, did, scid, oid, data=None,
-                          diff_schema=None, drop_sql=False):
+                          drop_sql=False):
         """
         This function is used to get the DDL/DML statements.
         :param gid: Group ID
@@ -831,25 +825,19 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         :param scid: Schema ID
         :param oid: Package ID
         :param data: Difference data
-        :param diff_schema: Target Schema
         :param drop_sql: True if need to drop the domains
         :return:
         """
         sql = ''
         if data:
-            if diff_schema:
-                data['schema'] = diff_schema
             sql, name = self.getSQL(gid, sid, did, data, scid, oid)
         else:
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, pkgid=oid, only_sql=True)
-            elif diff_schema:
-                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, pkgid=oid,
-                               diff_schema=diff_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, pkgid=oid,
-                               json_resp=False)
+                               is_schema_diff=True, json_resp=False)
         return sql
 
 

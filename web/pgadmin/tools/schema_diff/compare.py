@@ -9,15 +9,12 @@
 
 """Schema diff object comparison."""
 
-import copy
-
 from flask import render_template
 from flask_babelex import gettext
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
 from pgadmin.utils.ajax import internal_server_error
 from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
-from pgadmin.tools.schema_diff.model import SchemaDiffModel
 
 
 class SchemaDiffObjectCompare:
