@@ -270,9 +270,13 @@ def servers():
             conn = manager.connection()
             connected = conn.connected()
 
+            server_name = server.name
+            if server.servers.name:
+                server_name = server.name + ' (' + server.servers.name + ')'
+
             res.append({
                 "value": server.id,
-                "label": server.name,
+                "label": server_name,
                 "image": server_icon_and_background(connected, manager,
                                                     server),
                 "_id": server.id,
@@ -412,21 +416,30 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
                                     diff_model_obj)
 
     try:
-        # node_percent = round(100 / len(all_registered_nodes))
-        total_percent = 0
-
         # Fetch all the schemas of source and target database
         # Compare them and get the status.
         schema_result = fetch_compare_schemas(source_sid, source_did,
                                               target_sid, target_did)
 
+        total_schema = len(schema_result['source_only']) + len(
+            schema_result['target_only']) + len(
+            schema_result['in_both_database'])
+
+        node_percent = \
+            round(100 / (total_schema *
+                         len(SchemaDiffRegistry.get_registered_nodes())))
+        total_percent = 0
+
         if 'source_only' in schema_result and \
                 len(schema_result['source_only']) > 0:
             for item in schema_result['source_only']:
-                comparison_schema_result = compare_schema_objects(
-                    trans_id, session_obj, source_sid, source_did,
-                    item['scid'], target_sid, target_did,
-                    None, diff_model_obj, total_percent)
+                comparison_schema_result, total_percent = \
+                    compare_schema_objects(trans_id, session_obj, source_sid,
+                                           source_did, item['scid'],
+                                           target_sid, target_did,
+                                           None, item['schema_name'],
+                                           diff_model_obj, total_percent,
+                                           node_percent)
 
                 comparison_result = \
                     comparison_result + comparison_schema_result
@@ -434,10 +447,13 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
         if 'target_only' in schema_result and \
                 len(schema_result['target_only']) > 0:
             for item in schema_result['target_only']:
-                comparison_schema_result = compare_schema_objects(
-                    trans_id, session_obj, source_sid, source_did,
-                    None, target_sid, target_did,
-                    item['scid'], diff_model_obj, total_percent)
+                comparison_schema_result, total_percent = \
+                    compare_schema_objects(trans_id, session_obj, source_sid,
+                                           source_did, None, target_sid,
+                                           target_did, item['scid'],
+                                           item['schema_name'],
+                                           diff_model_obj, total_percent,
+                                           node_percent)
 
                 comparison_result = \
                     comparison_result + comparison_schema_result
@@ -446,17 +462,19 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
         if 'in_both_database' in schema_result and \
                 len(schema_result['in_both_database']) > 0:
             for item in schema_result['in_both_database']:
-                comparison_schema_result = compare_schema_objects(
-                    trans_id, session_obj, source_sid, source_did,
-                    item['src_scid'], target_sid, target_did,
-                    item['tar_scid'], diff_model_obj, total_percent)
+                comparison_schema_result, total_percent = \
+                    compare_schema_objects(trans_id, session_obj, source_sid,
+                                           source_did, item['src_scid'],
+                                           target_sid, target_did,
+                                           item['tar_scid'],
+                                           item['schema_name'],
+                                           diff_model_obj, total_percent,
+                                           node_percent)
 
                 comparison_result = \
                     comparison_result + comparison_schema_result
 
-        # total_percent = total_percent + node_percent
-
-        msg = gettext("Successfully compare the specified schemas.")
+        msg = gettext("Successfully compare the specified databases.")
         total_percent = 100
         diff_model_obj.set_comparison_info(msg, total_percent)
         # Update the message and total percentage done in session object
@@ -597,7 +615,8 @@ def get_schemas(sid, did):
 
 def compare_schema_objects(trans_id, session_obj, source_sid, source_did,
                            source_scid, target_sid, target_did, target_scid,
-                           diff_model_obj, total_percent):
+                           schema_name, diff_model_obj, total_percent,
+                           node_percent):
     """
     This function is used to compare the specified schema and their children.
 
@@ -609,8 +628,10 @@ def compare_schema_objects(trans_id, session_obj, source_sid, source_did,
     :param target_sid: Target Server
     :param target_did: Target Database
     :param target_scid: Target Schema
+    :param schema_name: Schema Name
     :param diff_model_obj: Model object
     :param total_percent: Comparision percent
+    :param node_percent: Node percent
     :return:
     """
     comparison_result = []
@@ -619,8 +640,9 @@ def compare_schema_objects(trans_id, session_obj, source_sid, source_did,
     for node_name, node_view in all_registered_nodes.items():
         view = SchemaDiffRegistry.get_node_view(node_name)
         if hasattr(view, 'compare'):
-            msg = gettext('Comparing {0}'). \
-                format(gettext(view.blueprint.COLLECTION_LABEL))
+            msg = gettext('Comparing {0} of schema \'{1}\''). \
+                format(gettext(view.blueprint.COLLECTION_LABEL),
+                       gettext(schema_name))
             diff_model_obj.set_comparison_info(msg, total_percent)
             # Update the message and total percentage in session object
             update_session_diff_transaction(trans_id, session_obj,
@@ -631,12 +653,14 @@ def compare_schema_objects(trans_id, session_obj, source_sid, source_did,
                                source_scid=source_scid,
                                target_sid=target_sid,
                                target_did=target_did,
-                               target_scid=target_scid)
+                               target_scid=target_scid,
+                               schema_name=schema_name)
 
             if res is not None:
                 comparison_result = comparison_result + res
+        total_percent = total_percent + node_percent
 
-    return comparison_result
+    return comparison_result, total_percent
 
 
 def fetch_compare_schemas(source_sid, source_did, target_sid, target_did):
@@ -668,14 +692,14 @@ def fetch_compare_schemas(source_sid, source_did, target_sid, target_did):
     source_only = []
     added = dict1_keys - dict2_keys
     for item in added:
-        source_only.append({'schama_name': item,
+        source_only.append({'schema_name': item,
                             'scid': src_schema_dict[item]})
 
     target_only = []
     # Keys that are available in target and missing in source.
     removed = dict2_keys - dict1_keys
     for item in removed:
-        target_only.append({'schama_name': item,
+        target_only.append({'schema_name': item,
                             'scid': tar_schema_dict[item]})
 
     in_both_database = []

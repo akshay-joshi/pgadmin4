@@ -65,16 +65,15 @@ class SchemaDiffObjectCompare:
                          'scid': kwargs.get('target_scid')
                          }
 
-        status, target_schema = self.get_schema(kwargs.get('target_sid'),
-                                                kwargs.get('target_did'),
-                                                kwargs.get('target_scid')
-                                                )
-        if not status:
-            return internal_server_error(errormsg=target_schema)
+        schema_name = kwargs.get('schema_name')
+        source = {}
+        target = {}
 
-        source = self.fetch_objects_to_compare(**source_params)
+        if 'scid' in source_params and source_params['scid'] is not None:
+            source = self.fetch_objects_to_compare(**source_params)
 
-        target = self.fetch_objects_to_compare(**target_params)
+        if 'scid' in target_params and target_params['scid'] is not None:
+            target = self.fetch_objects_to_compare(**target_params)
 
         # If both the dict have no items then return None.
         if not (source or target) or (
@@ -82,7 +81,7 @@ class SchemaDiffObjectCompare:
             return None
 
         return compare_dictionaries(self, source_params, target_params,
-                                    target_schema, source, target,
+                                    schema_name, source, target,
                                     self.node_type,
                                     gettext(self.blueprint.COLLECTION_LABEL),
                                     self.keys_to_ignore)

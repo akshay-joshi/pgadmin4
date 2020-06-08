@@ -51,12 +51,15 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                          'did': kwargs.get('target_did'),
                          'scid': kwargs.get('target_scid')}
 
-        status, target_schema = self.get_schema(**target_params)
-        if not status:
-            return internal_server_error(errormsg=target_schema)
+        schema_name = kwargs.get('schema_name')
+        source_tables = {}
+        target_tables = {}
 
-        source_tables = self.fetch_tables(**source_params)
-        target_tables = self.fetch_tables(**target_params)
+        if 'scid' in source_params and source_params['scid'] is not None:
+            source_tables = self.fetch_tables(**source_params)
+
+        if 'scid' in target_params and target_params['scid'] is not None:
+            target_tables = self.fetch_tables(**target_params)
 
         # If both the dict have no items then return None.
         if not (source_tables or target_tables) or (
@@ -64,7 +67,7 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
             return None
 
         return compare_dictionaries(self, source_params, target_params,
-                                    target_schema, source_tables,
+                                    schema_name, source_tables,
                                     target_tables,
                                     self.node_type,
                                     self.blueprint.COLLECTION_LABEL,
@@ -225,14 +228,13 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
         return different
 
     def get_sql_from_submodule_diff(self, source_params, target_params,
-                                    target_schema, source, target, diff_dict):
+                                    source, target, diff_dict):
         """
         This function returns the DDL/DML statements of the
         submodules of table based on the comparison status.
 
         :param source_params:
         :param target_params:
-        :param target_schema:
         :param source:
         :param target:
         :param diff_dict:
@@ -290,7 +292,6 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                             target_params=target_params,
                             source=dict1[item],
                             target=None,
-                            target_schema=target_schema,
                             comp_status='source_only'
                         )
 
@@ -304,7 +305,6 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                             target_params=target_params,
                             source=None,
                             target=dict2[item],
-                            target_schema=target_schema,
                             comp_status='target_only'
                         )
 
@@ -321,7 +321,6 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                                 target_params=target_params,
                                 source=dict1[key],
                                 target=dict2[key],
-                                target_schema=target_schema,
                                 comp_status='different',
                                 parent_source_data=source,
                                 parent_target_data=target

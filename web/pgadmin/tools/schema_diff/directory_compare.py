@@ -145,7 +145,9 @@ def compare_dictionaries(view_object, source_params, target_params,
                 'source_oid': source_object_id,
                 'target_oid': target_object_id,
                 'status': SchemaDiffModel.COMPARISON_STATUS['identical'],
-                'schema': schema_name
+                'schema': schema_name,
+                'source_scid': source_params['scid'],
+                'target_scid': target_params['scid']
             })
         else:
             if node == 'table':

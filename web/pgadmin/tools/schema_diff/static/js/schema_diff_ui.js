@@ -291,7 +291,7 @@ export default class SchemaDiffUI {
     // Format Schema object title with appropriate icon
     var formatColumnTitle = function (row, cell, value, columnDef, dataContext) {
       let icon = 'icon-' + dataContext.type;
-      return '<i class="ml-2 wcTabIcon '+ icon +'"></i><span>' + value + '</span>';
+      return '<i class="ml-3 wcTabIcon '+ icon +'"></i><span>' + value + '</span>';
     };
 
     // Grid Columns
@@ -340,6 +340,7 @@ export default class SchemaDiffUI {
           return '<i class="wcTabIcon '+ icon +'"></i><span>' + g.rows[0].label + ' - ' + gettext('Identical') + ': <strong>' + identical + '</strong>&nbsp;&nbsp;' + gettext('Different') + ': <strong>' + different + '</strong>&nbsp;&nbsp;' + gettext('Source Only') + ': <strong>' + source_only + '</strong>&nbsp;&nbsp;' + gettext('Target Only') + ': <strong>' + target_only + '</strong></span>';
         },
         aggregateCollapsed: true,
+        collapsed: true,
         lazyTotalsCalculation: true,
       }]);
     };
@@ -513,6 +514,8 @@ export default class SchemaDiffUI {
       target_oid = data.target_oid;
 
       url_params['trans_id'] = self.trans_id;
+      url_params['source_scid'] = data.source_scid;
+      url_params['target_scid'] = data.target_scid;
       url_params['source_oid'] = source_oid;
       url_params['target_oid'] = target_oid;
       url_params['comp_status'] = data.status;
