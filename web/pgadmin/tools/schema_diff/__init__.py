@@ -25,6 +25,7 @@ from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 from pgadmin.tools.schema_diff.model import SchemaDiffModel
 from config import PG_DEFAULT_DRIVER
 from pgadmin.utils.driver import get_driver
+from pgadmin.utils.preferences import Preferences
 
 MODULE_NAME = 'schema_diff'
 
@@ -77,6 +78,16 @@ class SchemaDiffModule(PgAdminModule):
             category_label=gettext('Display'),
             help_str=gettext('If set to True, the Schema Diff '
                              'will be opened in a new browser tab.')
+        )
+
+        self.preference.register(
+            'display', 'ignore_whitespaces',
+            gettext("Ignore whitespaces"), 'boolean', False,
+            category_label=gettext('Display'),
+            help_str=gettext('If set to True, then the Schema Diff '
+                             'tool ignores the whitespaces while comparing '
+                             'the string objects. Whitespace includes space, '
+                             'tabs, and CRLF')
         )
 
 
@@ -416,6 +427,9 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
                                     diff_model_obj)
 
     try:
+        pref = Preferences.module('schema_diff')
+        ignore_whitespaces = pref.preference('ignore_whitespaces').get()
+
         # Fetch all the schemas of source and target database
         # Compare them and get the status.
         schema_result = fetch_compare_schemas(source_sid, source_did,
@@ -439,7 +453,7 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
                                            target_sid, target_did,
                                            None, item['schema_name'],
                                            diff_model_obj, total_percent,
-                                           node_percent)
+                                           node_percent, ignore_whitespaces)
 
                 comparison_result = \
                     comparison_result + comparison_schema_result
@@ -453,7 +467,7 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
                                            target_did, item['scid'],
                                            item['schema_name'],
                                            diff_model_obj, total_percent,
-                                           node_percent)
+                                           node_percent, ignore_whitespaces)
 
                 comparison_result = \
                     comparison_result + comparison_schema_result
@@ -469,7 +483,7 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
                                            item['tar_scid'],
                                            item['schema_name'],
                                            diff_model_obj, total_percent,
-                                           node_percent)
+                                           node_percent, ignore_whitespaces)
 
                 comparison_result = \
                     comparison_result + comparison_schema_result
@@ -616,7 +630,7 @@ def get_schemas(sid, did):
 def compare_schema_objects(trans_id, session_obj, source_sid, source_did,
                            source_scid, target_sid, target_did, target_scid,
                            schema_name, diff_model_obj, total_percent,
-                           node_percent):
+                           node_percent, ignore_whitespaces):
     """
     This function is used to compare the specified schema and their children.
 
@@ -632,6 +646,7 @@ def compare_schema_objects(trans_id, session_obj, source_sid, source_did,
     :param diff_model_obj: Model object
     :param total_percent: Comparision percent
     :param node_percent: Node percent
+    :param ignore_whitespaces: Ignore Whitespace
     :return:
     """
     comparison_result = []
@@ -654,7 +669,8 @@ def compare_schema_objects(trans_id, session_obj, source_sid, source_did,
                                target_sid=target_sid,
                                target_did=target_did,
                                target_scid=target_scid,
-                               schema_name=schema_name)
+                               schema_name=schema_name,
+                               ignore_whitespaces=ignore_whitespaces)
 
             if res is not None:
                 comparison_result = comparison_result + res

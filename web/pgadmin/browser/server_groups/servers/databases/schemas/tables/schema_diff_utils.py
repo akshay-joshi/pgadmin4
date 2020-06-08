@@ -52,6 +52,7 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                          'scid': kwargs.get('target_scid')}
 
         schema_name = kwargs.get('schema_name')
+        ignore_whitespaces = kwargs.get('ignore_whitespaces')
         source_tables = {}
         target_tables = {}
 
@@ -71,6 +72,7 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                                     target_tables,
                                     self.node_type,
                                     self.blueprint.COLLECTION_LABEL,
+                                    ignore_whitespaces,
                                     self.keys_to_ignore)
 
     def ddl_compare(self, **kwargs):
@@ -228,7 +230,8 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
         return different
 
     def get_sql_from_submodule_diff(self, source_params, target_params,
-                                    source, target, diff_dict):
+                                    source, target, diff_dict,
+                                    ignore_whitespaces):
         """
         This function returns the DDL/DML statements of the
         submodules of table based on the comparison status.
@@ -314,7 +317,8 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                     for key in intersect_keys:
                         # Recursively Compare the two dictionary
                         if not are_dictionaries_identical(
-                                dict1[key], dict2[key], self.keys_to_ignore):
+                                dict1[key], dict2[key], ignore_whitespaces,
+                                self.keys_to_ignore):
 
                             diff_ddl = module_view.ddl_compare(
                                 source_params=source_params,
