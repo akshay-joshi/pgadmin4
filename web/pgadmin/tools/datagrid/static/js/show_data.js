@@ -193,6 +193,7 @@ function initFilterDialog(alertify, pgBrowser) {
             lineWrapping: that.preferences.wrap_code,
             autoCloseBrackets: that.preferences.insert_pair_brackets,
             matchBrackets: that.preferences.brace_matching,
+            screenReaderLabel: gettext('Filter SQL'),
           });
 
           let sql_font_size = SqlEditorUtils.calcFontSize(that.preferences.sql_font_size);
@@ -241,10 +242,16 @@ function initFilterDialog(alertify, pgBrowser) {
                 }
               })
               .fail(function(e) {
-                alertify.alert(
-                  gettext('Validation Error'),
-                  e
-                );
+                if (e.status === 410){
+                  pgBrowser.report_error(gettext('Error filtering rows - %s.', e.statusText), e.responseJSON.errormsg);
+
+                } else {
+                  alertify.alert(
+                    gettext('Validation Error'),
+                    e
+                  );
+                }
+
               });
           } else if(closeEvent.index == 0) {
             /* help Button */

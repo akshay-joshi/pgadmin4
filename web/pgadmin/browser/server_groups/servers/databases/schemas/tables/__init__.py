@@ -595,6 +595,8 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         status, res = self._fetch_properties(did, scid, tid)
         if not status:
             return res
+        if not res['rows']:
+            return gone(gettext("The specified table could not be found."))
 
         return super(TableView, self).properties(
             gid, sid, did, scid, tid, res
@@ -1153,6 +1155,9 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
             if not status:
                 return internal_server_error(errormsg=res)
 
+            if len(res['rows']) == 0:
+                return gone(gettext("The specified table could not be found."))
+
             return super(TableView, self).truncate(
                 gid, sid, did, scid, tid, res
             )
@@ -1367,6 +1372,9 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         if not status:
             return res
 
+        if len(res['rows']) == 0:
+            return gone(gettext("The specified table could not be found."))
+
         data = res['rows'][0]
 
         return BaseTableView.get_reverse_engineered_sql(
@@ -1395,6 +1403,9 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         status, res = self.conn.execute_dict(SQL)
         if not status:
             return internal_server_error(errormsg=res)
+
+        if len(res['rows']) == 0:
+            return gone(gettext("The specified table could not be found."))
 
         data = res['rows'][0]
         data = self._formatter(did, scid, tid, data)
@@ -1440,6 +1451,9 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         status, res = self.conn.execute_dict(SQL)
         if not status:
             return internal_server_error(errormsg=res)
+
+        if len(res['rows']) == 0:
+            return gone(gettext("The specified table could not be found."))
 
         data = res['rows'][0]
         data = self._formatter(did, scid, tid, data)
@@ -1488,6 +1502,9 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         status, res = self.conn.execute_dict(SQL)
         if not status:
             return internal_server_error(errormsg=res)
+
+        if len(res['rows']) == 0:
+            return gone(gettext("The specified table could not be found."))
 
         data = res['rows'][0]
         data = self._formatter(did, scid, tid, data)
@@ -1539,6 +1556,9 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         if not status:
             return internal_server_error(errormsg=res)
 
+        if len(res['rows']) == 0:
+            return gone(gettext("The specified table could not be found."))
+
         data = res['rows'][0]
 
         sql = u"DELETE FROM {0}\n\tWHERE <condition>;".format(
@@ -1584,6 +1604,9 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         data = {}
         data['schema'], data['name'] = \
             super(TableView, self).get_schema_and_table_name(tid)
+
+        if data['name'] is None:
+            return gone(gettext("The specified table could not be found."))
 
         SQL = render_template(
             "/".join(
