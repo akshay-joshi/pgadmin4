@@ -268,7 +268,7 @@ def servers():
     This function will return the list of servers for the specified
     server id.
     """
-    res = []
+    res = {}
     try:
         """Return a JSON document listing the server groups for the user"""
         driver = get_driver(PG_DEFAULT_DRIVER)
@@ -280,19 +280,19 @@ def servers():
             manager = driver.connection_manager(server.id)
             conn = manager.connection()
             connected = conn.connected()
-
-            server_name = server.name
-            if server.servers.name:
-                server_name = server.name + ' (' + server.servers.name + ')'
-
-            res.append({
+            server_info = {
                 "value": server.id,
-                "label": server_name,
+                "label": server.name,
                 "image": server_icon_and_background(connected, manager,
                                                     server),
                 "_id": server.id,
-                "connected": connected,
-            })
+                "connected": connected
+            }
+
+            if server.servers.name in res:
+                res[server.servers.name].append(server_info)
+            else:
+                res[server.servers.name] = [server_info]
 
     except Exception as e:
         app.logger.exception(e)
@@ -439,9 +439,8 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
             schema_result['target_only']) + len(
             schema_result['in_both_database'])
 
-        node_percent = \
-            round(100 / (total_schema *
-                         len(SchemaDiffRegistry.get_registered_nodes())))
+        node_percent = round(100 / (total_schema * len(
+            SchemaDiffRegistry.get_registered_nodes())))
         total_percent = 0
 
         if 'source_only' in schema_result and \
@@ -675,6 +674,9 @@ def compare_schema_objects(trans_id, session_obj, source_sid, source_did,
             if res is not None:
                 comparison_result = comparison_result + res
         total_percent = total_percent + node_percent
+        # if total_percent is more then 100 then set it to less then 100
+        if total_percent >= 100:
+            total_percent = 96
 
     return comparison_result, total_percent
 

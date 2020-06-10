@@ -227,7 +227,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
     })
 
     # Schema Diff: Keys to ignore while comparing
-    keys_to_ignore = ['oid', 'relowner', 'schema',
+    keys_to_ignore = ['oid', 'relowner', 'schema', 'indclass',
                       'indrelid', 'nspname', 'oid-2']
 
     def check_precondition(f):
@@ -1067,11 +1067,11 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
                         create_req = True
 
             if create_req:
-                diff = self.get_sql_from_index_diff(sid=tgt_params['sid'],
-                                                    did=tgt_params['did'],
-                                                    scid=tgt_params['scid'],
-                                                    tid=tgt_params['tid'],
-                                                    idx=target['oid'],
+                diff = self.get_sql_from_index_diff(sid=src_params['sid'],
+                                                    did=src_params['did'],
+                                                    scid=src_params['scid'],
+                                                    tid=src_params['tid'],
+                                                    idx=source['oid'],
                                                     create_mode=True,
                                                     drop_req=True)
             else:

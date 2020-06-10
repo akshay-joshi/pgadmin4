@@ -31,7 +31,7 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
 
     trigger_keys_to_ignore = ['xmin', 'tgrelid', 'tgfoid', 'tfunction',
                               'tgqual', 'tgconstraint']
-    index_keys_to_ignore = ['relowner', 'indrelid']
+    index_keys_to_ignore = ['relowner', 'indrelid', 'indclass']
 
     keys_to_ignore = table_keys_to_ignore + constraint_keys_to_ignore \
         + trigger_keys_to_ignore + index_keys_to_ignore
