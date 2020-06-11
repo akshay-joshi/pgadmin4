@@ -1240,7 +1240,6 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         """
         data = dict()
         res = None
-        sid = kwargs['sid']
         did = kwargs['did']
         scid = kwargs['scid']
         tid = kwargs['tid']
@@ -1286,7 +1285,6 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
            tid: Table ID
         """
         data = dict()
-        SQL = ''
         for k, v in request.args.items():
             try:
                 # comments should be taken as is because if user enters a
