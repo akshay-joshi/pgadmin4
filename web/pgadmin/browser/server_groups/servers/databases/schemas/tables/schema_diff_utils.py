@@ -51,7 +51,7 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
                          'did': kwargs.get('target_did'),
                          'scid': kwargs.get('target_scid')}
 
-        schema_name = kwargs.get('schema_name')
+        group_name = kwargs.get('group_name')
         ignore_whitespaces = kwargs.get('ignore_whitespaces')
         source_tables = {}
         target_tables = {}
@@ -68,11 +68,10 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
             return None
 
         return compare_dictionaries(self, source_params, target_params,
-                                    schema_name, source_tables,
-                                    target_tables,
+                                    source_tables, target_tables,
                                     self.node_type,
                                     self.blueprint.COLLECTION_LABEL,
-                                    ignore_whitespaces,
+                                    group_name, ignore_whitespaces,
                                     self.keys_to_ignore)
 
     def ddl_compare(self, **kwargs):

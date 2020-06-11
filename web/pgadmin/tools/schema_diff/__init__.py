@@ -443,6 +443,17 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
             SchemaDiffRegistry.get_registered_nodes())))
         total_percent = 0
 
+        # Compare Database objects
+        comparison_schema_result, total_percent = \
+            compare_database_objects(trans_id, session_obj, source_sid,
+                                     source_did, target_sid, target_did,
+                                     diff_model_obj, total_percent,
+                                     node_percent, ignore_whitespaces
+                                     )
+        comparison_result = \
+            comparison_result + comparison_schema_result
+
+        # Compare Schema objects
         if 'source_only' in schema_result and \
                 len(schema_result['source_only']) > 0:
             for item in schema_result['source_only']:
@@ -626,6 +637,53 @@ def get_schemas(sid, did):
     return None
 
 
+def compare_database_objects(trans_id, session_obj, source_sid, source_did,
+                             target_sid, target_did, diff_model_obj,
+                             total_percent, node_percent,
+                             ignore_whitespaces):
+    """
+    This function is used to compare the specified schema and their children.
+
+    :param trans_id:  Transaction ID
+    :param session_obj: Session Object
+    :param source_sid: Source Server
+    :param source_did: Source Database
+    :param target_sid: Target Server
+    :param target_did: Target Database
+    :param diff_model_obj: Model object
+    :param total_percent: Comparision percent
+    :param node_percent: Node percent
+    :param ignore_whitespaces: Ignore Whitespace
+    :return:
+    """
+    comparison_result = []
+
+    all_registered_nodes = SchemaDiffRegistry.get_registered_nodes(None,
+                                                                   'Database')
+    for node_name, node_view in all_registered_nodes.items():
+        view = SchemaDiffRegistry.get_node_view(node_name)
+        if hasattr(view, 'compare'):
+            msg = gettext('Comparing {0}'). \
+                format(gettext(view.blueprint.COLLECTION_LABEL))
+            diff_model_obj.set_comparison_info(msg, total_percent)
+            # Update the message and total percentage in session object
+            update_session_diff_transaction(trans_id, session_obj,
+                                            diff_model_obj)
+
+            res = view.compare(source_sid=source_sid,
+                               source_did=source_did,
+                               target_sid=target_sid,
+                               target_did=target_did,
+                               group_name=gettext('Database Objects'),
+                               ignore_whitespaces=ignore_whitespaces)
+
+            if res is not None:
+                comparison_result = comparison_result + res
+        total_percent = total_percent + node_percent
+
+    return comparison_result, total_percent
+
+
 def compare_schema_objects(trans_id, session_obj, source_sid, source_did,
                            source_scid, target_sid, target_did, target_scid,
                            schema_name, diff_model_obj, total_percent,
@@ -668,7 +726,7 @@ def compare_schema_objects(trans_id, session_obj, source_sid, source_did,
                                target_sid=target_sid,
                                target_did=target_did,
                                target_scid=target_scid,
-                               schema_name=schema_name,
+                               group_name=gettext(schema_name),
                                ignore_whitespaces=ignore_whitespaces)
 
             if res is not None:

@@ -20,8 +20,8 @@ list_keys_array = ['name', 'colname', 'argid', 'token', 'option', 'conname',
 
 
 def compare_dictionaries(view_object, source_params, target_params,
-                         schema_name, source_dict, target_dict, node,
-                         node_label, ignore_whitespaces,
+                         source_dict, target_dict, node, node_label,
+                         group_name, ignore_whitespaces,
                          ignore_keys=None):
     """
     This function will compare the two dictionaries.
@@ -29,11 +29,11 @@ def compare_dictionaries(view_object, source_params, target_params,
     :param view_object: View Object
     :param source_params: Source Parameters
     :param target_params: Target Parameters
-    :param schema_name: Schema Name
     :param source_dict: First Dictionary
     :param target_dict: Second Dictionary
     :param node: node type
     :param node_label: node label
+    :param group_name: Name of the parent
     :param ignore_whitespaces: If set the True then ignore whitespaces
     :param ignore_keys: List of keys that will be ignored while comparing
     :return:
@@ -82,7 +82,7 @@ def compare_dictionaries(view_object, source_params, target_params,
             'source_ddl': source_ddl,
             'target_ddl': '',
             'diff_ddl': diff_ddl,
-            'schema': schema_name
+            'group_name': group_name
         })
         count += 1
 
@@ -122,7 +122,7 @@ def compare_dictionaries(view_object, source_params, target_params,
             'source_ddl': '',
             'target_ddl': target_ddl,
             'diff_ddl': diff_ddl,
-            'schema': schema_name
+            'group_name': group_name
         })
         count += 1
 
@@ -148,9 +148,11 @@ def compare_dictionaries(view_object, source_params, target_params,
                 'source_oid': source_object_id,
                 'target_oid': target_object_id,
                 'status': SchemaDiffModel.COMPARISON_STATUS['identical'],
-                'schema': schema_name,
-                'source_scid': source_params['scid'],
+                'group_name': group_name,
+                'source_scid': source_params['scid']
+                if 'scid' in source_params else 0,
                 'target_scid': target_params['scid']
+                if 'scid' in target_params else 0,
             })
         else:
             if node == 'table':
@@ -209,7 +211,7 @@ def compare_dictionaries(view_object, source_params, target_params,
                 'source_ddl': source_ddl,
                 'target_ddl': target_ddl,
                 'diff_ddl': diff_ddl,
-                'schema': schema_name
+                'group_name': group_name
             })
         count += 1
 

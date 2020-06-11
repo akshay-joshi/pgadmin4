@@ -298,11 +298,11 @@ export default class SchemaDiffUI {
     var grid_width =  (self.grid_width - 47) / 2 ;
     var columns = [
       checkboxSelector.getColumnDefinition(),
-      {id: 'title', name: gettext('Schema Objects'), field: 'title', minWidth: grid_width, formatter: formatColumnTitle},
+      {id: 'title', name: gettext('Objects'), field: 'title', minWidth: grid_width, formatter: formatColumnTitle},
       {id: 'status', name: gettext('Comparison Result'), field: 'status', minWidth: grid_width},
-      {id: 'label', name: gettext('Schema Objects'), field: 'label',  width: 0, minWidth: 0, maxWidth: 0,
+      {id: 'label', name: gettext('Objects'), field: 'label',  width: 0, minWidth: 0, maxWidth: 0,
         cssClass: 'really-hidden', headerCssClass: 'really-hidden'},
-      {id: 'type', name: gettext('Schema Objects'), field: 'type',  width: 0, minWidth: 0, maxWidth: 0,
+      {id: 'type', name: gettext('Objects'), field: 'type',  width: 0, minWidth: 0, maxWidth: 0,
         cssClass: 'really-hidden', headerCssClass: 'really-hidden'},
       {id: 'id', name: 'id', field: 'id', width: 0, minWidth: 0, maxWidth: 0,
         cssClass: 'really-hidden', headerCssClass: 'really-hidden' },
@@ -319,10 +319,13 @@ export default class SchemaDiffUI {
     // Grouping by Schema Object
     self.groupBySchemaObject = function() {
       self.dataView.setGrouping([{
-        getter: 'schema',
+        getter: 'group_name',
         formatter: function (g) {
-          let icon = 'icon-coll-schema';
-          return '<i class="wcTabIcon '+ icon +'"></i><span>' + g.rows[0].schema;
+          let icon = 'icon-schema';
+          if (g.rows[0].group_name == 'Database Objects'){
+            icon = 'icon-coll-database';
+          }
+          return '<i class="wcTabIcon '+ icon +'"></i><span>' + g.rows[0].group_name;
         },
         aggregateCollapsed: true,
         lazyTotalsCalculation: true,

@@ -54,27 +54,28 @@ class SchemaDiffObjectCompare:
         :param kwargs:
         :return:
         """
-
         source_params = {'sid': kwargs.get('source_sid'),
-                         'did': kwargs.get('source_did'),
-                         'scid': kwargs.get('source_scid')
-                         }
-
+                         'did': kwargs.get('source_did')}
         target_params = {'sid': kwargs.get('target_sid'),
-                         'did': kwargs.get('target_did'),
-                         'scid': kwargs.get('target_scid')
-                         }
+                         'did': kwargs.get('target_did')}
 
-        schema_name = kwargs.get('schema_name')
+        group_name = kwargs.get('group_name')
         ignore_whitespaces = kwargs.get('ignore_whitespaces')
         source = {}
         target = {}
 
-        if 'scid' in source_params and source_params['scid'] is not None:
+        if group_name == 'Database Objects':
             source = self.fetch_objects_to_compare(**source_params)
-
-        if 'scid' in target_params and target_params['scid'] is not None:
             target = self.fetch_objects_to_compare(**target_params)
+        else:
+            source_params['scid'] = kwargs.get('source_scid')
+            target_params['scid'] = kwargs.get('target_scid')
+
+            if 'scid' in source_params and source_params['scid'] is not None:
+                source = self.fetch_objects_to_compare(**source_params)
+
+            if 'scid' in target_params and target_params['scid'] is not None:
+                target = self.fetch_objects_to_compare(**target_params)
 
         # If both the dict have no items then return None.
         if not (source or target) or (
@@ -82,10 +83,9 @@ class SchemaDiffObjectCompare:
             return None
 
         return compare_dictionaries(self, source_params, target_params,
-                                    schema_name, source, target,
-                                    self.node_type,
+                                    source, target, self.node_type,
                                     gettext(self.blueprint.COLLECTION_LABEL),
-                                    ignore_whitespaces,
+                                    group_name, ignore_whitespaces,
                                     self.keys_to_ignore)
 
     def ddl_compare(self, **kwargs):
@@ -97,16 +97,22 @@ class SchemaDiffObjectCompare:
         source_params = {'gid': 1,
                          'sid': kwargs.get('source_sid'),
                          'did': kwargs.get('source_did'),
-                         'scid': kwargs.get('source_scid'),
                          'oid': kwargs.get('source_oid')
                          }
 
         target_params = {'gid': 1,
                          'sid': kwargs.get('target_sid'),
                          'did': kwargs.get('target_did'),
-                         'scid': kwargs.get('target_scid'),
                          'oid': kwargs.get('target_oid')
                          }
+
+        source_scid = kwargs.get('source_scid')
+        if source_scid is not None and source_scid != 0:
+            source_params['scid'] = kwargs.get('source_scid')
+
+        target_scid = kwargs.get('target_scid')
+        if target_scid is not None and target_scid != 0:
+            target_params['scid'] = kwargs.get('target_scid')
 
         source = self.get_sql_from_diff(**source_params)
         target = self.get_sql_from_diff(**target_params)
