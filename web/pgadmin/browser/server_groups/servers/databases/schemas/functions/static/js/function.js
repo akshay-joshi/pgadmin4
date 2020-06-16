@@ -367,7 +367,7 @@ define('pgadmin.node.function', [
 
           if (_.isUndefined(this.get('name')) || String(this.get('name')).replace(/^\s+|\s+$/g, '') == '') {
             err['name'] = gettext('Name cannot be empty.');
-            errmsg = errmsg || err['name'];
+            errmsg = err['name'];
           }
 
           if (_.isUndefined(this.get('funcowner')) || String(this.get('funcowner')).replace(/^\s+|\s+$/g, '') == '') {
@@ -437,13 +437,12 @@ define('pgadmin.node.function', [
           if(this.node_info && 'catalog' in this.node_info) {
             return true;
           }
-          switch(this.name){
-          case 'prosupportfunc':
+          if(this.name === 'prosupportfunc'){
             var item = pgAdmin.Browser.tree.selected();
             if(pgAdmin.Browser.Nodes['function'].getTreeNodeHierarchy(item).server.user.is_superuser)
               return false;
             return true;
-          default:
+          } else {
             return false;
           }
         },

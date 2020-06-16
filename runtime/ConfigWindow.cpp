@@ -13,15 +13,15 @@
 #include "ui_ConfigWindow.h"
 
 ConfigWindow::ConfigWindow(QWidget *parent) :
-    QDialog(parent),
-    ui(new Ui::ConfigWindow)
+    QDialog(parent)
 {
-    ui->setupUi(this);
+    initConfigWindow();
 }
 
-ConfigWindow::~ConfigWindow()
+void ConfigWindow::initConfigWindow()
 {
-    delete ui;
+    ui = new Ui::ConfigWindow;
+    ui->setupUi(this);
 }
 
 void ConfigWindow::on_buttonBox_accepted()

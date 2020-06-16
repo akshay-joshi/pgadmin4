@@ -240,6 +240,7 @@ class SchemaDiffTableCompare(SchemaDiffObjectCompare):
         :param source:
         :param target:
         :param diff_dict:
+        :param ignore_whitespaces:
         :return:
         """
         # Get the difference result for source and target columns

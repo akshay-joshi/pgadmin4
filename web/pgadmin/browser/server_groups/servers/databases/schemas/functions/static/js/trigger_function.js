@@ -276,7 +276,7 @@ define('pgadmin.node.trigger_function', [
 
           if (_.isUndefined(this.get('name')) || String(this.get('name')).replace(/^\s+|\s+$/g, '') == '') {
             err['name'] = gettext('Name cannot be empty.');
-            errmsg = errmsg || err['name'];
+            errmsg = err['name'];
           }
 
           if (_.isUndefined(this.get('funcowner')) || String(this.get('funcowner')).replace(/^\s+|\s+$/g, '') == '') {
@@ -358,13 +358,12 @@ define('pgadmin.node.trigger_function', [
           if(this.node_info &&  'catalog' in this.node_info) {
             return true;
           }
-          switch(this.name){
-          case 'prorows':
+          if (this.name === 'prorows'){
             if(m.get('proretset') == true) {
               return false;
             }
             return true;
-          default:
+          } else {
             return false;
           }
         },

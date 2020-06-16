@@ -24,7 +24,6 @@ class ConfigWindow : public QDialog
 
 public:
     explicit ConfigWindow(QWidget *parent = Q_NULLPTR);
-    ~ConfigWindow();
 
     QString getBrowserCommand();
     bool getFixedPort();
@@ -47,6 +46,7 @@ private slots:
 
 private:
     Ui::ConfigWindow *ui;
+    void initConfigWindow();
 };
 
 #endif // CONFIGWINDOW_H

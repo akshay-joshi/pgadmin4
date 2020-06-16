@@ -98,12 +98,7 @@ define('pgadmin.node.procedure', [
         ),
         canVarAdd: function() {
           var server = this.node_info.server;
-          if (server.version < 90500) {
-            return false;
-          }
-          else {
-            return true;
-          }
+          return !(server.version < 90500);
         },
         isVisible: function() {
           if (this.name == 'sysfunc') { return false; }
@@ -166,7 +161,7 @@ define('pgadmin.node.procedure', [
 
           if (_.isUndefined(this.get('name')) || String(this.get('name')).replace(/^\s+|\s+$/g, '') == '') {
             err['name'] = gettext('Name cannot be empty.');
-            errmsg = errmsg || err['name'];
+            errmsg = err['name'];
           }
 
           if (_.isUndefined(this.get('pronamespace')) || String(this.get('pronamespace')).replace(/^\s+|\s+$/g, '') == '') {

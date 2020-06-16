@@ -17,13 +17,6 @@
 
 MenuActions::MenuActions()
 {
-    m_logWindow = Q_NULLPTR;
-    m_logFile = "";
-    m_appServerUrl = "";
-}
-
-MenuActions::~MenuActions()
-{
 }
 
 void MenuActions::setAppServerUrl(QString appServerUrl)
@@ -106,12 +99,9 @@ void MenuActions::onConfig()
         settings.setValue("PythonPath", pythonpath);
         settings.setValue("ApplicationPath", applicationpath);
 
-        if (needRestart)
+        if (needRestart && QMessageBox::Yes == QMessageBox::question(Q_NULLPTR, tr("Shut down server?"), QString(tr("The %1 server must be restarted for changes to take effect. Do you want to shut down the server now?")).arg(PGA_APP_NAME), QMessageBox::Yes | QMessageBox::No))
         {
-            if (QMessageBox::Yes == QMessageBox::question(Q_NULLPTR, tr("Shut down server?"), QString(tr("The %1 server must be restarted for changes to take effect. Do you want to shut down the server now?")).arg(PGA_APP_NAME), QMessageBox::Yes | QMessageBox::No))
-            {
-                exit(0);
-            }
+            exit(0);
         }
     }
 }
