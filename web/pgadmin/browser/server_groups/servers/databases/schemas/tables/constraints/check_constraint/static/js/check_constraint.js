@@ -174,7 +174,7 @@ define('pgadmin.node.check_constraint', [
 
           if (_.isUndefined(this.get('consrc')) || String(this.get('consrc')).replace(/^\s+|\s+$/g, '') == '') {
             err['consrc'] = gettext('Check cannot be empty.');
-            errmsg = errmsg || err['consrc'];
+            errmsg = err['consrc'];
           }
 
           this.errorModel.clear().set(err);
@@ -210,7 +210,7 @@ define('pgadmin.node.check_constraint', [
           d = i ? t.itemData(i) : null;
         }
         // If node is under catalog then do not allow 'create' menu
-        return !(_.indexOf(parents, 'catalog') > -1);
+        return (_.indexOf(parents, 'catalog') <= -1);
       },
     });
 

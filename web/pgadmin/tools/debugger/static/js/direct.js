@@ -391,18 +391,7 @@ define([
                   if (res.data.result == null || res.data.result.length == 0) {
                     self.poll_result(trans_id);
                   } else {
-                    if (res.data.result[0].src != undefined || res.data.result[0].src != null) {
-                      pgTools.DirectDebug.polling_timeout_idle = false;
-                      pgTools.DirectDebug.docker.finishLoading(50);
-                      if (res.data.result[0].src != pgTools.DirectDebug.editor.getValue()) {
-                        pgTools.DirectDebug.editor.setValue(res.data.result[0].src);
-                        self.UpdateBreakpoint(trans_id);
-                      }
-                      self.setActiveLine(res.data.result[0].linenumber - 2);
-                      // Update the stack, local variables and parameters information
-                      self.GetStackInformation(trans_id);
-
-                    } else if (!pgTools.DirectDebug.debug_type && !pgTools.DirectDebug.first_time_indirect_debug) {
+                    if (!pgTools.DirectDebug.debug_type && !pgTools.DirectDebug.first_time_indirect_debug) {
                       pgTools.DirectDebug.docker.finishLoading(50);
                       self.setActiveLine(-1);
                       self.clear_all_breakpoint(trans_id);
@@ -1573,7 +1562,7 @@ define([
               );
             }
           });
-      } else if (trans_id != undefined && debug_type) {
+      } else if (trans_id != undefined) {
         // Make ajax call to execute the and start the target for execution
         baseUrl = url_for('debugger.start_listener', {
           'trans_id': trans_id,
