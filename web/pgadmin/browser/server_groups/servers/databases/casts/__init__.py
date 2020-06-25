@@ -337,7 +337,6 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :param cid:
         :return:
         """
-
         last_system_oid = (self.manager.db_info[did])['datlastsysoid'] if \
             self.manager.db_info is not None and \
             did in self.manager.db_info else 0
@@ -742,12 +741,11 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
     @check_precondition
     def fetch_objects_to_compare(self, sid, did):
         """
-        This function will fetch the list of all the collations for
-        specified schema id.
+        This function will fetch the list of all the casts for
+        specified database id.
 
         :param sid: Server Id
         :param did: Database Id
-        :param scid: Schema Id
         :return:
         """
         res = dict()
@@ -780,9 +778,9 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :param sid: Serve ID
         :param did: Database ID
         :param scid: Schema ID
-        :param oid: Collation ID
+        :param oid: Cast ID
         :param data: Difference data
-        :param drop_sql: True if need to drop the collation
+        :param drop_sql: True if need to drop the cast
         :return:
         """
         sql = ''

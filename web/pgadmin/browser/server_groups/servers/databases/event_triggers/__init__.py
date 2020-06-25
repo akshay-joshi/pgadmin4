@@ -20,6 +20,8 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
     make_response as ajax_response, gone
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
+from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
+from pgadmin.tools.schema_diff.compare import SchemaDiffObjectCompare
 
 
 class EventTriggerModule(CollectionNodeModule):
@@ -94,7 +96,7 @@ class EventTriggerModule(CollectionNodeModule):
 blueprint = EventTriggerModule(__name__)
 
 
-class EventTriggerView(PGChildNodeView):
+class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
     """
     class EventTriggerView(PGChildNodeView)
 
@@ -171,6 +173,8 @@ class EventTriggerView(PGChildNodeView):
         'dependent': [{'get': 'dependents'}],
         'fopts': [{'get': 'get_event_funcs'}, {'get': 'get_event_funcs'}]
     })
+
+    keys_to_ignore = ['oid', 'xmin', 'oid-2', 'eventfuncoid']
 
     def check_precondition(f):
         """
@@ -325,27 +329,39 @@ class EventTriggerView(PGChildNodeView):
         Returns:
 
         """
+        status, res = self._fetch_properties(did, etid)
+        if not status:
+            return res
+
+        return ajax_response(
+            response=res,
+            status=200
+        )
+
+    def _fetch_properties(self, did, etid):
+        """
+        This function fetch the properties of the event trigger.
+        :param did:
+        :param etid:
+        :return:
+        """
         sql = render_template(
             "/".join([self.template_path, 'properties.sql']),
             etid=etid, conn=self.conn
         )
         status, res = self.conn.execute_dict(sql)
         if not status:
-            return internal_server_error(errormsg=res)
+            return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(
-                gettext("Could not find the event trigger information.")
-            )
+            return False, gone(
+                gettext("Could not find the event trigger information."))
 
         result = res['rows'][0]
         result['is_sys_obj'] = (result['oid'] <= self.datlastsysoid)
         result = self._formatter(result)
 
-        return ajax_response(
-            response=result,
-            status=200
-        )
+        return True, result
 
     @check_precondition
     def create(self, gid, sid, did):
@@ -444,7 +460,7 @@ class EventTriggerView(PGChildNodeView):
             # Most probably this is due to error
             if not isinstance(sql, str):
                 return sql
-            sql = sql.strip('\n').strip(' ')
+
             if sql != "":
                 status, res = self.conn.execute_scalar(sql)
                 if not status:
@@ -480,7 +496,7 @@ class EventTriggerView(PGChildNodeView):
             return internal_server_error(errormsg=str(e))
 
     @check_precondition
-    def delete(self, gid, sid, did, etid=None):
+    def delete(self, gid, sid, did, etid=None, only_sql=False):
         """
         This function will delete an existing event trigger object.
 
@@ -489,6 +505,7 @@ class EventTriggerView(PGChildNodeView):
           sid: Server ID
           did: Database ID
           etid: Event trigger ID
+          only_sql:
 
         Returns:
 
@@ -533,6 +550,11 @@ class EventTriggerView(PGChildNodeView):
                     "/".join([self.template_path, 'delete.sql']),
                     name=name, cascade=cascade
                 )
+
+                # Used for schema diff tool
+                if only_sql:
+                    return sql
+
                 status, res = self.conn.execute_scalar(sql)
                 if not status:
                     return internal_server_error(errormsg=res)
@@ -571,7 +593,7 @@ class EventTriggerView(PGChildNodeView):
             # Most probably this is due to error
             if not isinstance(sql, str):
                 return sql
-            sql = sql.strip('\n').strip(' ')
+
             sql = re.sub('\n{2,}', '\n\n', sql)
             if sql == '':
                 sql = "--modified SQL"
@@ -651,10 +673,10 @@ class EventTriggerView(PGChildNodeView):
                 "/".join([self.template_path, 'grant.sql']),
                 data=data
             )
-        return sql
+        return sql.strip('\n').strip(' ')
 
     @check_precondition
-    def sql(self, gid, sid, did, etid):
+    def sql(self, gid, sid, did, etid, json_resp=False):
         """
         This function will generate sql to show in the sql pane for the
         selected event trigger node.
@@ -664,6 +686,7 @@ class EventTriggerView(PGChildNodeView):
           sid: Server ID
           did: Database ID
           etid: Event trigger ID
+          json_resp:
 
         Returns:
 
@@ -715,6 +738,9 @@ class EventTriggerView(PGChildNodeView):
 
         sql = sql_header + sql
         sql = re.sub('\n{2,}', '\n\n', sql)
+
+        if not json_resp:
+            return sql
 
         return ajax_response(response=sql)
 
@@ -785,5 +811,63 @@ class EventTriggerView(PGChildNodeView):
             status=200
         )
 
+    @check_precondition
+    def fetch_objects_to_compare(self, sid, did):
+        """
+        This function will fetch the list of all the event triggers for
+        specified database id.
 
+        :param sid: Server Id
+        :param did: Database Id
+        :return:
+        """
+        res = dict()
+
+        last_system_oid = 0 if self.blueprint.show_system_objects else \
+            (self.manager.db_info[did])['datlastsysoid'] \
+            if self.manager.db_info is not None and \
+            did in self.manager.db_info else 0
+
+        sql = render_template(
+            "/".join([self.template_path, 'nodes.sql']),
+            datlastsysoid=last_system_oid,
+            showsysobj=self.blueprint.show_system_objects
+        )
+        status, rset = self.conn.execute_2darray(sql)
+        if not status:
+            return internal_server_error(errormsg=rset)
+
+        for row in rset['rows']:
+            status, data = self._fetch_properties(did, row['oid'])
+            if status:
+                res[row['name']] = data
+
+        return res
+
+    def get_sql_from_diff(self, gid, sid, did, oid, data=None, drop_sql=False):
+        """
+        This function is used to get the DDL/DML statements.
+        :param gid: Group ID
+        :param sid: Serve ID
+        :param did: Database ID
+        :param scid: Schema ID
+        :param oid: Event Trigger ID
+        :param data: Difference data
+        :param drop_sql: True if need to drop the collation
+        :return:
+        """
+        sql = ''
+        if data:
+            sql = self.get_sql(data=data, etid=oid)
+        else:
+            if drop_sql:
+                sql = self.delete(gid=gid, sid=sid, did=did,
+                                  etid=oid, only_sql=True)
+            else:
+                sql = self.sql(gid=gid, sid=sid, did=did, etid=oid,
+                               json_resp=False)
+        return sql
+
+
+SchemaDiffRegistry(blueprint.node_type, EventTriggerView, 'Database')
 EventTriggerView.register_node_view(blueprint)
