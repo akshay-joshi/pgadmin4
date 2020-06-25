@@ -1048,16 +1048,12 @@ function(
         },
         isInheritedTable: function(m) {
           if(!m.inSchema.apply(this, [m])) {
-            if(
-              (!_.isUndefined(m.get('coll_inherits')) && m.get('coll_inherits').length != 0)
-                ||
-                  (!_.isUndefined(m.get('typname')) && String(m.get('typname')).replace(/^\s+|\s+$/g, '') !== '')
-            ) {
-              // Either of_types or coll_inherits has value
-              return false;
-            } else {
-              return true;
-            }
+            // Either of_types or coll_inherits has value
+            return (
+              (_.isUndefined(m.get('coll_inherits')) || m.get('coll_inherits').length == 0)
+                &&
+                  (_.isUndefined(m.get('typname')) || String(m.get('typname')).replace(/^\s+|\s+$/g, '') === '')
+            );
           }
           return false;
         },
@@ -1137,11 +1133,7 @@ function(
           if(this.node_info &&  'schema' in this.node_info)
           {
             // We will disbale control if it's in 'edit' mode
-            if (m.isNew()) {
-              return false;
-            } else {
-              return true;
-            }
+            return !m.isNew();
           }
           return true;
         },
@@ -1204,22 +1196,14 @@ function(
       canCreate_with_trigger_enable: function(itemData, item, data) {
         if(this.canCreate.apply(this, [itemData, item, data])) {
           // We are here means we can create menu, now let's check condition
-          if(itemData.tigger_count > 0) {
-            return true;
-          } else {
-            return false;
-          }
+          return (itemData.tigger_count > 0);
         }
       },
       // Check to whether table has enable trigger(s)
       canCreate_with_trigger_disable: function(itemData, item, data) {
         if(this.canCreate.apply(this, [itemData, item, data])) {
           // We are here means we can create menu, now let's check condition
-          if(itemData.tigger_count > 0 && itemData.has_enable_triggers > 0) {
-            return true;
-          } else {
-            return false;
-          }
+          return (itemData.tigger_count > 0 && itemData.has_enable_triggers > 0);
         }
       },
     });

@@ -33,7 +33,7 @@ export default class SchemaDiffUI {
     this.filters = ['Identical', 'Different', 'Source Only', 'Target Only'];
     this.sel_filters = ['Different', 'Source Only', 'Target Only'];
     this.dataView = null;
-    this.grid = null,
+    this.grid = null;
     this.selection = {};
 
     this.model = new Backbone.Model({
@@ -504,7 +504,7 @@ export default class SchemaDiffUI {
     var self = this,
       node_type = data.type,
       source_oid = data.oid,
-      target_oid = data.oid;
+      target_oid;
 
     self.model.set({
       'source_ddl': undefined,
