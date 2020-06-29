@@ -459,6 +459,56 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             status=200
         )
 
+    def _get_argument_values(self, data):
+        proargtypes = [ptype for ptype in data['proargtypenames'].split(",")] \
+            if data['proargtypenames'] else []
+        proargmodes = data['proargmodes'] if data['proargmodes'] else \
+            ['i'] * len(proargtypes)
+        proargnames = data['proargnames'] if data['proargnames'] else []
+        proargdefaultvals = [ptype for ptype in
+                             data['proargdefaultvals'].split(",")] \
+            if data['proargdefaultvals'] else []
+        proallargtypes = data['proallargtypes'] \
+            if data['proallargtypes'] else []
+
+        return {'proargtypes': proargtypes, 'proargmodes': proargmodes,
+                'proargnames': proargnames,
+                'proargdefaultvals': proargdefaultvals,
+                'proallargtypes': proallargtypes}
+
+    def _params_list_for_display(self, proargmodes_fltrd, proargtypes,
+                                 proargnames, proargdefaultvals):
+        # Insert null value against the parameters which do not have
+        # default values.
+        if len(proargmodes_fltrd) > len(proargdefaultvals):
+            dif = len(proargmodes_fltrd) - len(proargdefaultvals)
+            while (dif > 0):
+                proargdefaultvals.insert(0, '')
+                dif -= 1
+
+        param = {"arguments": [
+            self._map_arguments_dict(
+                i, proargmodes_fltrd[i] if len(proargmodes_fltrd) > i else '',
+                proargtypes[i] if len(proargtypes) > i else '',
+                proargnames[i] if len(proargnames) > i else '',
+                proargdefaultvals[i] if len(proargdefaultvals) > i else ''
+            )
+            for i in range(len(proargtypes))]}
+        return param
+
+    def _display_properties_argument_list(self, proargmodes_fltrd,
+                                          proargtypes, proargnames,
+                                          proargdefaultvals):
+        proargs = [self._map_arguments_list(
+            proargmodes_fltrd[i] if len(proargmodes_fltrd) > i else '',
+            proargtypes[i] if len(proargtypes) > i else '',
+            proargnames[i] if len(proargnames) > i else '',
+            proargdefaultvals[i] if len(proargdefaultvals) > i else ''
+        )
+            for i in range(len(proargtypes))]
+
+        return proargs
+
     def _format_arguments_from_db(self, data):
         """
         Create Argument list of the Function.
@@ -479,16 +529,12 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                     proargnames: Argument Name
                     proargdefaultvals: Default Value of the Argument
         """
-        proargtypes = [ptype for ptype in data['proargtypenames'].split(",")] \
-            if data['proargtypenames'] else []
-        proargmodes = data['proargmodes'] if data['proargmodes'] else \
-            ['i'] * len(proargtypes)
-        proargnames = data['proargnames'] if data['proargnames'] else []
-        proargdefaultvals = [ptype for ptype in
-                             data['proargdefaultvals'].split(",")] \
-            if data['proargdefaultvals'] else []
-        proallargtypes = data['proallargtypes'] \
-            if data['proallargtypes'] else []
+        arguments = self._get_argument_values(data)
+        proargtypes = arguments['proargtypes']
+        proargmodes = arguments['proargmodes']
+        proargnames = arguments['proargnames']
+        proargdefaultvals = arguments['proargdefaultvals']
+        proallargtypes = arguments['proallargtypes']
 
         proargmodenames = {
             'i': 'IN', 'o': 'OUT', 'b': 'INOUT', 'v': 'VARIADIC', 't': 'TABLE'
@@ -554,34 +600,16 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         for i in proargnames_fltrd:
             proargnames.remove(i)
 
-        # Insert null value against the parameters which do not have
-        # default values.
-        if len(proargmodes_fltrd) > len(proargdefaultvals):
-            dif = len(proargmodes_fltrd) - len(proargdefaultvals)
-            while (dif > 0):
-                proargdefaultvals.insert(0, '')
-                dif -= 1
-
         # Prepare list of Argument list dict to be displayed in the Data Grid.
-        params = {"arguments": [
-            self._map_arguments_dict(
-                i, proargmodes_fltrd[i] if len(proargmodes_fltrd) > i else '',
-                proargtypes[i] if len(proargtypes) > i else '',
-                proargnames[i] if len(proargnames) > i else '',
-                proargdefaultvals[i] if len(proargdefaultvals) > i else ''
-            )
-            for i in range(len(proargtypes))]}
+        params = self._params_list_for_display(proargmodes_fltrd, proargtypes,
+                                               proargnames, proargdefaultvals)
 
         # Prepare string formatted Argument to be displayed in the Properties
         # panel.
-
-        proargs = [self._map_arguments_list(
-            proargmodes_fltrd[i] if len(proargmodes_fltrd) > i else '',
-            proargtypes[i] if len(proargtypes) > i else '',
-            proargnames[i] if len(proargnames) > i else '',
-            proargdefaultvals[i] if len(proargdefaultvals) > i else ''
-        )
-            for i in range(len(proargtypes))]
+        proargs = self._display_properties_argument_list(proargmodes_fltrd,
+                                                         proargtypes,
+                                                         proargnames,
+                                                         proargdefaultvals)
 
         proargs = {"proargs": ", ".join(proargs)}
 
@@ -769,22 +797,22 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         """
 
         # Get SQL to create Function
-        status, SQL = self._get_sql(gid, sid, did, scid, self.request)
+        status, sql = self._get_sql(gid, sid, did, scid, self.request)
         if not status:
-            return internal_server_error(errormsg=SQL)
+            return internal_server_error(errormsg=sql)
 
-        status, res = self.conn.execute_scalar(SQL)
+        status, res = self.conn.execute_scalar(sql)
         if not status:
             return internal_server_error(errormsg=res)
 
-        SQL = render_template(
+        sql = render_template(
             "/".join(
                 [self.sql_template_path, 'get_oid.sql']
             ),
             nspname=self.request['pronamespace'],
             name=self.request['name']
         )
-        status, res = self.conn.execute_dict(SQL)
+        status, res = self.conn.execute_dict(sql)
         if not status:
             return internal_server_error(errormsg=res)
 
@@ -835,8 +863,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                 status, res = self.conn.execute_2darray(SQL)
                 if not status:
                     return internal_server_error(errormsg=res)
-
-                if not res['rows']:
+                elif not res['rows']:
                     return make_json_response(
                         success=0,
                         errormsg=gettext(
@@ -982,6 +1009,8 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         resp_data['func_args'] = args.strip(' ')
 
         resp_data['func_args_without'] = ', '.join(args_without_name)
+
+        self.reformat_prosrc_code(resp_data)
 
         if self.node_type == 'procedure':
             object_type = 'procedure'
@@ -1262,6 +1291,8 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                     for v in data['variables']['added']:
                         data['merged_variables'].append(v)
 
+            self.reformat_prosrc_code(data)
+
             SQL = render_template(
                 "/".join([self.sql_template_path, 'update.sql']),
                 data=data, o_data=old_data
@@ -1306,6 +1337,9 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             data['func_args'] = args.strip(' ')
 
             data['func_args_without'] = ', '.join(args_without_name)
+
+            self.reformat_prosrc_code(data)
+
             # Create mode
             SQL = render_template("/".join([self.sql_template_path,
                                             'create.sql']),
@@ -1498,10 +1532,10 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             doid: Function Id
         """
         # Fetch the function definition.
-        SQL = render_template("/".join([self.sql_template_path,
+        sql = render_template("/".join([self.sql_template_path,
                                         'get_definition.sql']), fnid=fnid,
                               scid=scid)
-        status, res = self.conn.execute_2darray(SQL)
+        status, res = self.conn.execute_2darray(sql)
         if not status:
             return internal_server_error(errormsg=res)
         if len(res['rows']) == 0:
@@ -1513,9 +1547,9 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         ) + '(' + res['rows'][0]['func_with_identity_arguments'] + ')'
 
         # Fetch only arguments
-        argString = name[name.rfind('('):].strip('(').strip(')')
-        if len(argString) > 0:
-            args = argString.split(',')
+        arg_string = name[name.rfind('('):].strip('(').strip(')')
+        if len(arg_string) > 0:
+            args = arg_string.split(',')
             # Remove unwanted spaces from arguments
             args = [arg.strip(' ') for arg in args]
 
@@ -1644,6 +1678,30 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, fnid=oid,
                                json_resp=False)
         return sql
+
+    def reformat_prosrc_code(self, data):
+        """
+        :param data:
+        :return:
+        """
+        if 'prosrc' in data and data['prosrc'] is not None:
+
+            is_prc_version_lesser_than_11 = \
+                self.node_type == 'procedure' and\
+                self.manager.sversion <= 110000
+
+            data['prosrc'] = re.sub(r"^\s+", '',
+                                    re.sub(r"\s+$", '',
+                                           data['prosrc']))
+
+            if not is_prc_version_lesser_than_11:
+                if data['prosrc'].startswith('\n') is False:
+                    data['prosrc'] = ''.join(
+                        ('\n', data['prosrc']))
+
+                if data['prosrc'].endswith('\n') is False:
+                    data['prosrc'] = ''.join(
+                        (data['prosrc'], '\n'))
 
     @check_precondition
     def fetch_objects_to_compare(self, sid, did, scid, oid=None):

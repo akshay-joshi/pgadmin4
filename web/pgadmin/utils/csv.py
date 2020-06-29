@@ -61,8 +61,8 @@ Agreement.
 from __future__ import unicode_literals, absolute_import
 
 __all__ = ["QUOTE_MINIMAL", "QUOTE_ALL", "QUOTE_NONNUMERIC", "QUOTE_NONE",
-           "Error", "Dialect", "__doc__", "excel", "excel_tab",
-           "field_size_limit", "reader", "writer", "register_dialect",
+           "Error", "Dialect", "__doc__", "Excel", "ExcelTab",
+           "field_size_limit", "Reader", "Writer", "register_dialect",
            "get_dialect", "list_dialects", "unregister_dialect",
            "__version__", "DictReader", "DictWriter"]
 
@@ -222,7 +222,7 @@ class QuoteNoneStrategy(QuoteStrategy):
         return False
 
 
-class writer(object):
+class Writer(object):
     def __init__(self, fileobj, dialect='excel', **fmtparams):
         if fileobj is None:
             raise TypeError('fileobj must be file-like, not None')
@@ -272,7 +272,7 @@ EAT_CRNL = 7
 AFTER_ESCAPED_CRNL = 8
 
 
-class reader(object):
+class Reader(object):
     def __init__(self, fileobj, dialect='excel', **fmtparams):
         self.input_iter = iter(fileobj)
 
@@ -383,17 +383,15 @@ class reader(object):
             self.parse_add_char(c)
 
     def _parse_in_quoted_field(self, c):
-        if c == '\0':
-            pass
-        elif c == self.dialect.escapechar:
+        if c != '\0' and c == self.dialect.escapechar:
             self.state = ESCAPE_IN_QUOTED_FIELD
-        elif (c == self.dialect.quotechar and
-              self.dialect.quoting != QUOTE_NONE):
+        elif c != '\0' and (c == self.dialect.quotechar and
+                            self.dialect.quoting != QUOTE_NONE):
             if self.dialect.doublequote:
                 self.state = QUOTE_IN_QUOTED_FIELD
             else:
                 self.state = IN_FIELD
-        else:
+        elif c != '\0':
             self.parse_add_char(c)
 
     def _parse_escape_in_quoted_field(self, c):
@@ -427,11 +425,9 @@ class reader(object):
             ))
 
     def _parse_eat_crnl(self, c):
-        if c == '\n' or c == '\r':
-            pass
-        elif c == '\0':
+        if c != '\n' and c != '\r' and c == '\0':
             self.state = START_RECORD
-        else:
+        elif c != '\n' and c != '\r':
             raise Error('new-line character seen in unquoted field - do you '
                         'need to open the file in universal-newline mode?')
 
@@ -638,7 +634,7 @@ class Dialect(object):
         super(Dialect, self).__setattr__(attr, value)
 
 
-class excel(Dialect):
+class Excel(Dialect):
     """Describe the usual properties of Excel-generated CSV files."""
     delimiter = ','
     quotechar = '"'
@@ -648,18 +644,18 @@ class excel(Dialect):
     quoting = QUOTE_MINIMAL
 
 
-register_dialect("excel", excel)
+register_dialect("excel", Excel)
 
 
-class excel_tab(excel):
+class ExcelTab(Excel):
     """Describe the usual properties of Excel-generated TAB-delimited files."""
     delimiter = '\t'
 
 
-register_dialect("excel-tab", excel_tab)
+register_dialect("excel-tab", ExcelTab)
 
 
-class unix_dialect(Dialect):
+class UnixDialect(Dialect):
     """Describe the usual properties of Unix-generated CSV files."""
     delimiter = ','
     quotechar = '"'
@@ -669,7 +665,7 @@ class unix_dialect(Dialect):
     quoting = QUOTE_ALL
 
 
-register_dialect("unix", unix_dialect)
+register_dialect("unix", UnixDialect)
 
 
 class DictReader(object):
@@ -678,7 +674,7 @@ class DictReader(object):
         self._fieldnames = fieldnames   # list of keys for the dict
         self.restkey = restkey          # key to catch long rows
         self.restval = restval          # default value for short rows
-        self.reader = reader(f, dialect, *args, **kwds)
+        self.reader = Reader(f, dialect, *args, **kwds)
         self.dialect = dialect
         self.line_num = 0
 
@@ -733,7 +729,7 @@ class DictWriter(object):
             raise ValueError("extrasaction (%s) must be 'raise' or 'ignore'"
                              % extrasaction)
         self.extrasaction = extrasaction
-        self.writer = writer(f, dialect, *args, **kwds)
+        self.Writer = Writer(f, dialect, *args, **kwds)
 
     def writeheader(self):
         header = dict(zip(self.fieldnames, self.fieldnames))
@@ -748,7 +744,7 @@ class DictWriter(object):
         return (rowdict.get(key, self.restval) for key in self.fieldnames)
 
     def writerow(self, rowdict):
-        return self.writer.writerow(self._dict_to_list(rowdict))
+        return self.Writer.writerow(self._dict_to_list(rowdict))
 
     def writerows(self, rowdicts):
-        return self.writer.writerows(map(self._dict_to_list, rowdicts))
+        return self.Writer.writerows(map(self._dict_to_list, rowdicts))
