@@ -598,9 +598,12 @@ define('pgadmin.browser.node', [
 
             let w, h, x, y;
             if(screen.width < 800) {
-              w= pgAdmin.toPx(el, '95%', 'width', true);
+              w = pgAdmin.toPx(el, '95%', 'width', true);
             } else {
-              w= pgAdmin.toPx(el, self.width || pgBrowser.stdW.default+'px', 'width', true);
+              w = pgAdmin.toPx(
+                el, (self.width || pgBrowser.stdW.default) + 'px',
+                'width', true
+              );
 
               /* Fit to standard sizes */
               if(w <= pgBrowser.stdW.sm) {
@@ -617,7 +620,10 @@ define('pgadmin.browser.node', [
             if(screen.height < 600) {
               h = pgAdmin.toPx(el, '95%', 'height', true);
             } else {
-              h = pgAdmin.toPx(el, self.height || pgBrowser.stdH.default+'px', 'height', true);
+              h = pgAdmin.toPx(
+                el, (self.height || pgBrowser.stdH.default) + 'px',
+                'height', true
+              );
 
               /* Fit to standard sizes */
               if(h <= pgBrowser.stdH.sm) {
@@ -634,6 +640,18 @@ define('pgadmin.browser.node', [
             x = (b.offsetWidth - w) / 2;
             y = (b.offsetHeight - h) / 4;
 
+            // If the screen resolution is higher, but - it is zoomed, dialog
+            // may be go out of window, and will not be accessible through the
+            // keyboard.
+            if (w > window.innerWidth) {
+              x = 0;
+              w = window.innerWidth;
+            }
+            if (h > window.innerHeight) {
+              y = 0;
+              h = window.innerHeight;
+            }
+
             var p = pgBrowser.docker.addPanel(
               'node_props', wcDocker.DOCK.FLOAT, undefined, {
                 w: w + 'px',
@@ -644,7 +662,6 @@ define('pgadmin.browser.node', [
             );
 
             b.removeChild(el);
-            // delete(el);
 
             return p;
           };
@@ -1339,6 +1356,21 @@ define('pgadmin.browser.node', [
           }
         }.bind(panel),
 
+        informBeforeAttributeChange = function(ok_callback) {
+          var j = this.$container.find('.obj_properties').first();
+          view = j && j.data('obj-view');
+
+          if (view && view.model && !_.isUndefined(view.model.inform_text) && !_.isNull(view.model.inform_text)) {
+            Alertify.alert(
+              gettext('Warning'),
+              gettext(view.model.inform_text)
+            );
+
+          }
+          ok_callback();
+          return true;
+        }.bind(panel),
+
         onSave = function(view, saveBtn) {
           var m = view.model,
             d = m.toJSON(true),
@@ -1535,9 +1567,11 @@ define('pgadmin.browser.node', [
                   warnBeforeAttributeChange.call(
                     panel,
                     function() {
-                      setTimeout(function() {
-                        onSave.call(this, view, btn);
-                      }, 0);
+                      informBeforeAttributeChange.call(panel, function(){
+                        setTimeout(function() {
+                          onSave.call(this, view, btn);
+                        }, 0);
+                      });
                     }
                   );
                 });

@@ -61,25 +61,23 @@ def get_parent(conn, tid, template_path=None):
 
 
 @get_template_path
-def get_sql(conn, data, did, tid, plid, datlastsysoid, schema, table,
-            mode=None, template_path=None):
+def get_sql(conn, data, did, scid, tid, plid, datlastsysoid, schema, table,
+            template_path=None):
     """
     This function will generate sql from model data
     """
 
     if plid is not None:
-        sql = render_template("/".join(
-            [template_path, 'properties.sql']), plid=plid)
+        sql = render_template("/".join([template_path, 'properties.sql']),
+                              schema=schema, plid=plid, scid=scid)
         status, res = conn.execute_dict(sql)
         if not status:
             return internal_server_error(errormsg=res)
+
         if len(res['rows']) == 0:
-            raise ObjectGone(_('Could not find the index in the table.'))
-        res_data = dict(res['rows'][0])
+            raise ObjectGone(_('Could not find the policy in the table.'))
 
-        res = res_data
-
-        old_data = res
+        old_data = dict(res['rows'][0])
         old_data['schema'] = schema
         old_data['table'] = table
         sql = render_template(
@@ -91,11 +89,12 @@ def get_sql(conn, data, did, tid, plid, datlastsysoid, schema, table,
         data['table'] = table
         sql = render_template("/".join(
             [template_path, 'create.sql']), data=data)
+
     return sql, data['name'] if 'name' in data else old_data['name']
 
 
 @get_template_path
-def get_reverse_engineered_sql(conn, schema, table, did, tid, plid,
+def get_reverse_engineered_sql(conn, schema, table, did, scid, tid, plid,
                                datlastsysoid,
                                template_path=None, with_header=True):
     """
@@ -114,21 +113,22 @@ def get_reverse_engineered_sql(conn, schema, table, did, tid, plid,
     :return:
     """
     SQL = render_template("/".join(
-        [template_path, 'properties.sql']), plid=plid)
+        [template_path, 'properties.sql']), plid=plid, scid=scid)
 
     status, res = conn.execute_dict(SQL)
     if not status:
         raise Exception(res)
 
     if len(res['rows']) == 0:
-        raise ObjectGone(_('Could not find the index in the table.'))
+        raise ObjectGone(_('Could not find the policy in the table.'))
 
     data = dict(res['rows'][0])
     # Adding parent into data dict, will be using it while creating sql
     data['schema'] = schema
     data['table'] = table
 
-    SQL, name = get_sql(conn, data, did, tid, None, datlastsysoid, schema,
+    SQL, name = get_sql(conn, data, did, scid, tid, None, datlastsysoid,
+                        schema,
                         table)
 
     if with_header:
