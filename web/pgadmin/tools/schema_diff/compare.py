@@ -19,7 +19,7 @@ from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
 
 class SchemaDiffObjectCompare:
 
-    keys_to_ignore = ['oid', 'schema']
+    keys_to_ignore = ['oid', 'oid-2']
 
     @staticmethod
     def get_schema(sid, did, scid):

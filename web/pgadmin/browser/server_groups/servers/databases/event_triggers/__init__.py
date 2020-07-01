@@ -676,7 +676,7 @@ class EventTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         return sql.strip('\n').strip(' ')
 
     @check_precondition
-    def sql(self, gid, sid, did, etid, json_resp=False):
+    def sql(self, gid, sid, did, etid, json_resp=True):
         """
         This function will generate sql to show in the sql pane for the
         selected event trigger node.
