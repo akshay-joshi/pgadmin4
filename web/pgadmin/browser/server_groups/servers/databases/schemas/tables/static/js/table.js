@@ -698,7 +698,7 @@ define('pgadmin.node.table', [
 
               return true;
             },
-            columns : ['name', 'columns'],
+            columns : ['name', 'columns','references_table_name'],
             canAddRow: function(m) {
               // User can only add if there is at least one column with name.
               var columns = m.get('columns');
@@ -1248,7 +1248,7 @@ define('pgadmin.node.table', [
             return msg;
           }
           this.errorModel.unset('partition_keys');
-          if (this.get('rlspolicy') && this.isNew() && this.changed.rlspolicy){
+          if (this.get('rlspolicy') && this.changed.rlspolicy){
             Alertify.alert(
               gettext('Check Policy?'),
               gettext('Please check if any policy exist. If no policy exists for the table, a default-deny policy is used, meaning that no rows are visible or can be modified by other users')
