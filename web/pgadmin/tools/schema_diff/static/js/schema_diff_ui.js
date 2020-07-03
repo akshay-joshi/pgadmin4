@@ -387,8 +387,8 @@ export default class SchemaDiffUI {
 
     // Grid filter
     self.filter = function (item) {
-      let self = this;
-      if (self.sel_filters.indexOf(item.status) !== -1) return true;
+      let self_local = this;
+      if (self_local.sel_filters.indexOf(item.status) !== -1) return true;
       return false;
     };
 
@@ -602,12 +602,12 @@ export default class SchemaDiffUI {
           placeholder: gettext('Select database...'),
         },
         disabled: function(m) {
-          let self = this;
+          let self_local = this;
           if (!_.isUndefined(m.get('source_sid')) && !_.isNull(m.get('source_sid'))
               && m.get('source_sid') !== '') {
             setTimeout(function() {
-              if (self.options.length > 0) {
-                m.set('source_did', self.options[0].value);
+              if (self_local.options.length > 0) {
+                m.set('source_did', self_local.options[0].value);
               }
             }, 10);
             return false;
@@ -622,6 +622,40 @@ export default class SchemaDiffUI {
           self.connect_database(this.model.get('source_sid'), arguments[0], arguments[1]);
         },
       }, {
+<<<<<<< HEAD
+=======
+        name: 'source_scid',
+        control: SchemaDiffSelect2Control,
+        group: 'source',
+        deps: ['source_sid', 'source_did'],
+        url: function() {
+          if (this.get('source_sid') && this.get('source_did'))
+            return url_for('schema_diff.schemas', {'sid': this.get('source_sid'), 'did': this.get('source_did')});
+          return false;
+        },
+        select2: {
+          allowClear: true,
+          placeholder: gettext('Select schema...'),
+        },
+        disabled: function(m) {
+          let self_local = this;
+          if (!_.isUndefined(m.get('source_did')) && !_.isNull(m.get('source_did'))
+              && m.get('source_did') !== '') {
+            setTimeout(function() {
+              if (self_local.options.length > 0) {
+                m.set('source_scid', self_local.options[0].value);
+              }
+            }, 10);
+            return false;
+          }
+
+          setTimeout(function() {
+            m.set('source_scid', undefined);
+          }, 10);
+          return true;
+        },
+      }, {
+>>>>>>> pgadmin4/master
         name: 'target_sid', label: false,
         control: SchemaDiffSelect2Control,
         transform: function(data) {

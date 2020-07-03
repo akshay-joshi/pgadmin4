@@ -1209,11 +1209,11 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         return sql_data
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, vid, json_resp=True):
+    def sql(self, gid, sid, did, scid, vid, **kwargs):
         """
         This function will generate sql to render into the sql panel
         """
-
+        json_resp = kwargs.get('json_resp', True)
         display_comments = True
 
         if not json_resp:
@@ -1745,10 +1745,11 @@ class MViewNode(ViewNode, VacuumSettings):
         return SQL, data['name'] if 'name' in data else old_data['name']
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, vid, json_resp=True):
+    def sql(self, gid, sid, did, scid, vid, **kwargs):
         """
         This function will generate sql to render into the sql panel
         """
+        json_resp = kwargs.get('json_resp', True)
 
         display_comments = True
 

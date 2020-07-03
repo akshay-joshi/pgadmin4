@@ -818,7 +818,7 @@ class ForeignTableView(PGChildNodeView, DataTypeReader,
             return internal_server_error(errormsg=str(e))
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, foid=None, json_resp=True):
+    def sql(self, gid, sid, did, scid, foid=None, **kwargs):
         """
         Returns the SQL for the Foreign Table object.
 
@@ -830,6 +830,8 @@ class ForeignTableView(PGChildNodeView, DataTypeReader,
             foid: Foreign Table Id
             json_resp: True then return json response
         """
+        json_resp = kwargs.get('json_resp', True)
+
         status, data = self._fetch_properties(gid, sid, did, scid, foid,
                                               inherits=True)
         if not status:

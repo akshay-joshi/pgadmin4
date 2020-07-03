@@ -824,7 +824,7 @@ class FtsParserView(PGChildNodeView, SchemaDiffObjectCompare):
         )
 
     @check_precondition
-    def sql(self, gid, sid, did, scid, pid, json_resp=True):
+    def sql(self, gid, sid, did, scid, pid, **kwargs):
         """
         This function will reverse generate sql for sql panel
         :param gid: group id
@@ -834,6 +834,8 @@ class FtsParserView(PGChildNodeView, SchemaDiffObjectCompare):
         :param pid: fts tempate id
         :param json_resp: True then return json response
         """
+        json_resp = kwargs.get('json_resp', True)
+
         try:
             sql = render_template(
                 "/".join([self.template_path, 'sql.sql']),

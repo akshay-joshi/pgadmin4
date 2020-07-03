@@ -689,7 +689,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
                     )
 
     @check_precondition(action="sql")
-    def sql(self, gid, sid, did, scid, seid, json_resp=True):
+    def sql(self, gid, sid, did, scid, seid, **kwargs):
         """
         This function will generate sql for sql panel
 
@@ -701,6 +701,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
             seid: Sequence ID
             json_resp: json response or plain text response
         """
+        json_resp = kwargs.get('json_resp', True)
 
         sql = render_template(
             "/".join([self.template_path, 'properties.sql']),
