@@ -1661,13 +1661,6 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         :param tid: Table Id
         :return: Table dataset
         """
-        sub_modules = ['index', 'rule', 'trigger']
-        if self.manager.server_type == 'ppas' and \
-                self.manager.version >= 120000:
-            sub_modules.append('compound_trigger')
-
-        if self.manager.version >= 90500:
-            sub_modules.append('row_security_policy')
 
         if tid:
             status, data = self._fetch_properties(did, scid, tid)
@@ -1701,7 +1694,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
 
                     # Get sub module data of a specified table for object
                     # comparison
-                    for module in sub_modules:
+                    for module in self.tables_sub_modules:
                         module_view = SchemaDiffRegistry.get_node_view(module)
                         if module_view.blueprint.server_type is None or \
                             self.manager.server_type in \
@@ -1713,6 +1706,45 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
                     res[row['name']] = data
 
             return res
+
+    @BaseTableView.check_precondition
+    def get_table_submodules_dependencies(self, **kwargs):
+        """
+        This function is used to get the dependencies of table and it's
+        submodules.
+        :param kwargs:
+        :return:
+        """
+        tid = kwargs['tid']
+        table_dependencies = []
+        template_path = None
+
+        table_dependencies.append(self.get_dependencies(self.conn, tid))
+
+        for module in self.tables_sub_modules:
+            module_view = SchemaDiffRegistry.get_node_view(module)
+            if module == 'index':
+                template_path = self.index_template_path
+            elif module == 'trigger':
+                template_path = self.trigger_template_path
+            elif module == 'rule':
+                template_path = self.rules_template_path
+            elif module == 'compound_trigger':
+                template_path = self.compound_trigger_template_path
+            elif module == 'row_security_policy':
+                template_path = self.row_security_policies_template_path
+
+            SQL = render_template("/".join([template_path,
+                                            'nodes.sql']), tid=tid)
+            status, rset = self.conn.execute_2darray(SQL)
+            if not status:
+                return internal_server_error(errormsg=rset)
+
+            for row in rset['rows']:
+                result = module_view.get_dependencies(self.conn, row['oid'])
+                table_dependencies.append(result)
+
+        return table_dependencies
 
 
 SchemaDiffRegistry(blueprint.node_type, TableView)

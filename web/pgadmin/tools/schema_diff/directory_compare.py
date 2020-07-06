@@ -52,6 +52,7 @@ def compare_dictionaries(view_object, source_params, target_params,
 
     # Keys that are available in source and missing in target.
     source_only = []
+    source_dependencies = []
     added = dict1_keys - dict2_keys
     global count
     for item in added:
@@ -66,11 +67,16 @@ def compare_dictionaries(view_object, source_params, target_params,
             source_ddl = \
                 view_object.get_sql_from_table_diff(**temp_src_params)
             diff_ddl = view_object.get_sql_from_table_diff(**temp_src_params)
+            source_dependencies = \
+                view_object.get_table_submodules_dependencies(
+                    **temp_src_params)
         else:
             temp_src_params = copy.deepcopy(source_params)
             temp_src_params['oid'] = source_object_id
             source_ddl = view_object.get_sql_from_diff(**temp_src_params)
             diff_ddl = view_object.get_sql_from_diff(**temp_src_params)
+            source_dependencies = view_object.get_dependencies(
+                view_object.conn, source_object_id)
 
         source_only.append({
             'id': count,
@@ -82,7 +88,8 @@ def compare_dictionaries(view_object, source_params, target_params,
             'source_ddl': source_ddl,
             'target_ddl': '',
             'diff_ddl': diff_ddl,
-            'group_name': group_name
+            'group_name': group_name,
+            'dependencies': source_dependencies
         })
         count += 1
 
@@ -122,13 +129,15 @@ def compare_dictionaries(view_object, source_params, target_params,
             'source_ddl': '',
             'target_ddl': target_ddl,
             'diff_ddl': diff_ddl,
-            'group_name': group_name
+            'group_name': group_name,
+            'dependencies': []
         })
         count += 1
 
     # Compare the values of duplicates keys.
     identical = []
     different = []
+    diff_dependencies = []
     for key in intersect_keys:
         source_object_id = None
         target_object_id = None
@@ -149,6 +158,7 @@ def compare_dictionaries(view_object, source_params, target_params,
                 'target_oid': target_object_id,
                 'status': SchemaDiffModel.COMPARISON_STATUS['identical'],
                 'group_name': group_name,
+                'dependencies': [],
                 'source_scid': source_params['scid']
                 if 'scid' in source_params else 0,
                 'target_scid': target_params['scid']
@@ -182,6 +192,9 @@ def compare_dictionaries(view_object, source_params, target_params,
                 diff_ddl = view_object.get_sql_from_submodule_diff(
                     temp_src_params, temp_tgt_params, dict1[key], dict2[key],
                     diff_dict, ignore_whitespaces)
+                diff_dependencies = \
+                    view_object.get_table_submodules_dependencies(
+                        **temp_src_params)
             else:
                 temp_src_params = copy.deepcopy(source_params)
                 temp_tgt_params = copy.deepcopy(target_params)
@@ -198,6 +211,8 @@ def compare_dictionaries(view_object, source_params, target_params,
                 temp_tgt_params.update(
                     {'data': diff_dict})
                 diff_ddl = view_object.get_sql_from_diff(**temp_tgt_params)
+                diff_dependencies = view_object.get_dependencies(
+                    view_object.conn, source_object_id)
 
             different.append({
                 'id': count,
@@ -211,7 +226,8 @@ def compare_dictionaries(view_object, source_params, target_params,
                 'source_ddl': source_ddl,
                 'target_ddl': target_ddl,
                 'diff_ddl': diff_ddl,
-                'group_name': group_name
+                'group_name': group_name,
+                'dependencies': diff_dependencies
             })
         count += 1
 
