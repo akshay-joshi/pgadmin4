@@ -50,12 +50,12 @@ class RuleModule(CollectionNodeModule):
 
         super(RuleModule, self).__init__(*args, **kwargs)
 
-    def BackendSupported(self, manager, **kwargs):
+    def backend_supported(self, manager, **kwargs):
         """
         Load this module if tid is view, we will not load it under
         material view
         """
-        if super(RuleModule, self).BackendSupported(manager, **kwargs):
+        if super(RuleModule, self).backend_supported(manager, **kwargs):
             conn = manager.connection(did=kwargs['did'])
 
             if 'vid' not in kwargs:
@@ -518,8 +518,20 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
         return SQL, data['name'] if 'name' in data else old_data['name']
 
     @check_precondition
-    def get_sql_from_diff(self, gid, sid, did, scid, tid, oid, data=None,
-                          drop_sql=False):
+    def get_sql_from_diff(self, **kwargs):
+        """
+        This function is used to get the DDL/DML statements.
+        :param kwargs
+        :return:
+        """
+        gid = kwargs.get('gid')
+        sid = kwargs.get('sid')
+        did = kwargs.get('did')
+        scid = kwargs.get('scid')
+        tid = kwargs.get('oid')
+        oid = kwargs.get('oid')
+        data = kwargs.get('data', None)
+        drop_sql = kwargs.get('drop_sql', False)
 
         if drop_sql:
             SQL = self.delete(gid=gid, sid=sid, did=did,

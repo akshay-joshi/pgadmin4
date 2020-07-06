@@ -1519,9 +1519,20 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
 
         return res
 
-    def get_sql_from_diff(self, gid, sid, did, scid, oid, data=None,
-                          drop_sql=False):
-        sql = ''
+    def get_sql_from_diff(self, **kwargs):
+        """
+        This function is used to get the DDL/DML statements.
+        :param kwargs
+        :return:
+        """
+        gid = kwargs.get('gid')
+        sid = kwargs.get('sid')
+        did = kwargs.get('did')
+        scid = kwargs.get('scid')
+        oid = kwargs.get('oid')
+        data = kwargs.get('data', None)
+        drop_sql = kwargs.get('drop_sql', False)
+
         if data:
             sql, nameOrError = self.getSQL(gid, sid, did, data, oid)
             if sql.find('DROP VIEW') != -1:

@@ -73,14 +73,14 @@ class CompoundTriggerModule(CollectionNodeModule):
         self.min_gpdbver = 1000000000
         self.server_type = ['ppas']
 
-    def BackendSupported(self, manager, **kwargs):
+    def backend_supported(self, manager, **kwargs):
         """
         Load this module if vid is view, we will not load it under
         material view
         """
         if manager.server_type == 'gpdb':
             return False
-        if super(CompoundTriggerModule, self).BackendSupported(
+        if super(CompoundTriggerModule, self).backend_supported(
                 manager, **kwargs):
             conn = manager.connection(did=kwargs['did'])
 
@@ -875,8 +875,21 @@ class CompoundTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         )
 
     @check_precondition
-    def get_sql_from_diff(self, gid, sid, did, scid, tid, oid,
-                          data=None, drop_sql=False):
+    def get_sql_from_diff(self, **kwargs):
+        """
+        This function is used to get the DDL/DML statements.
+        :param kwargs
+        :return:
+        """
+        gid = kwargs.get('gid')
+        sid = kwargs.get('sid')
+        did = kwargs.get('did')
+        scid = kwargs.get('scid')
+        tid = kwargs.get('oid')
+        oid = kwargs.get('oid')
+        data = kwargs.get('data', None)
+        drop_sql = kwargs.get('drop_sql', False)
+
         if data:
             sql, name = compound_trigger_utils.get_sql(self.conn,
                                                        data,

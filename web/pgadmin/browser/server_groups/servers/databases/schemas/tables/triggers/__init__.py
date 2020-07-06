@@ -70,14 +70,14 @@ class TriggerModule(CollectionNodeModule):
         self.min_gpdbver = 1000000000
         super(TriggerModule, self).__init__(*args, **kwargs)
 
-    def BackendSupported(self, manager, **kwargs):
+    def backend_supported(self, manager, **kwargs):
         """
         Load this module if vid is view, we will not load it under
         material view
         """
         if manager.server_type == 'gpdb':
             return False
-        if super(TriggerModule, self).BackendSupported(manager, **kwargs):
+        if super(TriggerModule, self).backend_supported(manager, **kwargs):
             conn = manager.connection(did=kwargs['did'])
 
             if 'vid' not in kwargs:
@@ -790,8 +790,21 @@ class TriggerView(PGChildNodeView, SchemaDiffObjectCompare):
         return ajax_response(response=SQL)
 
     @check_precondition
-    def get_sql_from_diff(self, gid, sid, did, scid, tid, oid,
-                          data=None, drop_sql=False):
+    def get_sql_from_diff(self, **kwargs):
+        """
+        This function is used to get the DDL/DML statements.
+        :param kwargs
+        :return:
+        """
+        gid = kwargs.get('gid')
+        sid = kwargs.get('sid')
+        did = kwargs.get('did')
+        scid = kwargs.get('scid')
+        tid = kwargs.get('oid')
+        oid = kwargs.get('oid')
+        data = kwargs.get('data', None)
+        drop_sql = kwargs.get('drop_sql', False)
+
         if data:
             SQL, name = trigger_utils.get_sql(
                 self.conn, data, tid, oid,
