@@ -19,25 +19,23 @@ list_keys_array = ['name', 'colname', 'argid', 'token', 'option', 'conname',
                    'member_name', 'label', 'attname']
 
 
-def compare_dictionaries(view_object, source_params, target_params,
-                         source_dict, target_dict, node, node_label,
-                         group_name, ignore_whitespaces,
-                         ignore_keys=None):
+def compare_dictionaries(**kwargs):
     """
     This function will compare the two dictionaries.
 
-    :param view_object: View Object
-    :param source_params: Source Parameters
-    :param target_params: Target Parameters
-    :param source_dict: First Dictionary
-    :param target_dict: Second Dictionary
-    :param node: node type
-    :param node_label: node label
-    :param group_name: Name of the parent
-    :param ignore_whitespaces: If set the True then ignore whitespaces
-    :param ignore_keys: List of keys that will be ignored while comparing
+    :param kwargs:
     :return:
     """
+    view_object = kwargs.get('view_object')
+    source_params = kwargs.get('source_params')
+    target_params = kwargs.get('target_params')
+    group_name = kwargs.get('group_name')
+    source_dict = kwargs.get('source_dict')
+    target_dict = kwargs.get('target_dict')
+    node = kwargs.get('node')
+    node_label = kwargs.get('node_label')
+    ignore_whitespaces = kwargs.get('ignore_whitespaces')
+    ignore_keys = kwargs.get('ignore_keys', None)
 
     dict1 = copy.deepcopy(source_dict)
     dict2 = copy.deepcopy(target_dict)
@@ -190,8 +188,10 @@ def compare_dictionaries(view_object, source_params, target_params,
                 target_ddl = \
                     view_object.get_sql_from_table_diff(**temp_tgt_params)
                 diff_ddl = view_object.get_sql_from_submodule_diff(
-                    temp_src_params, temp_tgt_params, dict1[key], dict2[key],
-                    diff_dict, ignore_whitespaces)
+                    source_params=temp_src_params,
+                    target_params=temp_tgt_params,
+                    source=dict1[key], target=dict2[key], diff_dict=diff_dict,
+                    ignore_whitespaces=ignore_whitespaces)
                 diff_dependencies = \
                     view_object.get_table_submodules_dependencies(
                         **temp_src_params)
