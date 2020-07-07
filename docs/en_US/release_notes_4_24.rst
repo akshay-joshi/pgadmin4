@@ -9,6 +9,7 @@ This release contains a number of bug fixes and new features since the release o
 New features
 ************
 
+| `Issue #5484 <https://redmine.postgresql.org/issues/5484>`_ -  Added support for LDAP authentication with different DN by setting the dedicated user for the LDAP connection.
 | `Issue #5583 <https://redmine.postgresql.org/issues/5583>`_ -  Added support for schema level restriction.
 | `Issue #5601 <https://redmine.postgresql.org/issues/5601>`_ -  Added RLS Policy support in Schema Diff.
 
@@ -20,6 +21,7 @@ Housekeeping
 Bug fixes
 *********
 
+| `Issue #3814 <https://redmine.postgresql.org/issues/3814>`_ -  Fixed issue of error message not getting displayed when filename is empty for backup, restore, and import/export.
 | `Issue #3851 <https://redmine.postgresql.org/issues/3851>`_ -  Add proper indentation to the code while generating functions, procedures, and trigger functions.
 | `Issue #4235 <https://redmine.postgresql.org/issues/4235>`_ -  Fixed tab indent issue on a selection of lines is deleting the content when 'use spaces == true' in the preferences.
 | `Issue #5287 <https://redmine.postgresql.org/issues/5287>`_ -  Fixed dark theme-related CSS and modify the color codes.
