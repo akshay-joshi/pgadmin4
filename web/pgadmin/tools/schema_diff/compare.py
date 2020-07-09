@@ -113,11 +113,11 @@ class SchemaDiffObjectCompare:
 
         source_scid = kwargs.get('source_scid')
         if source_scid is not None and source_scid != 0:
-            source_params['scid'] = kwargs.get('source_scid')
+            source_params['scid'] = source_scid
 
         target_scid = kwargs.get('target_scid')
         if target_scid is not None and target_scid != 0:
-            target_params['scid'] = kwargs.get('target_scid')
+            target_params['scid'] = target_scid
 
         source = self.get_sql_from_diff(**source_params)
         target = self.get_sql_from_diff(**target_params)

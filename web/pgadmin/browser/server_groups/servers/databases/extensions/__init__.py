@@ -539,7 +539,7 @@ class ExtensionView(PGChildNodeView, SchemaDiffObjectCompare):
     @check_precondition
     def fetch_objects_to_compare(self, sid, did):
         """
-        This function will fetch the list of all the event triggers for
+        This function will fetch the list of all the extensions for
         specified database id.
 
         :param sid: Server Id
@@ -561,19 +561,19 @@ class ExtensionView(PGChildNodeView, SchemaDiffObjectCompare):
 
         return res
 
-    def get_sql_from_diff(self, gid, sid, did, oid, data=None, drop_sql=False):
+    def get_sql_from_diff(self, **kwargs):
         """
         This function is used to get the DDL/DML statements.
-        :param gid: Group ID
-        :param sid: Serve ID
-        :param did: Database ID
-        :param scid: Schema ID
-        :param oid: Extension ID
-        :param data: Difference data
-        :param drop_sql: True if need to drop the collation
+        :param kwargs
         :return:
         """
-        sql = ''
+        gid = kwargs.get('gid')
+        sid = kwargs.get('sid')
+        did = kwargs.get('did')
+        oid = kwargs.get('oid')
+        data = kwargs.get('data', None)
+        drop_sql = kwargs.get('drop_sql', False)
+
         if data:
             sql, name = self.getSQL(gid=gid, sid=sid, did=did, data=data,
                                     eid=oid)

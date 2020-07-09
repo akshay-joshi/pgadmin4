@@ -16,7 +16,8 @@ from pgadmin.tools.schema_diff.model import SchemaDiffModel
 count = 1
 
 list_keys_array = ['name', 'colname', 'argid', 'token', 'option', 'conname',
-                   'member_name', 'label', 'attname']
+                   'member_name', 'label', 'attname', 'fdwoption',
+                   'fsrvoption', 'umoption']
 
 
 def compare_dictionaries(**kwargs):
@@ -71,6 +72,13 @@ def compare_dictionaries(**kwargs):
         else:
             temp_src_params = copy.deepcopy(source_params)
             temp_src_params['oid'] = source_object_id
+            # Provide Foreign Data Wrapper ID
+            if 'fdwid' in source_dict[item]:
+                temp_src_params['fdwid'] = source_dict[item]['fdwid']
+            # Provide Foreign Server ID
+            if 'fsid' in source_dict[item]:
+                temp_src_params['fsid'] = source_dict[item]['fsid']
+
             source_ddl = view_object.get_sql_from_diff(**temp_src_params)
             diff_ddl = view_object.get_sql_from_diff(**temp_src_params)
             source_dependencies = view_object.get_dependencies(
@@ -112,6 +120,13 @@ def compare_dictionaries(**kwargs):
         else:
             temp_tgt_params = copy.deepcopy(target_params)
             temp_tgt_params['oid'] = target_object_id
+            # Provide Foreign Data Wrapper ID
+            if 'fdwid' in target_dict[item]:
+                temp_tgt_params['fdwid'] = target_dict[item]['fdwid']
+            # Provide Foreign Server ID
+            if 'fsid' in target_dict[item]:
+                temp_tgt_params['fsid'] = target_dict[item]['fsid']
+
             target_ddl = view_object.get_sql_from_diff(**temp_tgt_params)
             temp_tgt_params.update(
                 {'drop_sql': True})
@@ -206,6 +221,15 @@ def compare_dictionaries(**kwargs):
 
                 temp_src_params['oid'] = source_object_id
                 temp_tgt_params['oid'] = target_object_id
+                # Provide Foreign Data Wrapper ID
+                if 'fdwid' in source_dict[key]:
+                    temp_src_params['fdwid'] = source_dict[key]['fdwid']
+                    temp_tgt_params['fdwid'] = target_dict[key]['fdwid']
+                # Provide Foreign Server ID
+                if 'fsid' in source_dict[key]:
+                    temp_src_params['fsid'] = source_dict[key]['fsid']
+                    temp_tgt_params['fsid'] = target_dict[key]['fsid']
+
                 source_ddl = view_object.get_sql_from_diff(**temp_src_params)
                 target_ddl = view_object.get_sql_from_diff(**temp_tgt_params)
                 temp_tgt_params.update(
@@ -514,13 +538,13 @@ def sort_list(source, target):
     :return:
     """
     # Check the above keys are exist in the dictionary
-    if len(source) > 0 and type(source[0]) == dict:
+    if source is not None and len(source) > 0 and type(source[0]) == dict:
         tmp_key = is_key_exists(list_keys_array, source[0])
         if tmp_key is not None:
             source = sorted(source, key=lambda k: k[tmp_key])
 
     # Check the above keys are exist in the dictionary
-    if len(target) > 0 and type(target[0]) == dict:
+    if target is not None and len(target) > 0 and type(target[0]) == dict:
         tmp_key = is_key_exists(list_keys_array, target[0])
         if tmp_key is not None:
             target = sorted(target, key=lambda k: k[tmp_key])
