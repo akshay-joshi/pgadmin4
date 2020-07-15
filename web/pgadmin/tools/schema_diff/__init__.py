@@ -117,8 +117,8 @@ def panel(trans_id, editor_title):
     # If title has slash(es) in it then replace it
     if request.args and request.args['fslashes'] != '':
         try:
-            fslashesList = request.args['fslashes'].split(',')
-            for idx in fslashesList:
+            fslashes_list = request.args['fslashes'].split(',')
+            for idx in fslashes_list:
                 idx = int(idx)
                 editor_title = editor_title[:idx] + '/' + editor_title[idx:]
         except IndexError as e:
@@ -387,7 +387,8 @@ def databases(sid):
                 "connected": db['connected'],
                 "allowConn": db['allowConn'],
                 "image": db['icon'],
-                "canDisconn": db['canDisconn']
+                "canDisconn": db['canDisconn'],
+                "is_maintenance_db": db['label'] == server.maintenance_db
             })
 
     except Exception as e:

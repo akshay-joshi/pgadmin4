@@ -177,20 +177,13 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             data['seclabels'] = seclabels
 
         # We need to parse & convert ACL coming from database to json format
-        SQL = render_template("/".join([self.table_template_path, 'acl.sql']),
+        sql = render_template("/".join([self.table_template_path, 'acl.sql']),
                               tid=tid, scid=scid)
-        status, acl = self.conn.execute_dict(SQL)
+        status, acl = self.conn.execute_dict(sql)
         if not status:
             return internal_server_error(errormsg=acl)
 
-        # We will set get privileges from acl sql so we don't need
-        # it from properties sql
-        for row in acl['rows']:
-            priv = parse_priv_from_db(row)
-            if row['deftype'] in data:
-                data[row['deftype']].append(priv)
-            else:
-                data[row['deftype']] = [priv]
+        BaseTableView._set_privileges_for_properties(data, acl)
 
         # We will add Auto vacuum defaults with out result for grid
         data['vacuum_table'] = copy.deepcopy(
@@ -210,40 +203,21 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         table_or_type = ''
         # Get of_type table columns and add it into columns dict
         if data['typoid']:
-            SQL = render_template("/".join([self.table_template_path,
+            sql = render_template("/".join([self.table_template_path,
                                             'get_columns_for_table.sql']),
                                   tid=data['typoid'])
 
-            status, res = self.conn.execute_dict(SQL)
+            status, res = self.conn.execute_dict(sql)
             if not status:
                 return internal_server_error(errormsg=res)
             other_columns = res['rows']
             table_or_type = 'type'
         # Get inherited table(s) columns and add it into columns dict
         elif data['coll_inherits'] and len(data['coll_inherits']) > 0:
-            # Return all tables which can be inherited & do not show
-            # system columns
-            SQL = render_template("/".join([self.table_template_path,
-                                            'get_inherits.sql']),
-                                  show_system_objects=False,
-                                  scid=scid
-                                  )
-            status, rset = self.conn.execute_2darray(SQL)
-            if not status:
-                return internal_server_error(errormsg=rset)
-
-            for row in rset['rows']:
-                if row['inherits'] in data['coll_inherits']:
-                    # Fetch columns using inherited table OID
-                    SQL = render_template("/".join(
-                        [self.table_template_path,
-                         'get_columns_for_table.sql']),
-                        tid=row['oid']
-                    )
-                    status, res = self.conn.execute_dict(SQL)
-                    if not status:
-                        return internal_server_error(errormsg=res)
-                    other_columns.extend(res['rows'][:])
+            is_error, errmsg = self._get_inherited_tables(scid, data,
+                                                          other_columns)
+            if is_error:
+                return internal_server_error(errormsg=errmsg)
 
             table_or_type = 'table'
 
@@ -253,6 +227,49 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                                                   data, other_columns,
                                                   table_or_type)
 
+        self._add_constrints_to_output(data, did, tid)
+
+        return data
+
+    def _get_inherited_tables(self, scid, data, other_columns):
+        # Return all tables which can be inherited & do not show
+        # system columns
+        sql = render_template("/".join([self.table_template_path,
+                                        'get_inherits.sql']),
+                              show_system_objects=False,
+                              scid=scid
+                              )
+        status, rset = self.conn.execute_2darray(sql)
+        if not status:
+            return True, rset
+
+        for row in rset['rows']:
+            if row['inherits'] in data['coll_inherits']:
+                # Fetch columns using inherited table OID
+                sql = render_template("/".join(
+                    [self.table_template_path,
+                     'get_columns_for_table.sql']),
+                    tid=row['oid']
+                )
+                status, res = self.conn.execute_dict(sql)
+                if not status:
+                    return True, res
+                other_columns.extend(res['rows'][:])
+
+        return False, ''
+
+    @staticmethod
+    def _set_privileges_for_properties(data, acl):
+        # We will set get privileges from acl sql so we don't need
+        # it from properties sql
+        for row in acl['rows']:
+            priv = parse_priv_from_db(row)
+            if row['deftype'] in data:
+                data[row['deftype']].append(priv)
+            else:
+                data[row['deftype']] = [priv]
+
+    def _add_constrints_to_output(self, data, did, tid):
         # Here we will add constraint in our output
         index_constraints = {
             'p': 'primary_key', 'u': 'unique_constraint'
@@ -285,8 +302,6 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             for ex in exclusion_constraints:
                 data.setdefault('exclude_constraint', []).append(ex)
 
-        return data
-
     def get_table_dependents(self, tid):
         """
         This function get the dependents and return ajax response
@@ -303,10 +318,10 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         )
 
         # Specific sql to run againt column to fetch dependents
-        SQL = render_template("/".join([self.table_template_path,
+        sql = render_template("/".join([self.table_template_path,
                                         'depend.sql']), where=where)
 
-        status, res = self.conn.execute_dict(SQL)
+        status, res = self.conn.execute_dict(sql)
         if not status:
             return internal_server_error(errormsg=res)
 
@@ -421,36 +436,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             status=200
         )
 
-    def get_reverse_engineered_sql(self, **kwargs):
-        """
-        This function will creates reverse engineered sql for
-        the table object
-
-         Args:
-           kwargs
-        """
-        did = kwargs.get('did')
-        scid = kwargs.get('scid')
-        tid = kwargs.get('tid')
-        main_sql = kwargs.get('main_sql')
-        data = kwargs.get('data')
-        json_resp = kwargs.get('json_resp', True)
-        diff_partition_sql = kwargs.get('diff_partition_sql', False)
-
-        """
-        #####################################
-        # 1) Reverse engineered sql for TABLE
-        #####################################
-        """
-
-        # Table & Schema declaration so that we can use them in child nodes
-        schema = data['schema']
-        table = data['name']
-        is_partitioned = 'is_partitioned' in data and data['is_partitioned']
-        sql_header = ''
-
-        data = self._formatter(did, scid, tid, data)
-
+    def _format_column_list(self, data):
         # Now we have all lis of columns which we need
         # to include in our create definition, Let's format them
         if 'columns' in data:
@@ -465,6 +451,17 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     c['cltype'], c['hasSqrBracket'] = \
                         column_utils.type_formatter(c['cltype'])
 
+    def _get_resql_for_table(self, did, scid, tid, data, json_resp, main_sql):
+        """
+        #####################################
+        # Reverse engineered sql for TABLE
+        #####################################
+        """
+        data = self._formatter(did, scid, tid, data)
+
+        # Format column list
+        self._format_column_list(data)
+
         if json_resp:
             sql_header = u"-- Table: {0}.{1}\n\n-- ".format(
                 data['schema'], data['name'])
@@ -478,7 +475,6 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
             # Add into main sql
             main_sql.append(sql_header)
-        partition_main_sql = ""
 
         # Parse privilege data
         if 'relacl' in data:
@@ -498,15 +494,17 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         table_sql = re.sub('\n{2,}', '\n\n', table_sql)
         main_sql.append(table_sql.strip('\n'))
 
+    def _get_resql_for_index(self, did, tid, main_sql, json_resp, schema,
+                             table):
         """
         ######################################
-        # 2) Reverse engineered sql for INDEX
+        # Reverse engineered sql for INDEX
         ######################################
         """
 
-        SQL = render_template("/".join([self.index_template_path,
+        sql = render_template("/".join([self.index_template_path,
                                         'nodes.sql']), tid=tid)
-        status, rset = self.conn.execute_2darray(SQL)
+        status, rset = self.conn.execute_2darray(sql)
         if not status:
             return internal_server_error(errormsg=rset)
 
@@ -525,22 +523,24 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
             main_sql.append(index_sql.strip('\n'))
 
+    def _get_resql_for_row_security_policy(self, scid, tid, json_resp,
+                                           main_sql, schema, table):
         """
         ########################################################
-        # 2) Reverse engineered sql for ROW SECURITY POLICY
+        # Reverse engineered sql for ROW SECURITY POLICY
         ########################################################
-        """
+                """
         if self.manager.version >= 90500:
-            SQL = \
+            sql = \
                 render_template(
                     "/".join([self.row_security_policies_template_path,
                               'nodes.sql']), tid=tid)
-            status, rset = self.conn.execute_2darray(SQL)
+            status, rset = self.conn.execute_2darray(sql)
             if not status:
                 return internal_server_error(errormsg=rset)
 
             for row in rset['rows']:
-                policy_sql = row_security_policies_utils.\
+                policy_sql = row_security_policies_utils. \
                     get_reverse_engineered_sql(
                         self.conn, schema=schema, table=table, scid=scid,
                         plid=row['oid'], datlastsysoid=self.datlastsysoid,
@@ -552,14 +552,16 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
                 main_sql.append(policy_sql.strip('\n'))
 
+    def _get_resql_for_triggers(self, tid, json_resp, main_sql, schema,
+                                table):
         """
         ########################################
-        # 3) Reverse engineered sql for TRIGGERS
+        # Reverse engineered sql for TRIGGERS
         ########################################
         """
-        SQL = render_template("/".join([self.trigger_template_path,
+        sql = render_template("/".join([self.trigger_template_path,
                                         'nodes.sql']), tid=tid)
-        status, rset = self.conn.execute_2darray(SQL)
+        status, rset = self.conn.execute_2darray(sql)
         if not status:
             return internal_server_error(errormsg=rset)
 
@@ -575,18 +577,19 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             trigger_sql = re.sub('\n{2,}', '\n\n', trigger_sql)
             main_sql.append(trigger_sql)
 
+    def _get_resql_for_compound_triggers(self, tid, main_sql, schema, table):
         """
         #################################################
-        # 4) Reverse engineered sql for COMPOUND TRIGGERS
+        # Reverse engineered sql for COMPOUND TRIGGERS
         #################################################
         """
 
         if self.manager.server_type == 'ppas' \
                 and self.manager.version >= 120000:
-            SQL = render_template("/".join(
+            sql = render_template("/".join(
                 [self.compound_trigger_template_path, 'nodes.sql']), tid=tid)
 
-            status, rset = self.conn.execute_2darray(SQL)
+            status, rset = self.conn.execute_2darray(sql)
             if not status:
                 return internal_server_error(errormsg=rset)
 
@@ -602,26 +605,27 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     re.sub('\n{2,}', '\n\n', compound_trigger_sql)
                 main_sql.append(compound_trigger_sql)
 
+    def _get_resql_for_rules(self, tid, main_sql, table, json_resp):
         """
         #####################################
-        # 5) Reverse engineered sql for RULES
+        # Reverse engineered sql for RULES
         #####################################
         """
 
-        SQL = render_template("/".join(
+        sql = render_template("/".join(
             [self.rules_template_path, 'nodes.sql']), tid=tid)
 
-        status, rset = self.conn.execute_2darray(SQL)
+        status, rset = self.conn.execute_2darray(sql)
         if not status:
             return internal_server_error(errormsg=rset)
 
         for row in rset['rows']:
             rules_sql = '\n'
-            SQL = render_template("/".join(
+            sql = render_template("/".join(
                 [self.rules_template_path, 'properties.sql']
             ), rid=row['oid'], datlastsysoid=self.datlastsysoid)
 
-            status, res = self.conn.execute_dict(SQL)
+            status, res = self.conn.execute_dict(sql)
             if not status:
                 return internal_server_error(errormsg=res)
 
@@ -641,49 +645,152 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             rules_sql = re.sub('\n{2,}', '\n\n', rules_sql)
             main_sql.append(rules_sql)
 
+    def _get_resql_for_partitions(self, data, rset, json_resp,
+                                  diff_partition_sql, main_sql):
         """
         ##########################################
-        # 6) Reverse engineered sql for PARTITIONS
+        # Reverse engineered sql for PARTITIONS
         ##########################################
         """
+
+        sql_header = ''
+        if len(rset['rows']):
+            if json_resp:
+                sql_header = u"\n-- Partitions SQL"
+            partition_sql = ''
+            for row in rset['rows']:
+                part_data = dict()
+                part_data['partitioned_table_name'] = data['name']
+                part_data['parent_schema'] = data['schema']
+                if not json_resp:
+                    part_data['schema'] = data['schema']
+                else:
+                    part_data['schema'] = row['schema_name']
+                part_data['relispartition'] = True
+                part_data['name'] = row['name']
+                part_data['partition_value'] = row['partition_value']
+                part_data['is_partitioned'] = row['is_partitioned']
+                part_data['partition_scheme'] = row['partition_scheme']
+                part_data['description'] = row['description']
+                part_data['relowner'] = row['relowner']
+
+                self.update_autovacuum_properties(row)
+
+                part_data['fillfactor'] = row['fillfactor']
+                part_data['autovacuum_custom'] = row['autovacuum_custom']
+                part_data['autovacuum_enabled'] = row['autovacuum_enabled']
+                part_data['autovacuum_vacuum_threshold'] = \
+                    row['autovacuum_vacuum_threshold']
+                part_data['autovacuum_vacuum_scale_factor'] = \
+                    row['autovacuum_vacuum_scale_factor']
+                part_data['autovacuum_analyze_threshold'] = \
+                    row['autovacuum_analyze_threshold']
+                part_data['autovacuum_analyze_scale_factor'] = \
+                    row['autovacuum_analyze_scale_factor']
+                part_data['autovacuum_vacuum_cost_delay'] = \
+                    row['autovacuum_vacuum_cost_delay']
+                part_data['autovacuum_vacuum_cost_limit'] = \
+                    row['autovacuum_vacuum_cost_limit']
+                part_data['autovacuum_freeze_min_age'] = \
+                    row['autovacuum_freeze_min_age']
+                part_data['autovacuum_freeze_max_age'] = \
+                    row['autovacuum_freeze_max_age']
+                part_data['autovacuum_freeze_table_age'] = \
+                    row['autovacuum_freeze_table_age']
+                part_data['toast_autovacuum'] = row['toast_autovacuum']
+                part_data['toast_autovacuum_enabled'] = \
+                    row['toast_autovacuum_enabled']
+                part_data['toast_autovacuum_vacuum_threshold'] = \
+                    row['toast_autovacuum_vacuum_threshold']
+                part_data['toast_autovacuum_vacuum_scale_factor'] = \
+                    row['toast_autovacuum_vacuum_scale_factor']
+                part_data['toast_autovacuum_analyze_threshold'] = \
+                    row['toast_autovacuum_analyze_threshold']
+                part_data['toast_autovacuum_analyze_scale_factor'] = \
+                    row['toast_autovacuum_analyze_scale_factor']
+                part_data['toast_autovacuum_vacuum_cost_delay'] = \
+                    row['toast_autovacuum_vacuum_cost_delay']
+                part_data['toast_autovacuum_vacuum_cost_limit'] = \
+                    row['toast_autovacuum_vacuum_cost_limit']
+                part_data['toast_autovacuum_freeze_min_age'] = \
+                    row['toast_autovacuum_freeze_min_age']
+                part_data['toast_autovacuum_freeze_max_age'] = \
+                    row['toast_autovacuum_freeze_max_age']
+                part_data['toast_autovacuum_freeze_table_age'] = \
+                    row['toast_autovacuum_freeze_table_age']
+
+                # We will add Auto vacuum defaults with out result for grid
+                part_data['vacuum_table'] = \
+                    copy.deepcopy(self.parse_vacuum_data(
+                        self.conn, row, 'table'))
+                part_data['vacuum_toast'] = \
+                    copy.deepcopy(self.parse_vacuum_data(
+                        self.conn, row, 'toast'))
+                partition_sql += render_template("/".join(
+                    [self.partition_template_path, 'create.sql']),
+                    data=part_data, conn=self.conn) + '\n'
+
+            # Add into main sql
+            partition_sql = re.sub('\n{2,}', '\n\n', partition_sql
+                                   ).strip('\n')
+            partition_main_sql = partition_sql.strip('\n')
+            if not diff_partition_sql:
+                main_sql.append(
+                    sql_header + '\n\n' + partition_main_sql
+                )
+
+    def get_reverse_engineered_sql(self, **kwargs):
+        """
+        This function will creates reverse engineered sql for
+        the table object
+
+         Args:
+           kwargs
+        """
+        did = kwargs.get('did')
+        scid = kwargs.get('scid')
+        tid = kwargs.get('tid')
+        main_sql = kwargs.get('main_sql')
+        data = kwargs.get('data')
+        json_resp = kwargs.get('json_resp', True)
+        diff_partition_sql = kwargs.get('diff_partition_sql', False)
+
+        # Table & Schema declaration so that we can use them in child nodes
+        schema = data['schema']
+        table = data['name']
+        is_partitioned = 'is_partitioned' in data and data['is_partitioned']
+
+        # Get Reverse engineered sql for Table
+        self._get_resql_for_table(did, scid, tid, data, json_resp, main_sql)
+        # Get Reverse engineered sql for Table
+        self._get_resql_for_index(did, tid, main_sql, json_resp, schema,
+                                  table)
+
+        # Get Reverse engineered sql for ROW SECURITY POLICY
+        self._get_resql_for_row_security_policy(scid, tid, json_resp,
+                                                main_sql, schema, table)
+
+        # Get Reverse engineered sql for Triggers
+        self._get_resql_for_triggers(tid, json_resp, main_sql, schema, table)
+
+        # Get Reverse engineered sql for Compound Triggers
+        self._get_resql_for_compound_triggers(tid, main_sql, schema, table)
+
+        # Get Reverse engineered sql for Rules
+        self._get_resql_for_rules(tid, main_sql, table, json_resp)
+
+        # Get Reverse engineered sql for Partitions
+        partition_main_sql = ""
         if is_partitioned:
-            SQL = render_template("/".join([self.partition_template_path,
+            sql = render_template("/".join([self.partition_template_path,
                                             'nodes.sql']),
                                   scid=scid, tid=tid)
-            status, rset = self.conn.execute_2darray(SQL)
+            status, rset = self.conn.execute_2darray(sql)
             if not status:
                 return internal_server_error(errormsg=rset)
 
-            if len(rset['rows']):
-                if json_resp:
-                    sql_header = u"\n-- Partitions SQL"
-                partition_sql = ''
-                for row in rset['rows']:
-                    part_data = dict()
-                    part_data['partitioned_table_name'] = data['name']
-                    part_data['parent_schema'] = data['schema']
-                    if not json_resp:
-                        part_data['schema'] = data['schema']
-                    else:
-                        part_data['schema'] = row['schema_name']
-                    part_data['relispartition'] = True
-                    part_data['name'] = row['name']
-                    part_data['partition_value'] = row['partition_value']
-                    part_data['is_partitioned'] = row['is_partitioned']
-                    part_data['partition_scheme'] = row['partition_scheme']
-
-                    partition_sql += render_template("/".join(
-                        [self.partition_template_path, 'create.sql']),
-                        data=part_data, conn=self.conn)
-
-                # Add into main sql
-                partition_sql = re.sub('\n{2,}', '\n\n', partition_sql
-                                       ).strip('\n')
-                partition_main_sql = partition_sql.strip('\n')
-                if not diff_partition_sql:
-                    main_sql.append(
-                        sql_header + '\n\n' + partition_main_sql
-                    )
+            self._get_resql_for_partitions(data, rset, json_resp,
+                                           diff_partition_sql, main_sql)
 
         sql = '\n'.join(main_sql)
 
@@ -707,10 +814,10 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
         # table exist
         try:
-            SQL = render_template("/".join([self.table_template_path,
+            sql = render_template("/".join([self.table_template_path,
                                             'reset_stats.sql']),
                                   tid=tid)
-            status, res = self.conn.execute_scalar(SQL)
+            status, res = self.conn.execute_scalar(sql)
             if not status:
                 return internal_server_error(errormsg=res)
 
@@ -763,27 +870,35 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             else:
                 return False
         elif key == 'foreign_key':
-            if 'oid' not in data:
-                for arg in ['columns']:
-                    if arg not in data or \
-                            (isinstance(data[arg], list) and
-                             len(data[arg]) < 1):
-                        return False
-
-                if 'autoindex' in data and \
-                        data['autoindex'] and \
-                        ('coveringindex' not in data or
-                         data['coveringindex'] == ''):
-                    return False
-
-            return True
+            return BaseTableView._check_foreign_key()
 
         elif key == 'check_constraint':
-            for arg in ['consrc']:
-                if arg not in data or data[arg] == '':
-                    return False
-            return True
+            return BaseTableView._check_constraint(data)
 
+        return True
+
+    @staticmethod
+    def _check_foreign_key(data):
+        if 'oid' not in data:
+            for arg in ['columns']:
+                if arg not in data or \
+                    (isinstance(data[arg], list) and
+                     len(data[arg]) < 1):
+                    return False
+
+            if 'autoindex' in data and \
+                data['autoindex'] and \
+                ('coveringindex' not in data or
+                 data['coveringindex'] == ''):
+                return False
+
+        return True
+
+    @staticmethod
+    def _check_constraint(data):
+        for arg in ['consrc']:
+            if arg not in data or data[arg] == '':
+                return False
         return True
 
     @staticmethod
@@ -803,6 +918,241 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
         return data
 
+    def _get_privileges_from_client(self, data):
+        # We will convert privileges coming from client required
+        if 'relacl' in data:
+            for mode in ['added', 'changed', 'deleted']:
+                if mode in data['relacl']:
+                    data['relacl'][mode] = parse_priv_to_db(
+                        data['relacl'][mode], self.acl
+                    )
+
+    @staticmethod
+    def _filter_new_tables(data, old_data):
+        # Filter out new tables from list, we will send complete list
+        # and not newly added tables in the list from client
+        # so we will filter new tables here
+        if 'coll_inherits' in data:
+            p_len = len(old_data['coll_inherits'])
+            c_len = len(data['coll_inherits'])
+            # If table(s) added
+            if c_len > p_len:
+                data['coll_inherits_added'] = list(
+                    set(data['coll_inherits']) -
+                    set(old_data['coll_inherits'])
+                )
+            # If table(s)removed
+            elif c_len < p_len:
+                data['coll_inherits_removed'] = list(
+                    set(old_data['coll_inherits']) -
+                    set(data['coll_inherits'])
+                )
+            # Safe side verification,In case it happens..
+            # If user removes and adds same number of table
+            # eg removed one table and added one new table
+            elif c_len == p_len:
+                data['coll_inherits_added'] = list(
+                    set(data['coll_inherits']) -
+                    set(old_data['coll_inherits'])
+                )
+                data['coll_inherits_removed'] = list(
+                    set(old_data['coll_inherits']) -
+                    set(data['coll_inherits'])
+                )
+
+    def _check_for_column_delete(self, columns, data, column_sql):
+        # If column(s) is/are deleted
+        if 'deleted' in columns:
+            for c in columns['deleted']:
+                c['schema'] = data['schema']
+                c['table'] = data['name']
+                # Sql for drop column
+                if 'inheritedfrom' not in c:
+                    column_sql += render_template("/".join(
+                        [self.column_template_path, 'delete.sql']),
+                        data=c, conn=self.conn).strip('\n') + '\n\n'
+        return column_sql
+
+    def _check_for_column_update(self, columns, data, column_sql, tid):
+        # Here we will be needing previous properties of column
+        # so that we can compare & update it
+        if 'changed' in columns:
+            for c in columns['changed']:
+                c['schema'] = data['schema']
+                c['table'] = data['name']
+
+                properties_sql = render_template(
+                    "/".join([self.column_template_path,
+                              'properties.sql']),
+                    tid=tid,
+                    clid=c['attnum'],
+                    show_sys_objects=self.blueprint.show_system_objects
+                )
+
+                status, res = self.conn.execute_dict(properties_sql)
+                if not status:
+                    return internal_server_error(errormsg=res)
+                old_col_data = res['rows'][0]
+
+                old_col_data['cltype'], \
+                    old_col_data['hasSqrBracket'] = \
+                    column_utils.type_formatter(old_col_data['cltype'])
+                old_col_data = \
+                    column_utils.convert_length_precision_to_string(
+                        old_col_data)
+                old_col_data = column_utils.fetch_length_precision(
+                    old_col_data)
+
+                old_col_data['cltype'] = \
+                    DataTypeReader.parse_type_name(
+                        old_col_data['cltype'])
+
+                # Sql for alter column
+                if 'inheritedfrom' not in c and \
+                        'inheritedfromtable' not in c:
+                    column_sql += render_template("/".join(
+                        [self.column_template_path, 'update.sql']),
+                        data=c, o_data=old_col_data, conn=self.conn
+                    ).strip('\n') + '\n\n'
+        return column_sql
+
+    def _check_for_column_add(self, columns, data, column_sql):
+        # If column(s) is/are added
+        if 'added' in columns:
+            for c in columns['added']:
+                c['schema'] = data['schema']
+                c['table'] = data['name']
+
+                c = column_utils.convert_length_precision_to_string(c)
+
+                if 'inheritedfrom' not in c and \
+                        'inheritedfromtable' not in c:
+                    column_sql += render_template("/".join(
+                        [self.column_template_path, 'create.sql']),
+                        data=c, conn=self.conn).strip('\n') + '\n\n'
+        return column_sql
+
+    def _check_for_partitions_in_sql(self, data, old_data, sql):
+        # Check for partitions
+        if 'partitions' in data:
+            partitions = data['partitions']
+            partitions_sql = '\n'
+
+            # If partition(s) is/are deleted
+            if 'deleted' in partitions:
+                for row in partitions['deleted']:
+                    temp_data = dict()
+                    schema_name, table_name = \
+                        self.get_schema_and_table_name(row['oid'])
+
+                    temp_data['parent_schema'] = data['schema']
+                    temp_data['partitioned_table_name'] = data['name']
+                    temp_data['schema'] = schema_name
+                    temp_data['name'] = table_name
+
+                    # Sql for detach partition
+                    partitions_sql += render_template(
+                        "/".join(
+                            [
+                                self.partition_template_path,
+                                'detach.sql'
+                            ]
+                        ),
+                        data=temp_data,
+                        conn=self.conn).strip('\n') + '\n\n'
+
+            # If partition(s) is/are added
+            if 'added' in partitions and 'partition_scheme' in old_data \
+                    and old_data['partition_scheme'] != '':
+                temp_data = dict()
+                temp_data['schema'] = data['schema']
+                temp_data['name'] = data['name']
+                # get the partition type
+                temp_data['partition_type'] = \
+                    old_data['partition_scheme'].split()[0].lower()
+                temp_data['partitions'] = partitions['added']
+
+                partitions_sql += \
+                    self.get_partitions_sql(temp_data).strip('\n') + '\n\n'
+
+            # Combine all the SQL together
+            sql += '\n' + partitions_sql.strip('\n')
+        return sql
+
+    def _check_for_constraints(self, index_constraint_sql, data, did,
+                               tid, sql):
+        # If we have index constraint sql then ad it in main sql
+        if index_constraint_sql is not None:
+            sql += '\n' + index_constraint_sql
+
+        # Check if foreign key(s) is/are added/changed/deleted
+        foreign_key_sql = fkey_utils.get_foreign_key_sql(
+            self.conn, tid, data)
+        # If we have foreign key sql then ad it in main sql
+        if foreign_key_sql is not None:
+            sql += '\n' + foreign_key_sql
+
+        # Check if check constraint(s) is/are added/changed/deleted
+        check_constraint_sql = check_utils.get_check_constraint_sql(
+            self.conn, tid, data)
+        # If we have check constraint sql then ad it in main sql
+        if check_constraint_sql is not None:
+            sql += '\n' + check_constraint_sql
+
+        # Check if exclusion constraint(s) is/are added/changed/deleted
+        exclusion_constraint_sql = \
+            exclusion_utils.get_exclusion_constraint_sql(
+                self.conn, did, tid, data)
+        # If we have check constraint sql then ad it in main sql
+        if exclusion_constraint_sql is not None:
+            sql += '\n' + exclusion_constraint_sql
+        return sql
+
+    def _check_for_foreign_key(self, data):
+        if 'foreign_key' in data:
+            for c in data['foreign_key']:
+                schema, table = fkey_utils.get_parent(
+                    self.conn, c['columns'][0]['references'])
+                c['remote_schema'] = schema
+                c['remote_table'] = table
+
+    def _check_for_partitioned(self, data):
+        partitions_sql = ''
+        if 'is_partitioned' in data and data['is_partitioned']:
+            data['relkind'] = 'p'
+            # create partition scheme
+            data['partition_scheme'] = self.get_partition_scheme(data)
+            partitions_sql = self.get_partitions_sql(data)
+        return partitions_sql
+
+    def _validate_constraint_data(self, data):
+        # validate constraint data.
+        for key in ['primary_key', 'unique_constraint',
+                    'foreign_key', 'check_constraint',
+                    'exclude_constraint']:
+            if key in data and len(data[key]) > 0:
+                for constraint in data[key]:
+                    if not self.validate_constrains(key, constraint):
+                        return gettext(
+                            '-- definition incomplete for {0}'.format(key)
+                        )
+
+    @staticmethod
+    def _check_for_create_sql(data):
+        required_args = [
+            'name'
+        ]
+        for arg in required_args:
+            if arg not in data:
+                return True, '-- definition incomplete'
+        return False, ''
+
+    def _convert_privilege_to_server_format(self, data):
+        # We will convert privileges coming from client required
+        # in server side format
+        if 'relacl' in data:
+            data['relacl'] = parse_priv_to_db(data['relacl'], self.acl)
+
     def get_sql(self, did, scid, tid, data, res):
         """
         This function will generate create/update sql from model data
@@ -812,13 +1162,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             old_data = res['rows'][0]
             old_data = self._formatter(did, scid, tid, old_data)
 
-            # We will convert privileges coming from client required
-            if 'relacl' in data:
-                for mode in ['added', 'changed', 'deleted']:
-                    if mode in data['relacl']:
-                        data['relacl'][mode] = parse_priv_to_db(
-                            data['relacl'][mode], self.acl
-                        )
+            self._get_privileges_from_client(data)
 
             # If name is not present in request data
             if 'name' not in data:
@@ -830,48 +1174,19 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             if 'schema' not in data:
                 data['schema'] = old_data['schema']
 
-            # Filter out new tables from list, we will send complete list
-            # and not newly added tables in the list from client
-            # so we will filter new tables here
-            if 'coll_inherits' in data:
-                p_len = len(old_data['coll_inherits'])
-                c_len = len(data['coll_inherits'])
-                # If table(s) added
-                if c_len > p_len:
-                    data['coll_inherits_added'] = list(
-                        set(data['coll_inherits']) -
-                        set(old_data['coll_inherits'])
-                    )
-                # If table(s)removed
-                elif c_len < p_len:
-                    data['coll_inherits_removed'] = list(
-                        set(old_data['coll_inherits']) -
-                        set(data['coll_inherits'])
-                    )
-                # Safe side verification,In case it happens..
-                # If user removes and adds same number of table
-                # eg removed one table and added one new table
-                elif c_len == p_len:
-                    data['coll_inherits_added'] = list(
-                        set(data['coll_inherits']) -
-                        set(old_data['coll_inherits'])
-                    )
-                    data['coll_inherits_removed'] = list(
-                        set(old_data['coll_inherits']) -
-                        set(data['coll_inherits'])
-                    )
+            self._filter_new_tables(data, old_data)
 
             # Update the vacuum table settings.
             self.update_vacuum_settings('vacuum_table', old_data, data)
             # Update the vacuum toast table settings.
             self.update_vacuum_settings('vacuum_toast', old_data, data)
 
-            SQL = render_template(
+            sql = render_template(
                 "/".join([self.table_template_path, 'update.sql']),
                 o_data=old_data, data=data, conn=self.conn
             )
             # Removes training new lines
-            SQL = SQL.strip('\n') + '\n\n'
+            sql = sql.strip('\n') + '\n\n'
 
             # Parse/Format columns & create sql
             if 'columns' in data:
@@ -882,119 +1197,22 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 column_sql = '\n'
 
                 # If column(s) is/are deleted
-                if 'deleted' in columns:
-                    for c in columns['deleted']:
-                        c['schema'] = data['schema']
-                        c['table'] = data['name']
-                        # Sql for drop column
-                        if 'inheritedfrom' not in c:
-                            column_sql += render_template("/".join(
-                                [self.column_template_path, 'delete.sql']),
-                                data=c, conn=self.conn).strip('\n') + '\n\n'
+                column_sql = self._check_for_column_delete(columns, data,
+                                                           column_sql)
 
                 # If column(s) is/are changed
-                # Here we will be needing previous properties of column
-                # so that we can compare & update it
-                if 'changed' in columns:
-                    for c in columns['changed']:
-                        c['schema'] = data['schema']
-                        c['table'] = data['name']
-
-                        properties_sql = render_template(
-                            "/".join([self.column_template_path,
-                                      'properties.sql']),
-                            tid=tid,
-                            clid=c['attnum'],
-                            show_sys_objects=self.blueprint.show_system_objects
-                        )
-
-                        status, res = self.conn.execute_dict(properties_sql)
-                        if not status:
-                            return internal_server_error(errormsg=res)
-                        old_col_data = res['rows'][0]
-
-                        old_col_data['cltype'], \
-                            old_col_data['hasSqrBracket'] = \
-                            column_utils.type_formatter(old_col_data['cltype'])
-                        old_col_data = \
-                            column_utils.convert_length_precision_to_string(
-                                old_col_data)
-                        old_col_data = column_utils.fetch_length_precision(
-                            old_col_data)
-
-                        old_col_data['cltype'] = \
-                            DataTypeReader.parse_type_name(
-                                old_col_data['cltype'])
-
-                        # Sql for alter column
-                        if 'inheritedfrom' not in c and\
-                                'inheritedfromtable' not in c:
-                            column_sql += render_template("/".join(
-                                [self.column_template_path, 'update.sql']),
-                                data=c, o_data=old_col_data, conn=self.conn
-                            ).strip('\n') + '\n\n'
+                column_sql = self._check_for_column_update(columns, data,
+                                                           column_sql, tid)
 
                 # If column(s) is/are added
-                if 'added' in columns:
-                    for c in columns['added']:
-                        c['schema'] = data['schema']
-                        c['table'] = data['name']
-
-                        c = column_utils.convert_length_precision_to_string(c)
-
-                        if 'inheritedfrom' not in c and\
-                                'inheritedfromtable' not in c:
-                            column_sql += render_template("/".join(
-                                [self.column_template_path, 'create.sql']),
-                                data=c, conn=self.conn).strip('\n') + '\n\n'
+                column_sql = self._check_for_column_add(columns, data,
+                                                        column_sql)
 
                 # Combine all the SQL together
-                SQL += column_sql.strip('\n')
+                sql += column_sql.strip('\n')
 
             # Check for partitions
-            if 'partitions' in data:
-                partitions = data['partitions']
-                partitions_sql = '\n'
-
-                # If partition(s) is/are deleted
-                if 'deleted' in partitions:
-                    for row in partitions['deleted']:
-                        temp_data = dict()
-                        schema_name, table_name = \
-                            self.get_schema_and_table_name(row['oid'])
-
-                        temp_data['parent_schema'] = data['schema']
-                        temp_data['partitioned_table_name'] = data['name']
-                        temp_data['schema'] = schema_name
-                        temp_data['name'] = table_name
-
-                        # Sql for detach partition
-                        partitions_sql += render_template(
-                            "/".join(
-                                [
-                                    self.partition_template_path,
-                                    'detach.sql'
-                                ]
-                            ),
-                            data=temp_data,
-                            conn=self.conn).strip('\n') + '\n\n'
-
-                # If partition(s) is/are added
-                if 'added' in partitions and 'partition_scheme' in old_data\
-                        and old_data['partition_scheme'] != '':
-                    temp_data = dict()
-                    temp_data['schema'] = data['schema']
-                    temp_data['name'] = data['name']
-                    # get the partition type
-                    temp_data['partition_type'] = \
-                        old_data['partition_scheme'].split()[0].lower()
-                    temp_data['partitions'] = partitions['added']
-
-                    partitions_sql += \
-                        self.get_partitions_sql(temp_data).strip('\n') + '\n\n'
-
-                # Combine all the SQL together
-                SQL += '\n' + partitions_sql.strip('\n')
+            sql = self._check_for_partitions_in_sql(data, old_data, sql)
 
             data['columns_to_be_dropped'] = []
             if 'columns' in data and 'deleted' in data['columns']:
@@ -1005,92 +1223,44 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             index_constraint_sql = \
                 idxcons_utils.get_index_constraint_sql(
                     self.conn, did, tid, data)
-            # If we have index constraint sql then ad it in main sql
-            if index_constraint_sql is not None:
-                SQL += '\n' + index_constraint_sql
 
-            # Check if foreign key(s) is/are added/changed/deleted
-            foreign_key_sql = fkey_utils.get_foreign_key_sql(
-                self.conn, tid, data)
-            # If we have foreign key sql then ad it in main sql
-            if foreign_key_sql is not None:
-                SQL += '\n' + foreign_key_sql
-
-            # Check if check constraint(s) is/are added/changed/deleted
-            check_constraint_sql = check_utils.get_check_constraint_sql(
-                self.conn, tid, data)
-            # If we have check constraint sql then ad it in main sql
-            if check_constraint_sql is not None:
-                SQL += '\n' + check_constraint_sql
-
-            # Check if exclusion constraint(s) is/are added/changed/deleted
-            exclusion_constraint_sql = \
-                exclusion_utils.get_exclusion_constraint_sql(
-                    self.conn, did, tid, data)
-            # If we have check constraint sql then ad it in main sql
-            if exclusion_constraint_sql is not None:
-                SQL += '\n' + exclusion_constraint_sql
-
+            sql = self._check_for_constraints(index_constraint_sql, data, did,
+                                              tid, sql)
         else:
-            res = None
-            required_args = [
-                'name'
-            ]
-
-            for arg in required_args:
-                if arg not in data:
-                    return gettext('-- definition incomplete')
+            error, errmsg = BaseTableView._check_for_create_sql(data)
+            if error:
+                return gettext('-- definition incomplete')
 
             # validate constraint data.
-            for key in ['primary_key', 'unique_constraint',
-                        'foreign_key', 'check_constraint',
-                        'exclude_constraint']:
-                if key in data and len(data[key]) > 0:
-                    for constraint in data[key]:
-                        if not self.validate_constrains(key, constraint):
-                            return gettext(
-                                '-- definition incomplete for {0}'.format(key)
-                            )
-
+            self._validate_constraint_data(data)
             # We will convert privileges coming from client required
             # in server side format
-            if 'relacl' in data:
-                data['relacl'] = parse_priv_to_db(data['relacl'], self.acl)
+            self._convert_privilege_to_server_format(data)
 
             # Parse & format columns
             data = column_utils.parse_format_columns(data)
             data = BaseTableView.check_and_convert_name_to_string(data)
 
-            if 'foreign_key' in data:
-                for c in data['foreign_key']:
-                    schema, table = fkey_utils.get_parent(
-                        self.conn, c['columns'][0]['references'])
-                    c['remote_schema'] = schema
-                    c['remote_table'] = table
+            self._check_foreign_key(data)
 
-            partitions_sql = ''
-            if 'is_partitioned' in data and data['is_partitioned']:
-                data['relkind'] = 'p'
-                # create partition scheme
-                data['partition_scheme'] = self.get_partition_scheme(data)
-                partitions_sql = self.get_partitions_sql(data)
+            partitions_sql = self._check_for_partitioned(data)
 
             # Update the vacuum table settings.
             self.update_vacuum_settings('vacuum_table', data)
             # Update the vacuum toast table settings.
             self.update_vacuum_settings('vacuum_toast', data)
 
-            SQL = render_template("/".join([self.table_template_path,
+            sql = render_template("/".join([self.table_template_path,
                                             'create.sql']),
                                   data=data, conn=self.conn)
 
             # Append SQL for partitions
-            SQL += '\n' + partitions_sql
+            sql += '\n' + partitions_sql
 
-        SQL = re.sub('\n{2,}', '\n\n', SQL)
-        SQL = SQL.strip('\n')
+        sql = re.sub('\n{2,}', '\n\n', sql)
+        sql = sql.strip('\n')
 
-        return SQL, data['name'] if 'name' in data else old_data['name']
+        return sql, data['name'] if 'name' in data else old_data['name']
 
     def update(self, gid, sid, did, scid, tid, **kwargs):
         """
@@ -1119,16 +1289,16 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
         # table exists
         try:
-            SQL, name = self.get_sql(did, scid, tid, data, res)
+            sql, name = self.get_sql(did, scid, tid, data, res)
 
-            SQL = SQL.strip('\n').strip(' ')
-            status, rest = self.conn.execute_scalar(SQL)
+            sql = sql.strip('\n').strip(' ')
+            status, rest = self.conn.execute_scalar(sql)
             if not status:
                 return internal_server_error(errormsg=rest)
 
-            SQL = render_template("/".join([self.table_template_path,
+            sql = render_template("/".join([self.table_template_path,
                                   'get_schema_oid.sql']), tid=tid)
-            status, rest = self.conn.execute_2darray(SQL)
+            status, rest = self.conn.execute_2darray(sql)
             if not status:
                 return internal_server_error(errormsg=rest)
 
@@ -1137,77 +1307,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
             # Check for partitions
             partitions_oid = dict()
-            if 'partitions' in data:
-                # Fetch oid of schema for all detached partitions
-                if 'deleted' in data['partitions']:
-                    detached = []
-                    for row in data['partitions']['deleted']:
-                        status, pscid = self.conn.execute_scalar(
-                            render_template(
-                                "/".join([
-                                    self.table_template_path,
-                                    'get_schema_oid.sql'
-                                ]),
-                                tid=row['oid']
-                            )
-                        )
-                        if not status:
-                            return internal_server_error(errormsg=pscid)
-
-                        detached.append(
-                            {'oid': row['oid'], 'schema_id': pscid}
-                        )
-                    partitions_oid['detached'] = detached
-
-                # Fetch oid and schema oid for all created/attached partitions
-                if 'added' in data['partitions']:
-                    created = []
-                    attached = []
-                    for row in data['partitions']['added']:
-                        if row['is_attach']:
-                            status, pscid = self.conn.execute_scalar(
-                                render_template(
-                                    "/".join([
-                                        self.table_template_path,
-                                        'get_schema_oid.sql'
-                                    ]),
-                                    tid=row['partition_name']
-                                )
-                            )
-                            if not status:
-                                return internal_server_error(errormsg=pscid)
-
-                            attached.append({
-                                'oid': row['partition_name'],
-                                'schema_id': pscid
-                            })
-
-                        else:
-                            tmp_data = dict()
-                            tmp_data['name'] = row['partition_name']
-                            SQL = render_template(
-                                "/".join([
-                                    self.table_template_path, 'get_oid.sql'
-                                ]),
-                                scid=scid, data=tmp_data
-                            )
-
-                            status, ptid = self.conn.execute_scalar(SQL)
-                            if not status:
-                                return internal_server_error(errormsg=ptid)
-
-                            created.append({
-                                'oid': ptid,
-                                'schema_id': scid
-                            })
-
-                    partitions_oid['created'] = created
-                    partitions_oid['attached'] = attached
-
-            if 'is_partitioned' in res['rows'][0]:
-                is_partitioned = res['rows'][0]['is_partitioned']
-            else:
-                is_partitioned = False
+            is_partitioned = self._check_for_partitions(data, partitions_oid,
+                                                        res, scid)
 
             # If partitioned_table_name in result set then get partition
             # icon css class else table icon.
@@ -1232,6 +1333,84 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             )
         except Exception as e:
             return internal_server_error(errormsg=str(e))
+
+    def _check_for_partitions(self, data, partitions_oid, res, scid):
+        if 'partitions' in data:
+            # Fetch oid of schema for all detached partitions
+            if 'deleted' in data['partitions']:
+                detached = []
+                for row in data['partitions']['deleted']:
+                    status, pscid = self.conn.execute_scalar(
+                        render_template(
+                            "/".join([
+                                self.table_template_path,
+                                'get_schema_oid.sql'
+                            ]),
+                            tid=row['oid']
+                        )
+                    )
+                    if not status:
+                        return internal_server_error(errormsg=pscid)
+
+                    detached.append(
+                        {'oid': row['oid'], 'schema_id': pscid}
+                    )
+                partitions_oid['detached'] = detached
+
+            self._fetch_oid_schema_iod(data, scid, partitions_oid)
+
+        if 'is_partitioned' in res['rows'][0]:
+            is_partitioned = res['rows'][0]['is_partitioned']
+        else:
+            is_partitioned = False
+
+        return is_partitioned
+
+    def _fetch_oid_schema_iod(self, data, scid, partitions_oid):
+        # Fetch oid and schema oid for all created/attached partitions
+        if 'added' in data['partitions']:
+            created = []
+            attached = []
+            for row in data['partitions']['added']:
+                if row['is_attach']:
+                    status, pscid = self.conn.execute_scalar(
+                        render_template(
+                            "/".join([
+                                self.table_template_path,
+                                'get_schema_oid.sql'
+                            ]),
+                            tid=row['partition_name']
+                        )
+                    )
+                    if not status:
+                        return internal_server_error(errormsg=pscid)
+
+                    attached.append({
+                        'oid': row['partition_name'],
+                        'schema_id': pscid
+                    })
+
+                else:
+                    tmp_data = dict()
+                    tmp_data['name'] = row['partition_name']
+                    sql = render_template(
+                        "/".join([
+                            self.table_template_path, 'get_oid.sql'
+                        ]),
+                        scid=scid, data=tmp_data
+                    )
+
+                    status, ptid = self.conn.execute_scalar(sql)
+                    if not status:
+                        return internal_server_error(errormsg=ptid)
+
+                    created.append({
+                        'oid': ptid,
+                        'schema_id': scid
+                    })
+
+            partitions_oid['created'] = created
+            partitions_oid['attached'] = attached
 
     def properties(self, gid, sid, did, scid, tid, **kwargs):
         """
@@ -1277,10 +1456,10 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 data['partition_scheme'].split()[0].lower()
 
             partitions = []
-            SQL = render_template("/".join([self.partition_template_path,
+            sql = render_template("/".join([self.partition_template_path,
                                             'nodes.sql']),
                                   scid=scid, tid=tid)
-            status, rset = self.conn.execute_2darray(SQL)
+            status, rset = self.conn.execute_2darray(sql)
             if not status:
                 return internal_server_error(errormsg=rset)
 
@@ -1291,61 +1470,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 if data['schema'] != row['schema_name']:
                     partition_name = row['schema_name'] + '.' + row['name']
 
-                if data['partition_type'] == 'range':
-                    if row['partition_value'] == 'DEFAULT':
-                        is_default = True
-                        range_from = None
-                        range_to = None
-                    else:
-                        range_part = row['partition_value'].split(
-                            'FOR VALUES FROM (')[1].split(') TO')
-                        range_from = range_part[0]
-                        range_to = range_part[1][2:-1]
-                        is_default = False
-
-                    partitions.append({
-                        'oid': row['oid'],
-                        'partition_name': partition_name,
-                        'values_from': range_from,
-                        'values_to': range_to,
-                        'is_default': is_default,
-                        'is_sub_partitioned': row['is_sub_partitioned'],
-                        'sub_partition_scheme': row['sub_partition_scheme']
-                    })
-                elif data['partition_type'] == 'list':
-                    if row['partition_value'] == 'DEFAULT':
-                        is_default = True
-                        range_in = None
-                    else:
-                        range_part = row['partition_value'].split(
-                            'FOR VALUES IN (')[1]
-                        range_in = range_part[:-1]
-                        is_default = False
-
-                    partitions.append({
-                        'oid': row['oid'],
-                        'partition_name': partition_name,
-                        'values_in': range_in,
-                        'is_default': is_default,
-                        'is_sub_partitioned': row['is_sub_partitioned'],
-                        'sub_partition_scheme': row['sub_partition_scheme']
-                    })
-                else:
-                    range_part = row['partition_value'].split(
-                        'FOR VALUES WITH (')[1].split(",")
-                    range_modulus = range_part[0].strip().strip(
-                        "modulus").strip()
-                    range_remainder = range_part[1].strip().\
-                        strip(" remainder").strip(")").strip()
-
-                    partitions.append({
-                        'oid': row['oid'],
-                        'partition_name': partition_name,
-                        'values_modulus': range_modulus,
-                        'values_remainder': range_remainder,
-                        'is_sub_partitioned': row['is_sub_partitioned'],
-                        'sub_partition_scheme': row['sub_partition_scheme']
-                    })
+                BaseTableView._partition_type_check(data, row, partitions,
+                                                    partition_name)
 
             data['partitions'] = partitions
 
@@ -1356,6 +1482,64 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             response=data,
             status=200
         )
+
+    @staticmethod
+    def _partition_type_check(data, row, partitions, partition_name):
+        if data['partition_type'] == 'range':
+            if row['partition_value'] == 'DEFAULT':
+                is_default = True
+                range_from = None
+                range_to = None
+            else:
+                range_part = row['partition_value'].split(
+                    'FOR VALUES FROM (')[1].split(') TO')
+                range_from = range_part[0]
+                range_to = range_part[1][2:-1]
+                is_default = False
+
+            partitions.append({
+                'oid': row['oid'],
+                'partition_name': partition_name,
+                'values_from': range_from,
+                'values_to': range_to,
+                'is_default': is_default,
+                'is_sub_partitioned': row['is_sub_partitioned'],
+                'sub_partition_scheme': row['sub_partition_scheme']
+            })
+        elif data['partition_type'] == 'list':
+            if row['partition_value'] == 'DEFAULT':
+                is_default = True
+                range_in = None
+            else:
+                range_part = row['partition_value'].split(
+                    'FOR VALUES IN (')[1]
+                range_in = range_part[:-1]
+                is_default = False
+
+            partitions.append({
+                'oid': row['oid'],
+                'partition_name': partition_name,
+                'values_in': range_in,
+                'is_default': is_default,
+                'is_sub_partitioned': row['is_sub_partitioned'],
+                'sub_partition_scheme': row['sub_partition_scheme']
+            })
+        else:
+            range_part = row['partition_value'].split(
+                'FOR VALUES WITH (')[1].split(",")
+            range_modulus = range_part[0].strip().strip(
+                "modulus").strip()
+            range_remainder = range_part[1].strip(). \
+                strip(" remainder").strip(")").strip()
+
+            partitions.append({
+                'oid': row['oid'],
+                'partition_name': partition_name,
+                'values_modulus': range_modulus,
+                'values_remainder': range_remainder,
+                'is_sub_partitioned': row['is_sub_partitioned'],
+                'sub_partition_scheme': row['sub_partition_scheme']
+            })
 
     def get_partitions_sql(self, partitions, schema_diff=False):
         """
@@ -1419,33 +1603,39 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                                                + ', REMAINDER ' +\
                                                remainder_str + ')'
 
-            # Check if partition is again declare as partitioned table.
-            if 'is_sub_partitioned' in row and row['is_sub_partitioned']:
-                part_data['partition_scheme'] = row['sub_partition_scheme'] \
-                    if 'sub_partition_scheme' in row else \
-                    self.get_partition_scheme(row)
-
-                part_data['is_partitioned'] = True
-
-            if 'is_attach' in row and row['is_attach']:
-                partition_sql = render_template(
-                    "/".join([self.partition_template_path, 'attach.sql']),
-                    data=part_data, conn=self.conn
-                )
-            else:
-                # For schema diff we create temporary partitions to copy the
-                # data from original table to temporary table.
-                if schema_diff:
-                    part_data['name'] = row['temp_partition_name']
-
-                partition_sql = render_template(
-                    "/".join([self.partition_template_path, 'create.sql']),
-                    data=part_data, conn=self.conn
-                )
+            partition_sql = self._check_for_partitioned_table(row, part_data,
+                                                              schema_diff)
 
             sql += partition_sql
 
         return sql
+
+    def _check_for_partitioned_table(self, row, part_data, schema_diff):
+        # Check if partition is again declare as partitioned table.
+        if 'is_sub_partitioned' in row and row['is_sub_partitioned']:
+            part_data['partition_scheme'] = row['sub_partition_scheme'] \
+                if 'sub_partition_scheme' in row else \
+                self.get_partition_scheme(row)
+
+            part_data['is_partitioned'] = True
+
+        if 'is_attach' in row and row['is_attach']:
+            partition_sql = render_template(
+                "/".join([self.partition_template_path, 'attach.sql']),
+                data=part_data, conn=self.conn
+            )
+        else:
+            # For schema diff we create temporary partitions to copy the
+            # data from original table to temporary table.
+            if schema_diff:
+                part_data['name'] = row['temp_partition_name']
+
+            partition_sql = render_template(
+                "/".join([self.partition_template_path, 'create.sql']),
+                data=part_data, conn=self.conn
+            )
+
+        return partition_sql
 
     def truncate(self, gid, sid, did, scid, tid, res):
         """
@@ -1467,10 +1657,10 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
         data = res['rows'][0]
 
-        SQL = render_template("/".join([self.table_template_path,
+        sql = render_template("/".join([self.table_template_path,
                                         'truncate.sql']),
                               data=data, cascade=is_cascade)
-        status, res = self.conn.execute_scalar(SQL)
+        status, res = self.conn.execute_scalar(sql)
         if not status:
             return internal_server_error(errormsg=res)
 
@@ -1511,9 +1701,9 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
            tid: Table ID
         """
 
-        SQL = self.get_delete_sql(res)
+        sql = self.get_delete_sql(res)
 
-        status, res = self.conn.execute_scalar(SQL)
+        status, res = self.conn.execute_scalar(sql)
         if not status:
             return status, res
 
@@ -1581,18 +1771,66 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 and vacuum_key in old_data:
             set_values = []
             reset_values = []
-            for data_row in data[vacuum_key]['changed']:
-                for old_data_row in old_data[vacuum_key]:
-                    if data_row['name'] == old_data_row['name'] and \
-                            'value' in data_row:
-                        if data_row['value'] is not None:
-                            set_values.append(data_row)
-                        elif data_row['value'] is None and \
-                                'value' in old_data_row:
-                            reset_values.append(data_row)
+            self._iterate_vacuume_table(data, old_data, set_values,
+                                        reset_values, vacuum_key)
 
-            if len(set_values) > 0:
-                data[vacuum_key]['set_values'] = set_values
+    def _iterate_vacuume_table(self, data, old_data, set_values, reset_values,
+                               vacuum_key):
+        for data_row in data[vacuum_key]['changed']:
+            for old_data_row in old_data[vacuum_key]:
+                if data_row['name'] == old_data_row['name'] and \
+                        'value' in data_row:
+                    if data_row['value'] is not None:
+                        set_values.append(data_row)
+                    elif data_row['value'] is None and \
+                            'value' in old_data_row:
+                        reset_values.append(data_row)
 
-            if len(reset_values) > 0:
-                data[vacuum_key]['reset_values'] = reset_values
+        if len(set_values) > 0:
+            data[vacuum_key]['set_values'] = set_values
+
+        if len(reset_values) > 0:
+            data[vacuum_key]['reset_values'] = reset_values
+
+    def update_autovacuum_properties(self, res):
+        """
+        This function sets the appropriate value for autovacuum_enabled and
+        autovacuum_custom for table & toast table both.
+        :param res:
+        :return:
+        """
+        # Set value based on
+        # x: No set, t: true, f: false
+        if res is not None:
+            res['autovacuum_enabled'] = 'x' \
+                if res['autovacuum_enabled'] is None else \
+                {True: 't', False: 'f'}[res['autovacuum_enabled']]
+            res['toast_autovacuum_enabled'] = 'x' \
+                if res['toast_autovacuum_enabled'] is None else \
+                {True: 't', False: 'f'}[
+                    res['toast_autovacuum_enabled']]
+            # Enable custom autovaccum only if one of the options is set
+            # or autovacuum is set
+            res['autovacuum_custom'] = any([
+                res['autovacuum_vacuum_threshold'],
+                res['autovacuum_vacuum_scale_factor'],
+                res['autovacuum_analyze_threshold'],
+                res['autovacuum_analyze_scale_factor'],
+                res['autovacuum_vacuum_cost_delay'],
+                res['autovacuum_vacuum_cost_limit'],
+                res['autovacuum_freeze_min_age'],
+                res['autovacuum_freeze_max_age'],
+                res['autovacuum_freeze_table_age']]) or \
+                res['autovacuum_enabled'] in ('t', 'f')
+
+            res['toast_autovacuum'] = any([
+                res['toast_autovacuum_vacuum_threshold'],
+                res['toast_autovacuum_vacuum_scale_factor'],
+                res['toast_autovacuum_analyze_threshold'],
+                res['toast_autovacuum_analyze_scale_factor'],
+                res['toast_autovacuum_vacuum_cost_delay'],
+                res['toast_autovacuum_vacuum_cost_limit'],
+                res['toast_autovacuum_freeze_min_age'],
+                res['toast_autovacuum_freeze_max_age'],
+                res['toast_autovacuum_freeze_table_age']]) or \
+                res['toast_autovacuum_enabled'] in ('t', 'f')

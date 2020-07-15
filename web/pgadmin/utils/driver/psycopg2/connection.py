@@ -33,8 +33,9 @@ from ..abstract import BaseConnection
 from .cursor import DictCursor
 from .typecast import register_global_typecasters, \
     register_string_typecasters, register_binary_typecasters, \
+    unregister_numeric_typecasters, \
     register_array_to_string_typecasters, ALL_JSON_TYPES
-from .encoding import getEncoding, configureDriverEncodings
+from .encoding import get_encoding, configure_driver_encodings
 from pgadmin.utils import csv
 from pgadmin.utils.master_password import get_crypt_key
 from io import StringIO
@@ -43,7 +44,7 @@ _ = gettext
 
 # Register global type caster which will be applicable to all connections.
 register_global_typecasters()
-configureDriverEncodings(encodings)
+configure_driver_encodings(encodings)
 
 
 class Connection(BaseConnection):
@@ -399,7 +400,7 @@ class Connection(BaseConnection):
             register_binary_typecasters(self.conn)
 
         postgres_encoding, self.python_encoding, typecast_encoding = \
-            getEncoding(self.conn.encoding)
+            get_encoding(self.conn.encoding)
 
         # Note that we use 'UPDATE pg_settings' for setting bytea_output as a
         # convenience hack for those running on old, unsupported versions of
@@ -689,6 +690,8 @@ WHERE
             )
         )
         try:
+            # Unregistering type casting for large size data types.
+            unregister_numeric_typecasters(self.conn)
             self.__internal_blocking_execute(cur, query, params)
         except psycopg2.Error as pe:
             cur.close()
@@ -834,7 +837,9 @@ WHERE
                     results = handle_null_values(results, replace_nulls_with)
                 csv_writer.writerows(results)
                 yield res_io.getvalue()
-
+        # Registering back type caster for large size data types to string
+        # which was unregistered at starting
+        register_string_typecasters(self.conn)
         return True, gen
 
     def execute_scalar(self, query, params=None,
@@ -863,7 +868,7 @@ WHERE
             if not self.connected():
                 if self.auto_reconnect and not self.reconnecting:
                     return self.__attempt_execution_reconnect(
-                        self.execute_dict, query, params,
+                        self.execute_scalar, query, params,
                         formatted_exception_msg
                     )
                 raise ConnectionLost(

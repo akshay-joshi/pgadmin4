@@ -18,6 +18,7 @@ QFile* Logger::m_Logfile = Q_NULLPTR;
 Logger::Logger()
 {
 }
+
 Logger::~Logger()
 {
 }
@@ -27,7 +28,7 @@ Logger* Logger::GetLogger()
     if (m_pThis == Q_NULLPTR)
     {
         m_pThis = new Logger();
-        m_sFileName = QDir::homePath() + (QString("/.%1.startup.log").arg(PGA_APP_NAME)).remove(" ");
+        m_sFileName = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + (QString("/.%1.startup.log").arg(PGA_APP_NAME)).remove(" ");
         m_Logfile = new QFile;
         m_Logfile->setFileName(m_sFileName);
         m_Logfile->open(QIODevice::WriteOnly | QIODevice::Text);
@@ -39,7 +40,7 @@ Logger* Logger::GetLogger()
 
 void Logger::Log(const QString& sMessage)
 {
-    QString text = QDateTime::currentDateTime().toString("dd.MM.yyyy hh:mm:ss ") + sMessage + "\n";
+    QString text = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss: ") + sMessage + "\n";
     if (m_Logfile != Q_NULLPTR)
     {
         QTextStream out(m_Logfile);
