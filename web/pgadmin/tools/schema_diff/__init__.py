@@ -446,11 +446,13 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
 
         # Compare Database objects
         comparison_schema_result, total_percent = \
-            compare_database_objects(trans_id, session_obj, source_sid,
-                                     source_did, target_sid, target_did,
-                                     diff_model_obj, total_percent,
-                                     node_percent, ignore_whitespaces
-                                     )
+            compare_database_objects(
+                trans_id=trans_id, session_obj=session_obj,
+                source_sid=source_sid, source_did=source_did,
+                target_sid=target_sid, target_did=target_did,
+                diff_model_obj=diff_model_obj, total_percent=total_percent,
+                node_percent=node_percent,
+                ignore_whitespaces=ignore_whitespaces)
         comparison_result = \
             comparison_result + comparison_schema_result
 
@@ -459,12 +461,16 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
                 len(schema_result['source_only']) > 0:
             for item in schema_result['source_only']:
                 comparison_schema_result, total_percent = \
-                    compare_schema_objects(trans_id, session_obj, source_sid,
-                                           source_did, item['scid'],
-                                           target_sid, target_did,
-                                           None, item['schema_name'],
-                                           diff_model_obj, total_percent,
-                                           node_percent, ignore_whitespaces)
+                    compare_schema_objects(
+                        trans_id=trans_id, session_obj=session_obj,
+                        source_sid=source_sid, source_did=source_did,
+                        source_scid=item['scid'], target_sid=target_sid,
+                        target_did=target_did, target_scid=None,
+                        schema_name=item['schema_name'],
+                        diff_model_obj=diff_model_obj,
+                        total_percent=total_percent,
+                        node_percent=node_percent,
+                        ignore_whitespaces=ignore_whitespaces)
 
                 comparison_result = \
                     comparison_result + comparison_schema_result
@@ -473,12 +479,16 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
                 len(schema_result['target_only']) > 0:
             for item in schema_result['target_only']:
                 comparison_schema_result, total_percent = \
-                    compare_schema_objects(trans_id, session_obj, source_sid,
-                                           source_did, None, target_sid,
-                                           target_did, item['scid'],
-                                           item['schema_name'],
-                                           diff_model_obj, total_percent,
-                                           node_percent, ignore_whitespaces)
+                    compare_schema_objects(
+                        trans_id=trans_id, session_obj=session_obj,
+                        source_sid=source_sid, source_did=source_did,
+                        source_scid=None, target_sid=target_sid,
+                        target_did=target_did, target_scid=item['scid'],
+                        schema_name=item['schema_name'],
+                        diff_model_obj=diff_model_obj,
+                        total_percent=total_percent,
+                        node_percent=node_percent,
+                        ignore_whitespaces=ignore_whitespaces)
 
                 comparison_result = \
                     comparison_result + comparison_schema_result
@@ -488,13 +498,16 @@ def compare(trans_id, source_sid, source_did, target_sid, target_did):
                 len(schema_result['in_both_database']) > 0:
             for item in schema_result['in_both_database']:
                 comparison_schema_result, total_percent = \
-                    compare_schema_objects(trans_id, session_obj, source_sid,
-                                           source_did, item['src_scid'],
-                                           target_sid, target_did,
-                                           item['tar_scid'],
-                                           item['schema_name'],
-                                           diff_model_obj, total_percent,
-                                           node_percent, ignore_whitespaces)
+                    compare_schema_objects(
+                        trans_id=trans_id, session_obj=session_obj,
+                        source_sid=source_sid, source_did=source_did,
+                        source_scid=item['src_scid'], target_sid=target_sid,
+                        target_did=target_did, target_scid=item['tar_scid'],
+                        schema_name=item['schema_name'],
+                        diff_model_obj=diff_model_obj,
+                        total_percent=total_percent,
+                        node_percent=node_percent,
+                        ignore_whitespaces=ignore_whitespaces)
 
                 comparison_result = \
                     comparison_result + comparison_schema_result
@@ -638,25 +651,23 @@ def get_schemas(sid, did):
     return None
 
 
-def compare_database_objects(trans_id, session_obj, source_sid, source_did,
-                             target_sid, target_did, diff_model_obj,
-                             total_percent, node_percent,
-                             ignore_whitespaces):
+def compare_database_objects(**kwargs):
     """
     This function is used to compare the specified schema and their children.
 
-    :param trans_id:  Transaction ID
-    :param session_obj: Session Object
-    :param source_sid: Source Server
-    :param source_did: Source Database
-    :param target_sid: Target Server
-    :param target_did: Target Database
-    :param diff_model_obj: Model object
-    :param total_percent: Comparision percent
-    :param node_percent: Node percent
-    :param ignore_whitespaces: Ignore Whitespace
+    :param kwargs:
     :return:
     """
+    trans_id = kwargs.get('trans_id')
+    session_obj = kwargs.get('session_obj')
+    source_sid = kwargs.get('source_sid')
+    source_did = kwargs.get('source_did')
+    target_sid = kwargs.get('target_sid')
+    target_did = kwargs.get('target_did')
+    diff_model_obj = kwargs.get('diff_model_obj')
+    total_percent = kwargs.get('total_percent')
+    node_percent = kwargs.get('node_percent')
+    ignore_whitespaces = kwargs.get('ignore_whitespaces')
     comparison_result = []
 
     all_registered_nodes = SchemaDiffRegistry.get_registered_nodes(None,
@@ -685,28 +696,26 @@ def compare_database_objects(trans_id, session_obj, source_sid, source_did,
     return comparison_result, total_percent
 
 
-def compare_schema_objects(trans_id, session_obj, source_sid, source_did,
-                           source_scid, target_sid, target_did, target_scid,
-                           schema_name, diff_model_obj, total_percent,
-                           node_percent, ignore_whitespaces):
+def compare_schema_objects(**kwargs):
     """
     This function is used to compare the specified schema and their children.
 
-    :param trans_id:  Transaction ID
-    :param session_obj: Session Object
-    :param source_sid: Source Server
-    :param source_did: Source Database
-    :param source_scid: Source Schema
-    :param target_sid: Target Server
-    :param target_did: Target Database
-    :param target_scid: Target Schema
-    :param schema_name: Schema Name
-    :param diff_model_obj: Model object
-    :param total_percent: Comparision percent
-    :param node_percent: Node percent
-    :param ignore_whitespaces: Ignore Whitespace
+    :param kwargs:
     :return:
     """
+    trans_id = kwargs.get('trans_id')
+    session_obj = kwargs.get('session_obj')
+    source_sid = kwargs.get('source_sid')
+    source_did = kwargs.get('source_did')
+    source_scid = kwargs.get('source_scid')
+    target_sid = kwargs.get('target_sid')
+    target_did = kwargs.get('target_did')
+    target_scid = kwargs.get('target_scid')
+    schema_name = kwargs.get('schema_name')
+    diff_model_obj = kwargs.get('diff_model_obj')
+    total_percent = kwargs.get('total_percent')
+    node_percent = kwargs.get('node_percent')
+    ignore_whitespaces = kwargs.get('ignore_whitespaces')
     comparison_result = []
 
     all_registered_nodes = SchemaDiffRegistry.get_registered_nodes()
