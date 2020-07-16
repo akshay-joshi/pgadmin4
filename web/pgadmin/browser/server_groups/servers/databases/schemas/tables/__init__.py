@@ -1722,7 +1722,9 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         table_dependencies = []
         template_path = None
 
-        table_dependencies.append(self.get_dependencies(self.conn, tid))
+        table_dependencies.append(self.get_dependencies(
+            self.conn, tid, where=None, show_system_objects=None,
+            is_schema_diff=True))
 
         for module in self.tables_sub_modules:
             module_view = SchemaDiffRegistry.get_node_view(module)
@@ -1744,7 +1746,9 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
                 return internal_server_error(errormsg=rset)
 
             for row in rset['rows']:
-                result = module_view.get_dependencies(self.conn, row['oid'])
+                result = module_view.get_dependencies(
+                    self.conn, row['oid'], where=None,
+                    show_system_objects=None, is_schema_diff=True)
                 table_dependencies.append(result)
 
         return table_dependencies

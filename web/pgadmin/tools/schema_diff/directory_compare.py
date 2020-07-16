@@ -82,7 +82,8 @@ def compare_dictionaries(**kwargs):
             source_ddl = view_object.get_sql_from_diff(**temp_src_params)
             diff_ddl = view_object.get_sql_from_diff(**temp_src_params)
             source_dependencies = view_object.get_dependencies(
-                view_object.conn, source_object_id)
+                view_object.conn, source_object_id, where=None,
+                show_system_objects=None, is_schema_diff=True)
 
         source_only.append({
             'id': count,
@@ -236,7 +237,8 @@ def compare_dictionaries(**kwargs):
                     {'data': diff_dict})
                 diff_ddl = view_object.get_sql_from_diff(**temp_tgt_params)
                 diff_dependencies = view_object.get_dependencies(
-                    view_object.conn, source_object_id)
+                    view_object.conn, source_object_id, where=None,
+                    show_system_objects=None, is_schema_diff=True)
 
             different.append({
                 'id': count,
