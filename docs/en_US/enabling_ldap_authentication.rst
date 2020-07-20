@@ -5,9 +5,10 @@
 **************************************************
 
 To enable LDAP authentication for pgAdmin, you must configure the LDAP
-settings in the *config_local.py* or *config_distro.py* file on the system where
-pgAdmin is installed in Server mode. You can copy these settings from *config.py*
-file and modify the values for the following parameters:
+settings in the *config_local.py* or *config_system.py* file (see the
+:ref:`config.py <config_py>` documentation) on the system where pgAdmin is
+installed in Server mode. You can copy these settings from *config.py* file
+and modify the values for the following parameters:
 
 .. csv-table::
    :header: "**Parameter**", "**Description**"
@@ -21,9 +22,12 @@ file and modify the values for the following parameters:
    * [‘ldap’]: pgAdmin will use only LDAP authentication.
 
    * [‘ldap’, ‘internal’]: pgAdmin will first try to authenticate the user through
-     LDAP. If that authentication fails, then internal user entries of pgAdmin will be used for authentication.
+     LDAP. If that authentication fails, then internal user entries of pgAdmin
+     will be used for authentication.
 
-   * [‘internal’, ‘ldap’]: pgAdmin will first try to authenticate the user through internal user entries. If that authentication fails, then LDAP authentication will be used."
+   * [‘internal’, ‘ldap’]: pgAdmin will first try to authenticate the user
+     through internal user entries. If that authentication fails, then LDAP
+     authentication will be used."
    "LDAP_AUTO_CREATE_USER", "Specifies if you want to automatically create a pgAdmin
    user corresponding to the LDAP user credentials. Please note that LDAP password
    is not stored in the pgAdmin database."
@@ -34,6 +38,16 @@ file and modify the values for the following parameters:
    want to connect to. For example, 'ldap://172.16.209.35:389' is a valid
    LDAP_SERVER_URI where ldap is the connection protocol, 172.16.209.35 is the IP
    address and 389 is the port. Port 636 is used for the ldaps communication protocol."
+   "LDAP_BIND_USER", "The account of the user to log in for simple bind.
+   Set this parameter to allow the connection to bind using a dedicated user.
+   After the connection is made, the pgadmin login user will be further
+   authenticated by the username and password provided at the login screen.
+
+   This is an optional parameter. If you do not specify any value for LDAP_BIND_USER,
+   LDAP connection and authentication will be done by the username and password provided
+   at the login screen."
+   "LDAP_BIND_PASSWORD", "Password for simple bind.
+   Specify the value if you have set the LDAP_BIND_USER parameter."
    "LDAP_BASE_DN","Specifies the base DN from where a server will start the search
    for users. For example, an LDAP search for any user will be performed by the server
    starting at the base DN (dc=example,dc=com). When the base DN matches, the full

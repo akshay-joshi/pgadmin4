@@ -49,8 +49,8 @@ class LanguageModule(CollectionNodeModule):
         initialized.
     """
 
-    NODE_TYPE = 'language'
-    COLLECTION_LABEL = gettext("Languages")
+    _NODE_TYPE = 'language'
+    _COLLECTION_LABEL = gettext("Languages")
 
     def __init__(self, *args, **kwargs):
         """
@@ -93,7 +93,7 @@ class LanguageModule(CollectionNodeModule):
 
         Returns: node type of the server module.
         """
-        return databases.DatabaseModule.NODE_TYPE
+        return databases.DatabaseModule.node_type
 
     @property
     def module_use_template_javascript(self):
@@ -255,7 +255,8 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             sid: Server ID
             did: Database ID
         """
-        sql = render_template("/".join([self.template_path, 'properties.sql']))
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]))
         status, res = self.conn.execute_dict(sql)
 
         if not status:
@@ -277,7 +278,8 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             did: Database ID
         """
         res = []
-        sql = render_template("/".join([self.template_path, 'properties.sql']))
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]))
         status, result = self.conn.execute_2darray(sql)
         if not status:
             return internal_server_error(errormsg=result)
@@ -307,7 +309,8 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             did: Database ID
             lid: Language ID
         """
-        sql = render_template("/".join([self.template_path, 'properties.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               lid=lid)
         status, result = self.conn.execute_2darray(sql)
         if not status:
@@ -354,7 +357,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
         :return:
         """
         sql = render_template(
-            "/".join([self.template_path, 'properties.sql']),
+            "/".join([self.template_path, self._PROPERTIES_SQL]),
             lid=lid
         )
         status, res = self.conn.execute_dict(sql)
@@ -371,7 +374,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             res['rows'][0]['oid'] <= self.datlastsysoid)
 
         sql = render_template(
-            "/".join([self.template_path, 'acl.sql']),
+            "/".join([self.template_path, self._ACL_SQL]),
             lid=lid
         )
         status, result = self.conn.execute_dict(sql)
@@ -480,14 +483,15 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             if 'lanacl' in data:
                 data['lanacl'] = parse_priv_to_db(data['lanacl'], ['U'])
 
-            sql = render_template("/".join([self.template_path, 'create.sql']),
+            sql = render_template("/".join([self.template_path,
+                                            self._CREATE_SQL]),
                                   data=data, conn=self.conn)
             status, res = self.conn.execute_dict(sql)
             if not status:
                 return internal_server_error(errormsg=res)
 
             sql = render_template(
-                "/".join([self.template_path, 'properties.sql']),
+                "/".join([self.template_path, self._PROPERTIES_SQL]),
                 lanname=data['name'], conn=self.conn
             )
 
@@ -537,7 +541,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             for lid in data['ids']:
                 # Get name for language from lid
                 sql = render_template(
-                    "/".join([self.template_path, 'delete.sql']),
+                    "/".join([self.template_path, self._DELETE_SQL]),
                     lid=lid, conn=self.conn
                 )
                 status, lname = self.conn.execute_scalar(sql)
@@ -547,7 +551,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
 
                 # drop language
                 sql = render_template(
-                    "/".join([self.template_path, 'delete.sql']),
+                    "/".join([self.template_path, self._DELETE_SQL]),
                     lname=lname, cascade=cascade, conn=self.conn
                 )
 
@@ -619,7 +623,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
 
         if lid is not None:
             sql = render_template(
-                "/".join([self.template_path, 'properties.sql']), lid=lid
+                "/".join([self.template_path, self._PROPERTIES_SQL]), lid=lid
             )
             status, res = self.conn.execute_dict(sql)
             if not status:
@@ -650,7 +654,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
                 if arg not in data:
                     data[arg] = old_data[arg]
             sql = render_template(
-                "/".join([self.template_path, 'update.sql']),
+                "/".join([self.template_path, self._UPDATE_SQL]),
                 data=data, o_data=old_data, conn=self.conn
             )
             return sql.strip('\n'), data['name'] if 'name' in data \
@@ -660,7 +664,8 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             if 'lanacl' in data:
                 data['lanacl'] = parse_priv_to_db(data['lanacl'], ["U"])
 
-            sql = render_template("/".join([self.template_path, 'create.sql']),
+            sql = render_template("/".join([self.template_path,
+                                            self._CREATE_SQL]),
                                   data=data, conn=self.conn)
             return sql.strip('\n'), data['name']
 
@@ -717,7 +722,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             json_resp:
         """
         sql = render_template(
-            "/".join([self.template_path, 'properties.sql']),
+            "/".join([self.template_path, self._PROPERTIES_SQL]),
             lid=lid
         )
         status, res = self.conn.execute_dict(sql)
@@ -733,7 +738,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
         old_data = dict(res['rows'][0])
 
         sql = render_template(
-            "/".join([self.template_path, 'acl.sql']),
+            "/".join([self.template_path, self._ACL_SQL]),
             lid=lid
         )
         status, result = self.conn.execute_dict(sql)

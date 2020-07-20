@@ -88,7 +88,7 @@ class SchemaDiffObjectCompare:
                                     source_dict=source,
                                     target_dict=target,
                                     node=self.node_type,
-                                    node_label=self.blueprint.COLLECTION_LABEL,
+                                    node_label=self.blueprint.collection_label,
                                     group_name=group_name,
                                     ignore_whitespaces=ignore_whitespaces,
                                     ignore_keys=self.keys_to_ignore)

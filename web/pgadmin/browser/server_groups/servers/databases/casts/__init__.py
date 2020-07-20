@@ -47,8 +47,8 @@ class CastModule(CollectionNodeModule):
         initialized.
     """
 
-    NODE_TYPE = 'cast'
-    COLLECTION_LABEL = gettext('Casts')
+    _NODE_TYPE = 'cast'
+    _COLLECTION_LABEL = gettext('Casts')
 
     def __init__(self, *args, **kwargs):
         super(CastModule, self).__init__(*args, **kwargs)
@@ -76,7 +76,7 @@ class CastModule(CollectionNodeModule):
         Load the module script for cast, when any of the database node is
         initialized.
         """
-        return databases.DatabaseModule.NODE_TYPE
+        return databases.DatabaseModule.node_type
 
     @property
     def module_use_template_javascript(self):
@@ -229,7 +229,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
             if self.manager.db_info is not None and \
             did in self.manager.db_info else 0
         sql = render_template(
-            "/".join([self.template_path, 'properties.sql']),
+            "/".join([self.template_path, self._PROPERTIES_SQL]),
             datlastsysoid=last_system_oid,
             showsysobj=self.blueprint.show_system_objects
         )
@@ -263,7 +263,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
             if self.manager.db_info is not None and \
             did in self.manager.db_info else 0
         sql = render_template(
-            "/".join([self.template_path, 'nodes.sql']),
+            "/".join([self.template_path, self._NODES_SQL]),
             datlastsysoid=last_system_oid,
             showsysobj=self.blueprint.show_system_objects
         )
@@ -291,7 +291,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         This function will fetch properties of the cast node
         """
         sql = render_template(
-            "/".join([self.template_path, 'nodes.sql']),
+            "/".join([self.template_path, self._NODES_SQL]),
             cid=cid
         )
         status, rset = self.conn.execute_2darray(sql)
@@ -341,7 +341,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
             self.manager.db_info is not None and \
             did in self.manager.db_info else 0
         sql = render_template(
-            "/".join([self.template_path, 'properties.sql']),
+            "/".join([self.template_path, self._PROPERTIES_SQL]),
             cid=cid,
             datlastsysoid=last_system_oid,
             showsysobj=self.blueprint.show_system_objects
@@ -386,7 +386,8 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
                     ).format(arg)
                 )
         try:
-            sql = render_template("/".join([self.template_path, 'create.sql']),
+            sql = render_template("/".join([self.template_path,
+                                            self._CREATE_SQL]),
                                   data=data,
                                   conn=self.conn,
                                   )
@@ -401,7 +402,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
                 if self.manager.db_info is not None and \
                 did in self.manager.db_info else 0
             sql = render_template(
-                "/".join([self.template_path, 'properties.sql']),
+                "/".join([self.template_path, self._PROPERTIES_SQL]),
                 srctyp=data['srctyp'],
                 trgtyp=data['trgtyp'],
                 datlastsysoid=last_system_oid,
@@ -485,7 +486,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
             try:
                 # Get name for cast from cid
                 sql = render_template("/".join([self.template_path,
-                                                'delete.sql']),
+                                                self._DELETE_SQL]),
                                       cid=cid)
                 status, res = self.conn.execute_dict(sql)
                 if not status:
@@ -506,7 +507,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
                 # drop cast
                 result = res['rows'][0]
                 sql = render_template("/".join([self.template_path,
-                                                'delete.sql']),
+                                                self._DELETE_SQL]),
                                       castsource=result['castsource'],
                                       casttarget=result['casttarget'],
                                       cascade=cascade
@@ -568,7 +569,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
                 if self.manager.db_info is not None and \
                 did in self.manager.db_info else 0
             sql = render_template(
-                "/".join([self.template_path, 'properties.sql']),
+                "/".join([self.template_path, self._PROPERTIES_SQL]),
                 cid=cid,
                 datlastsysoid=last_system_oid,
                 showsysobj=self.blueprint.show_system_objects
@@ -585,14 +586,14 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
 
             old_data = res['rows'][0]
             sql = render_template(
-                "/".join([self.template_path, 'update.sql']),
+                "/".join([self.template_path, self._UPDATE_SQL]),
                 data=data, o_data=old_data
             )
             return sql, data['name'] if 'name' in data else old_data['name']
         else:
             if 'srctyp' in data and 'trgtyp' in data:
                 sql = render_template(
-                    "/".join([self.template_path, 'create.sql']),
+                    "/".join([self.template_path, self._CREATE_SQL]),
                     data=data, conn=self.conn
                 )
             else:

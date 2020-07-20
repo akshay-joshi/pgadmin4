@@ -281,9 +281,9 @@ export default class SearchObjectsDialogWrapper extends DialogWrapper {
           treeMenu.selectNode(treeItem.domNode, true);
           this.showMessage(null);
         })
-        .catch((args)=>{
+        .catch((error)=>{
           this.showMessage(gettext('Unable to locate this object in the browser.'), true);
-          console.warn(args, rowData.id_path);
+          console.warn(error, rowData.id_path);
         });
     });
 
@@ -510,7 +510,7 @@ export default class SearchObjectsDialogWrapper extends DialogWrapper {
       buttons: [{
         text: '',
         key: 112,
-        className: 'btn btn-secondary pull-left fa fa-question pg-alertify-icon-button',
+        className: 'btn btn-primary-icon pull-left fa fa-question pg-alertify-icon-button',
         attrs: {
           name: 'dialog_help',
           type: 'button',

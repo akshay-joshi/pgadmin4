@@ -23,9 +23,9 @@ define('pgadmin.misc.explain', [
   var initSnap = function(snapModule) {
     Snap = snapModule;
     // Snap.svg plug-in to write multitext as image name
-    Snap.plugin(function(Snap, Element, Paper) {
+    Snap.plugin(function(_Snap, Element, Paper) {
       Paper.prototype.multitext = function(x, y, txt, max_width, attributes) {
-        var svg = Snap(),
+        var svg = _Snap(),
           abc = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
           temp = svg.text(0, 0, abc);
 
@@ -1285,7 +1285,7 @@ define('pgadmin.misc.explain', [
           role: 'group',
         }).appendTo(graphicalContainer),
         zoomInBtn = $('<button></button>', {
-          class: 'btn btn-secondary pg-explain-zoom-btn',
+          class: 'btn btn-primary-icon pg-explain-zoom-btn',
           title: gettext('Zoom in'),
           'aria-label': gettext('Zoom in'),
           tabindex: 0,
@@ -1294,7 +1294,7 @@ define('pgadmin.misc.explain', [
             class: 'fa fa-search-plus',
           })),
         zoomToNormal = $('<button></button>', {
-          class: 'btn btn-secondary pg-explain-zoom-btn',
+          class: 'btn btn-primary-icon pg-explain-zoom-btn',
           title: gettext('Zoom to original'),
           'aria-label': gettext('Zoom to original'),
           tabindex: 0,
@@ -1303,7 +1303,7 @@ define('pgadmin.misc.explain', [
             class: 'fa fa-arrows-alt',
           })),
         zoomOutBtn = $('<button></button>', {
-          class: 'btn btn-secondary pg-explain-zoom-btn',
+          class: 'btn btn-primary-icon pg-explain-zoom-btn',
           title: gettext('Zoom out'),
           'aria-label': gettext('Zoom out'),
           tabindex: 0,
@@ -1318,7 +1318,7 @@ define('pgadmin.misc.explain', [
         }).appendTo(graphicalContainer),
         downloadBtn = $('<button></button>', {
           id: 'btn-explain-download',
-          class: 'btn btn-secondary pg-explain-download-btn',
+          class: 'btn btn-primary-icon pg-explain-download-btn',
           title: gettext('Download'),
           'aria-label': gettext('Download'),
           tabindex: 0,
@@ -1347,7 +1347,7 @@ define('pgadmin.misc.explain', [
 
       $('<button></button>', {
         id: 'btn-explain-stats',
-        class: 'btn btn-secondary pg-explain-stats-btn',
+        class: 'btn btn-primary-icon pg-explain-stats-btn',
         title: gettext('Statistics'),
         'aria-label': gettext('Statistics'),
         tabindex: 0,
@@ -1431,7 +1431,7 @@ define('pgadmin.misc.explain', [
           curr_zoom_factor = curr_zoom_factor < MIN_ZOOM_FACTOR ? MIN_ZOOM_FACTOR : curr_zoom_factor;
           curr_zoom_factor = curr_zoom_factor > INIT_ZOOM_FACTOR ? INIT_ZOOM_FACTOR : curr_zoom_factor;
 
-          var zoomInMatrix = new Snap.matrix();
+          let zoomInMatrix = new Snap.matrix();
           zoomInMatrix.scale(curr_zoom_factor, curr_zoom_factor);
 
           $svg.find('g').first().attr({
@@ -1446,7 +1446,7 @@ define('pgadmin.misc.explain', [
 
         zoomInBtn.on('click', function() {
           curr_zoom_factor = ((curr_zoom_factor + ZOOM_RATIO) > MAX_ZOOM_FACTOR) ? MAX_ZOOM_FACTOR : (curr_zoom_factor + ZOOM_RATIO);
-          var zoomInMatrix = new Snap.matrix();
+          let zoomInMatrix = new Snap.matrix();
           zoomInMatrix.scale(curr_zoom_factor, curr_zoom_factor);
 
           $svg.find('g').first().attr({
@@ -1461,7 +1461,7 @@ define('pgadmin.misc.explain', [
 
         zoomOutBtn.on('click', function() {
           curr_zoom_factor = ((curr_zoom_factor - ZOOM_RATIO) < MIN_ZOOM_FACTOR) ? MIN_ZOOM_FACTOR : (curr_zoom_factor - ZOOM_RATIO);
-          var zoomInMatrix = new Snap.matrix();
+          let zoomInMatrix = new Snap.matrix();
           zoomInMatrix.scale(curr_zoom_factor, curr_zoom_factor);
 
           $svg.find('g').first().attr({
@@ -1476,7 +1476,7 @@ define('pgadmin.misc.explain', [
 
         zoomToNormal.on('click', function() {
           curr_zoom_factor = INIT_ZOOM_FACTOR;
-          var zoomInMatrix = new Snap.matrix();
+          let zoomInMatrix = new Snap.matrix();
           zoomInMatrix.scale(curr_zoom_factor, curr_zoom_factor);
 
           $svg.find('g').first().attr({

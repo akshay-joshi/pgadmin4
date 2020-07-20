@@ -21,13 +21,13 @@ define([
   'jquery', 'underscore', 'pgadmin.alertifyjs',
   'sources/gettext', 'sources/url_for', 'dropzone', 'sources/pgadmin',
   'sources/csrf', 'tablesorter', 'tablesorter-metric',
-], function($, _, Alertify, gettext, url_for, Dropzone, pgAdmin, csrfToken) {
+], function($, _, Alertify, gettext, url_for, Dropzone, pgAdmin, csrf) {
 
   /*---------------------------------------------------------
     Define functions used for various operations
   ---------------------------------------------------------*/
   // Set the CSRF Token
-  csrfToken.setPGCSRFToken(pgAdmin.csrf_token_header, pgAdmin.csrf_token);
+  csrf.setPGCSRFToken(pgAdmin.csrf_token_header, pgAdmin.csrf_token);
 
   // Return file extension
   var getFileExtension = function(name) {
@@ -1542,7 +1542,7 @@ define([
         // we remove simple file upload element
         $('.file-input-container').remove();
         $('.upload').remove();
-        $('.create').before('<button value="Upload" type="button" title="Upload File" name="upload" id="upload" class="btn btn-sm btn-secondary upload" tabindex="0"><span class="fa fa-upload sql-icon-lg"></span></button> ');
+        $('.create').before('<button value="Upload" type="button" title="Upload File" name="upload" id="upload" class="btn btn-sm btn-primary-icon upload" tabindex="0"><span class="fa fa-upload sql-icon-lg"></span></button> ');
 
         $('#uploader .upload').off().on('click', function() {
           // we create prompt

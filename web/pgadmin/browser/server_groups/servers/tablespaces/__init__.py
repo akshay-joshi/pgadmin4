@@ -25,8 +25,8 @@ from config import PG_DEFAULT_DRIVER
 
 
 class TablespaceModule(CollectionNodeModule):
-    NODE_TYPE = 'tablespace'
-    COLLECTION_LABEL = gettext("Tablespaces")
+    _NODE_TYPE = 'tablespace'
+    _COLLECTION_LABEL = gettext("Tablespaces")
 
     def __init__(self, import_name, **kwargs):
         super(TablespaceModule, self).__init__(import_name, **kwargs)
@@ -44,7 +44,7 @@ class TablespaceModule(CollectionNodeModule):
         Load the module script for server, when any of the server-group node is
         initialized.
         """
-        return servers.ServerModule.NODE_TYPE
+        return servers.ServerModule.node_type
 
     @property
     def module_use_template_javascript(self):
@@ -139,7 +139,7 @@ class TablespaceView(PGChildNodeView):
     @check_precondition
     def list(self, gid, sid):
         SQL = render_template(
-            "/".join([self.template_path, 'properties.sql']),
+            "/".join([self.template_path, self._PROPERTIES_SQL]),
             conn=self.conn
         )
         status, res = self.conn.execute_dict(SQL)
@@ -154,7 +154,7 @@ class TablespaceView(PGChildNodeView):
     @check_precondition
     def node(self, gid, sid, tsid):
         SQL = render_template(
-            "/".join([self.template_path, 'nodes.sql']),
+            "/".join([self.template_path, self._NODES_SQL]),
             tsid=tsid, conn=self.conn
         )
         status, rset = self.conn.execute_2darray(SQL)
@@ -180,7 +180,7 @@ class TablespaceView(PGChildNodeView):
     def nodes(self, gid, sid, tsid=None):
         res = []
         SQL = render_template(
-            "/".join([self.template_path, 'nodes.sql']),
+            "/".join([self.template_path, self._NODES_SQL]),
             tsid=tsid, conn=self.conn
         )
         status, rset = self.conn.execute_2darray(SQL)
@@ -230,7 +230,7 @@ class TablespaceView(PGChildNodeView):
 
         # We need to parse & convert ACL coming from database to json format
         SQL = render_template(
-            "/".join([self.template_path, 'acl.sql']),
+            "/".join([self.template_path, self._ACL_SQL]),
             tsid=tsid, conn=self.conn
         )
         status, acl = self.conn.execute_dict(SQL)
@@ -253,7 +253,7 @@ class TablespaceView(PGChildNodeView):
     @check_precondition
     def properties(self, gid, sid, tsid):
         SQL = render_template(
-            "/".join([self.template_path, 'properties.sql']),
+            "/".join([self.template_path, self._PROPERTIES_SQL]),
             tsid=tsid, conn=self.conn
         )
         status, res = self.conn.execute_dict(SQL)
@@ -307,7 +307,7 @@ class TablespaceView(PGChildNodeView):
 
         try:
             SQL = render_template(
-                "/".join([self.template_path, 'create.sql']),
+                "/".join([self.template_path, self._CREATE_SQL]),
                 data=data, conn=self.conn
             )
 
@@ -398,7 +398,7 @@ class TablespaceView(PGChildNodeView):
                 # Get name for tablespace from tsid
                 status, rset = self.conn.execute_dict(
                     render_template(
-                        "/".join([self.template_path, 'nodes.sql']),
+                        "/".join([self.template_path, self._NODES_SQL]),
                         tsid=tsid, conn=self.conn
                     )
                 )
@@ -419,7 +419,7 @@ class TablespaceView(PGChildNodeView):
 
                 # drop tablespace
                 SQL = render_template(
-                    "/".join([self.template_path, 'delete.sql']),
+                    "/".join([self.template_path, self._DELETE_SQL]),
                     tsname=(rset['rows'][0])['name'], conn=self.conn
                 )
 
@@ -467,6 +467,22 @@ class TablespaceView(PGChildNodeView):
             status=200
         )
 
+    def _format_privilege_data(self, data):
+        for key in ['spcacl']:
+            if key in data and data[key] is not None:
+                if 'added' in data[key]:
+                    data[key]['added'] = parse_priv_to_db(
+                        data[key]['added'], self.acl
+                    )
+                if 'changed' in data[key]:
+                    data[key]['changed'] = parse_priv_to_db(
+                        data[key]['changed'], self.acl
+                    )
+                if 'deleted' in data[key]:
+                    data[key]['deleted'] = parse_priv_to_db(
+                        data[key]['deleted'], self.acl
+                    )
+
     def get_sql(self, gid, sid, data, tsid=None):
         """
         This function will genrate sql from model/properties data
@@ -477,7 +493,7 @@ class TablespaceView(PGChildNodeView):
 
         if tsid is not None:
             SQL = render_template(
-                "/".join([self.template_path, 'properties.sql']),
+                "/".join([self.template_path, self._PROPERTIES_SQL]),
                 tsid=tsid, conn=self.conn
             )
             status, res = self.conn.execute_dict(SQL)
@@ -494,20 +510,7 @@ class TablespaceView(PGChildNodeView):
             old_data = self._formatter(old_data, tsid)
 
             # To format privileges data coming from client
-            for key in ['spcacl']:
-                if key in data and data[key] is not None:
-                    if 'added' in data[key]:
-                        data[key]['added'] = parse_priv_to_db(
-                            data[key]['added'], self.acl
-                        )
-                    if 'changed' in data[key]:
-                        data[key]['changed'] = parse_priv_to_db(
-                            data[key]['changed'], self.acl
-                        )
-                    if 'deleted' in data[key]:
-                        data[key]['deleted'] = parse_priv_to_db(
-                            data[key]['deleted'], self.acl
-                        )
+            self._format_privilege_data(data)
 
             # If name is not present with in update data then copy it
             # from old data
@@ -516,7 +519,7 @@ class TablespaceView(PGChildNodeView):
                     data[arg] = old_data[arg]
 
             SQL = render_template(
-                "/".join([self.template_path, 'update.sql']),
+                "/".join([self.template_path, self._UPDATE_SQL]),
                 data=data, o_data=old_data
             )
         else:
@@ -525,7 +528,7 @@ class TablespaceView(PGChildNodeView):
                 data['spcacl'] = parse_priv_to_db(data['spcacl'], self.acl)
             # If the request for new object which do not have tsid
             SQL = render_template(
-                "/".join([self.template_path, 'create.sql']),
+                "/".join([self.template_path, self._CREATE_SQL]),
                 data=data
             )
             SQL += "\n"
@@ -542,7 +545,7 @@ class TablespaceView(PGChildNodeView):
         This function will generate sql for sql panel
         """
         SQL = render_template(
-            "/".join([self.template_path, 'properties.sql']),
+            "/".join([self.template_path, self._PROPERTIES_SQL]),
             tsid=tsid, conn=self.conn
         )
         status, res = self.conn.execute_dict(SQL)
@@ -566,7 +569,7 @@ class TablespaceView(PGChildNodeView):
         # We are not showing create sql for system tablespace
         if not old_data['name'].startswith('pg_'):
             SQL = render_template(
-                "/".join([self.template_path, 'create.sql']),
+                "/".join([self.template_path, self._CREATE_SQL]),
                 data=old_data
             )
             SQL += "\n"
@@ -669,6 +672,61 @@ class TablespaceView(PGChildNodeView):
             status=200
         )
 
+    def _handel_dependents_type(self, types, type_str, row, rel_name):
+        type_name = ''
+        if types[type_str[0]] is None:
+            if type_str[0] == 'i':
+                type_name = 'index'
+                rel_name = row['indname'] + ' ON ' + rel_name
+            elif type_str[0] == 'o':
+                type_name = 'operator'
+                rel_name = row['relname']
+        else:
+            type_name = types[type_str[0]]
+        return type_name, rel_name
+
+    def _check_dependents_type(self, types, dependents, db_row, result):
+        for row in result['rows']:
+            rel_name = row['nspname']
+            if rel_name is not None:
+                rel_name += '.'
+
+            if rel_name is None:
+                rel_name = row['relname']
+            else:
+                rel_name += row['relname']
+
+            type_str = row['relkind']
+            # Fetch the type name from the dictionary
+            # if type is not present in the types dictionary then
+            # we will continue and not going to add it.
+            if type_str[0] in types:
+                # if type is present in the types dictionary, but it's
+                # value is None then it requires special handling.
+                type_name, rel_name = self._handel_dependents_type(types,
+                                                                   type_str,
+                                                                   row,
+                                                                   rel_name)
+            else:
+                continue
+
+            dependents.append(
+                {
+                    'type': type_name,
+                    'name': rel_name,
+                    'field': db_row['datname']
+                }
+            )
+
+    def _create_dependents_data(self, types, result, dependents, db_row,
+                                is_connected, manager):
+
+        self._check_dependents_type(types, dependents, db_row, result)
+
+        # Release only those connections which we have created above.
+        if not is_connected:
+            manager.release(db_row['datname'])
+
     def get_dependents(self, conn, sid, tsid):
         """
         This function is used to fetch the dependents for the selected node.
@@ -746,48 +804,8 @@ class TablespaceView(PGChildNodeView):
                 if not status:
                     current_app.logger.error(result)
 
-                for row in result['rows']:
-                    rel_name = row['nspname']
-                    if rel_name is not None:
-                        rel_name += '.'
-
-                    if rel_name is None:
-                        rel_name = row['relname']
-                    else:
-                        rel_name += row['relname']
-
-                    type_name = ''
-                    type_str = row['relkind']
-                    # Fetch the type name from the dictionary
-                    # if type is not present in the types dictionary then
-                    # we will continue and not going to add it.
-                    if type_str[0] in types:
-
-                        # if type is present in the types dictionary, but it's
-                        # value is None then it requires special handling.
-                        if types[type_str[0]] is None:
-                            if type_str[0] == 'i':
-                                type_name = 'index'
-                                rel_name = row['indname'] + ' ON ' + rel_name
-                            elif type_str[0] == 'o':
-                                type_name = 'operator'
-                                rel_name = row['relname']
-                        else:
-                            type_name = types[type_str[0]]
-                    else:
-                        continue
-
-                    dependents.append(
-                        {
-                            'type': type_name,
-                            'name': rel_name,
-                            'field': db_row['datname']
-                        }
-                    )
-
-                # Release only those connections which we have created above.
-                if not is_connected:
-                    manager.release(db_row['datname'])
+                self._create_dependents_data(types, result, dependents, db_row,
+                                             is_connected, manager)
 
         return dependents
 

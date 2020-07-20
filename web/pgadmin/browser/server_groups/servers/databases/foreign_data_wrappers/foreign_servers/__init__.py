@@ -48,8 +48,8 @@ class ForeignServerModule(CollectionNodeModule):
         the database node is initialized.
     """
 
-    NODE_TYPE = 'foreign_server'
-    COLLECTION_LABEL = gettext("Foreign Servers")
+    _NODE_TYPE = 'foreign_server'
+    _COLLECTION_LABEL = gettext("Foreign Servers")
 
     def __init__(self, *args, **kwargs):
         """
@@ -86,7 +86,7 @@ class ForeignServerModule(CollectionNodeModule):
 
         Returns: node type of the server module.
         """
-        return databases.DatabaseModule.NODE_TYPE
+        return databases.DatabaseModule.node_type
 
     @property
     def module_use_template_javascript(self):
@@ -234,7 +234,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
             fid: Foreign data wrapper ID
         """
 
-        sql = render_template("/".join([self.template_path, 'properties.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               fid=fid, conn=self.conn)
         status, res = self.conn.execute_dict(sql)
 
@@ -261,7 +262,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
         """
 
         res = []
-        sql = render_template("/".join([self.template_path, 'properties.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               fid=fid, conn=self.conn)
         status, r_set = self.conn.execute_2darray(sql)
 
@@ -295,7 +297,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
             fsid: Foreign server ID
         """
 
-        sql = render_template("/".join([self.template_path, 'properties.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               fsid=fsid, conn=self.conn)
         status, r_set = self.conn.execute_2darray(sql)
 
@@ -344,7 +347,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
         :param fsid:
         :return:
         """
-        sql = render_template("/".join([self.template_path, 'properties.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               fsid=fsid, conn=self.conn)
 
         status, res = self.conn.execute_dict(sql)
@@ -364,8 +368,9 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
                 res['rows'][0]['fsrvoptions'], 'fsrvoption', 'fsrvvalue'
             )
 
-        sql = render_template("/".join([self.template_path, 'acl.sql']),
-                              fsid=fsid)
+        sql = render_template("/".join([self.template_path, self._ACL_SQL]),
+                              fsid=fsid
+                              )
         status, fs_rv_acl_res = self.conn.execute_dict(sql)
         if not status:
             return False, internal_server_error(errormsg=fs_rv_acl_res)
@@ -412,7 +417,7 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
                 data['fsrvacl'] = parse_priv_to_db(data['fsrvacl'], ['U'])
 
             sql = render_template("/".join([self.template_path,
-                                            'properties.sql']),
+                                            self._PROPERTIES_SQL]),
                                   fdwid=fid, conn=self.conn)
             status, res1 = self.conn.execute_dict(sql)
             if not status:
@@ -429,7 +434,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
                     data['fsrvoptions'], 'fsrvoption', 'fsrvvalue'
                 )
 
-            sql = render_template("/".join([self.template_path, 'create.sql']),
+            sql = render_template("/".join([self.template_path,
+                                            self._CREATE_SQL]),
                                   data=data, fdwdata=fdw_data,
                                   is_valid_options=is_valid_options,
                                   conn=self.conn)
@@ -438,7 +444,7 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
                 return internal_server_error(errormsg=res)
 
             sql = render_template("/".join([self.template_path,
-                                            'properties.sql']),
+                                            self._PROPERTIES_SQL]),
                                   data=data, fdwdata=fdw_data,
                                   conn=self.conn)
             status, r_set = self.conn.execute_dict(sql)
@@ -527,7 +533,7 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
             for fsid in data['ids']:
                 # Get name of foreign data wrapper from fid
                 sql = render_template("/".join([self.template_path,
-                                                'delete.sql']),
+                                                self._DELETE_SQL]),
                                       fsid=fsid, conn=self.conn)
                 status, name = self.conn.execute_scalar(sql)
                 if not status:
@@ -548,7 +554,7 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
 
                 # drop foreign server
                 sql = render_template("/".join([self.template_path,
-                                                'delete.sql']),
+                                                self._DELETE_SQL]),
                                       name=name, cascade=cascade,
                                       conn=self.conn)
 
@@ -627,7 +633,7 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
 
         if fsid is not None:
             sql = render_template("/".join([self.template_path,
-                                            'properties.sql']),
+                                            self._PROPERTIES_SQL]),
                                   fsid=fsid, conn=self.conn)
             status, res = self.conn.execute_dict(sql)
             if not status:
@@ -681,7 +687,7 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
                         'fsrvvalue')
 
             sql = render_template(
-                "/".join([self.template_path, 'update.sql']),
+                "/".join([self.template_path, self._UPDATE_SQL]),
                 data=data,
                 o_data=old_data,
                 is_valid_added_options=is_valid_added_options,
@@ -692,7 +698,7 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
                 data['name'] if 'name' in data else old_data['name']
         else:
             sql = render_template("/".join([self.template_path,
-                                            'properties.sql']),
+                                            self._PROPERTIES_SQL]),
                                   fdwid=fid, conn=self.conn)
             status, res = self.conn.execute_dict(sql)
             if not status:
@@ -710,7 +716,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
                     data['fsrvoptions'], 'fsrvoption', 'fsrvvalue'
                 )
 
-            sql = render_template("/".join([self.template_path, 'create.sql']),
+            sql = render_template("/".join([self.template_path,
+                                            self._CREATE_SQL]),
                                   data=data, fdwdata=fdw_data,
                                   is_valid_options=is_valid_options,
                                   conn=self.conn)
@@ -732,7 +739,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
             json_resp:
         """
 
-        sql = render_template("/".join([self.template_path, 'properties.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               fsid=fsid, conn=self.conn)
         status, res = self.conn.execute_dict(sql)
         if not status:
@@ -754,7 +762,7 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
             if len(res['rows'][0]['fsrvoptions']) > 0:
                 is_valid_options = True
 
-        sql = render_template("/".join([self.template_path, 'acl.sql']),
+        sql = render_template("/".join([self.template_path, self._ACL_SQL]),
                               fsid=fsid)
         status, fs_rv_acl_res = self.conn.execute_dict(sql)
         if not status:
@@ -774,7 +782,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
                 ['U']
             )
 
-        sql = render_template("/".join([self.template_path, 'properties.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               fdwid=fid, conn=self.conn)
         status, res1 = self.conn.execute_dict(sql)
         if not status:
@@ -783,7 +792,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
         fdw_data = res1['rows'][0]
 
         sql = ''
-        sql = render_template("/".join([self.template_path, 'create.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._CREATE_SQL]),
                               data=res['rows'][0], fdwdata=fdw_data,
                               is_valid_options=is_valid_options,
                               conn=self.conn)

@@ -53,8 +53,8 @@ class PackageModule(SchemaChildModule):
 
     """
 
-    NODE_TYPE = 'package'
-    COLLECTION_LABEL = _("Packages")
+    _NODE_TYPE = 'package'
+    _COLLECTION_LABEL = _("Packages")
 
     def __init__(self, *args, **kwargs):
         super(PackageModule, self).__init__(*args, **kwargs)
@@ -74,7 +74,7 @@ class PackageModule(SchemaChildModule):
         Load the module script for schema, when any of the database node is
         initialized.
         """
-        return database.DatabaseModule.NODE_TYPE
+        return database.DatabaseModule.node_type
 
 
 blueprint = PackageModule(__name__)
@@ -172,7 +172,8 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         Returns:
 
         """
-        SQL = render_template("/".join([self.template_path, 'properties.sql']),
+        SQL = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               scid=scid)
         status, res = self.conn.execute_dict(SQL)
 
@@ -201,7 +202,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         """
         res = []
         sql = render_template(
-            "/".join([self.template_path, 'nodes.sql']),
+            "/".join([self.template_path, self._NODES_SQL]),
             scid=scid,
             pkgid=pkgid
         )
@@ -256,7 +257,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         """
         res = []
         sql = render_template(
-            "/".join([self.template_path, 'properties.sql']),
+            "/".join([self.template_path, self._PROPERTIES_SQL]),
             scid=scid, pkgid=pkgid
         )
         status, rset = self.conn.execute_dict(sql)
@@ -314,7 +315,8 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         :param pkgid:
         :return:
         """
-        sql = render_template("/".join([self.template_path, 'properties.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               scid=scid, pkgid=pkgid)
         status, res = self.conn.execute_dict(sql)
 
@@ -331,7 +333,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         res['rows'][0]['pkgbodysrc'] = self.get_inner(
             res['rows'][0]['pkgbodysrc'])
 
-        sql = render_template("/".join([self.template_path, 'acl.sql']),
+        sql = render_template("/".join([self.template_path, self._ACL_SQL]),
                               scid=scid,
                               pkgid=pkgid)
         status, rset1 = self.conn.execute_dict(sql)
@@ -390,7 +392,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         # We need oid of newly created package.
         sql = render_template(
             "/".join([
-                self.template_path, 'get_oid.sql'
+                self.template_path, self._OID_SQL
             ]),
             name=data['name'], scid=scid
         )
@@ -444,7 +446,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         try:
             for pkgid in data['ids']:
                 sql = render_template(
-                    "/".join([self.template_path, 'properties.sql']),
+                    "/".join([self.template_path, self._PROPERTIES_SQL]),
                     scid=scid,
                     pkgid=pkgid)
                 status, res = self.conn.execute_dict(sql)
@@ -465,7 +467,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                 res['rows'][0]['schema'] = self.schema
 
                 sql = render_template("/".join([self.template_path,
-                                                'delete.sql']),
+                                                self._DELETE_SQL]),
                                       data=res['rows'][0],
                                       cascade=cascade)
 
@@ -591,7 +593,8 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             if 'pkgacl' in data:
                 data['pkgacl'] = parse_priv_to_db(data['pkgacl'], self.acl)
 
-            sql = render_template("/".join([self.template_path, 'create.sql']),
+            sql = render_template("/".join([self.template_path,
+                                            self._CREATE_SQL]),
                                   data=data, conn=self.conn)
 
             return sql, data['name']
@@ -623,7 +626,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             u'name'
         ]
         sql = render_template(
-            "/".join([self.template_path, 'properties.sql']), scid=scid,
+            "/".join([self.template_path, self._PROPERTIES_SQL]), scid=scid,
             pkgid=pkgid)
         status, res = self.conn.execute_dict(sql)
         if not status:
@@ -638,7 +641,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         res['rows'][0]['pkgbodysrc'] = self.get_inner(
             res['rows'][0]['pkgbodysrc'])
 
-        sql = render_template("/".join([self.template_path, 'acl.sql']),
+        sql = render_template("/".join([self.template_path, self._ACL_SQL]),
                               scid=scid,
                               pkgid=pkgid)
 
@@ -663,7 +666,8 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             if arg not in data:
                 data[arg] = old_data[arg]
 
-        sql = render_template("/".join([self.template_path, 'update.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._UPDATE_SQL]),
                               data=data, o_data=old_data, conn=self.conn,
                               is_schema_diff=is_schema_diff)
         return sql, data['name'] if 'name' in data else old_data['name']
@@ -687,8 +691,8 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
 
         try:
             sql = render_template(
-                "/".join([self.template_path, 'properties.sql']), scid=scid,
-                pkgid=pkgid)
+                "/".join([self.template_path, self._PROPERTIES_SQL]),
+                scid=scid, pkgid=pkgid)
             status, res = self.conn.execute_dict(sql)
             if not status:
                 return internal_server_error(errormsg=res)
@@ -702,7 +706,8 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             res['rows'][0]['pkgbodysrc'] = self.get_inner(
                 res['rows'][0]['pkgbodysrc'])
 
-            sql = render_template("/".join([self.template_path, 'acl.sql']),
+            sql = render_template("/".join([self.template_path,
+                                            self._ACL_SQL]),
                                   scid=scid,
                                   pkgid=pkgid)
             status, rset1 = self.conn.execute_dict(sql)
@@ -734,7 +739,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                 self.schema, result['name'])
 
             sql_header += render_template(
-                "/".join([self.template_path, 'delete.sql']),
+                "/".join([self.template_path, self._DELETE_SQL]),
                 data=result)
             sql_header += "\n\n"
 
@@ -818,7 +823,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             return res
 
         sql = render_template("/".join([self.template_path,
-                                        'nodes.sql']), scid=scid)
+                                        self._NODES_SQL]), scid=scid)
         status, rset = self.conn.execute_2darray(sql)
         if not status:
             return internal_server_error(errormsg=res)

@@ -48,8 +48,8 @@ class ForeignDataWrapperModule(CollectionNodeModule):
         when any of the database node is initialized.
     """
 
-    NODE_TYPE = 'foreign_data_wrapper'
-    COLLECTION_LABEL = gettext("Foreign Data Wrappers")
+    _NODE_TYPE = 'foreign_data_wrapper'
+    _COLLECTION_LABEL = gettext("Foreign Data Wrappers")
 
     def __init__(self, *args, **kwargs):
         """
@@ -86,7 +86,7 @@ class ForeignDataWrapperModule(CollectionNodeModule):
 
         Returns: node type of the databse module.
         """
-        return databases.DatabaseModule.NODE_TYPE
+        return databases.DatabaseModule.node_type
 
     @property
     def module_use_template_javascript(self):
@@ -242,7 +242,8 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
             sid: Server ID
             did: Database ID
         """
-        sql = render_template("/".join([self.template_path, 'properties.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               conn=self.conn)
         status, res = self.conn.execute_dict(sql)
 
@@ -272,7 +273,8 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
             did: Database ID
         """
         res = []
-        sql = render_template("/".join([self.template_path, 'properties.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               conn=self.conn
                               )
         status, r_set = self.conn.execute_2darray(sql)
@@ -304,7 +306,8 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
             did: Database ID
             fid: Foreign data wrapper ID
         """
-        sql = render_template("/".join([self.template_path, 'properties.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               conn=self.conn, fid=fid)
         status, r_set = self.conn.execute_2darray(sql)
         if not status:
@@ -353,8 +356,10 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
         """
 
         sql = render_template("/".join([self.template_path,
-                                        'properties.sql']),
-                              fid=fid, conn=self.conn)
+                                        self._PROPERTIES_SQL]),
+                              fid=fid, conn=self.conn
+                              )
+        status, res = self.conn.execute_dict(sql)
 
         status, res = self.conn.execute_dict(sql)
         if not status:
@@ -375,8 +380,9 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
                 'fdwoption', 'fdwvalue'
             )
 
-        sql = render_template("/".join([self.template_path, 'acl.sql']),
-                              fid=fid)
+        sql = render_template("/".join([self.template_path, self._ACL_SQL]),
+                              fid=fid
+                              )
 
         status, fdw_acl_res = self.conn.execute_dict(sql)
         if not status:
@@ -428,7 +434,8 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
                     data['fdwoptions'], 'fdwoption', 'fdwvalue'
                 )
 
-            sql = render_template("/".join([self.template_path, 'create.sql']),
+            sql = render_template("/".join([self.template_path,
+                                            self._CREATE_SQL]),
                                   data=data,
                                   conn=self.conn,
                                   is_valid_options=is_valid_options
@@ -438,7 +445,7 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
                 return internal_server_error(errormsg=res)
 
             sql = render_template("/".join([self.template_path,
-                                            'properties.sql']),
+                                            self._PROPERTIES_SQL]),
                                   fname=data['name'],
                                   conn=self.conn
                                   )
@@ -525,7 +532,7 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
             try:
                 # Get name of foreign data wrapper from fid
                 sql = render_template("/".join([self.template_path,
-                                                'delete.sql']),
+                                                self._DELETE_SQL]),
                                       fid=fid, conn=self.conn
                                       )
                 status, name = self.conn.execute_scalar(sql)
@@ -546,7 +553,7 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
                     )
                 # drop foreign data wrapper node
                 sql = render_template("/".join([self.template_path,
-                                                'delete.sql']),
+                                                self._DELETE_SQL]),
                                       name=name,
                                       cascade=cascade,
                                       conn=self.conn)
@@ -623,7 +630,7 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
 
         if fid is not None:
             sql = render_template("/".join([self.template_path,
-                                            'properties.sql']),
+                                            self._PROPERTIES_SQL]),
                                   fid=fid,
                                   conn=self.conn
                                   )
@@ -683,7 +690,7 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
                         'fdwvalue')
 
             sql = render_template(
-                "/".join([self.template_path, 'update.sql']),
+                "/".join([self.template_path, self._UPDATE_SQL]),
                 data=data,
                 o_data=old_data,
                 is_valid_added_options=is_valid_added_options,
@@ -706,7 +713,7 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
                 )
 
             sql = render_template("/".join([self.template_path,
-                                            'create.sql']),
+                                            self._CREATE_SQL]),
                                   data=data, conn=self.conn,
                                   is_valid_options=is_valid_options
                                   )
@@ -726,7 +733,8 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
             fid: Foreign data wrapper ID
             json_resp:
         """
-        sql = render_template("/".join([self.template_path, 'properties.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._PROPERTIES_SQL]),
                               fid=fid, conn=self.conn
                               )
         status, res = self.conn.execute_dict(sql)
@@ -748,7 +756,7 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
             if len(res['rows'][0]['fdwoptions']) > 0:
                 is_valid_options = True
 
-        sql = render_template("/".join([self.template_path, 'acl.sql']),
+        sql = render_template("/".join([self.template_path, self._ACL_SQL]),
                               fid=fid)
         status, fdw_acl_res = self.conn.execute_dict(sql)
         if not status:
@@ -769,7 +777,8 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
             )
 
         sql = ''
-        sql = render_template("/".join([self.template_path, 'create.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._CREATE_SQL]),
                               data=res['rows'][0], conn=self.conn,
                               is_valid_options=is_valid_options
                               )

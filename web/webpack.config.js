@@ -167,9 +167,16 @@ fs.readdirSync(all_themes_dir).map(function(curr_dir) {
   if(stats.isDirectory()) {
     /* Theme directory found */
     let cssfile = 'pgadmin.theme.'+curr_dir;
+
+    let disp_name = curr_dir;
+
+    if(curr_dir == 'high_contrast') {
+      disp_name = curr_dir + ' (Beta)';
+    }
+
     pgadminThemes[curr_dir] = {
       /* For now lets keep it as beta release */
-      disp_name: curr_dir,
+      disp_name: disp_name,
       cssfile: cssfile,
       preview_img: curr_dir + '_preview.png',
     };
@@ -242,13 +249,13 @@ var themeCssRules = function(theme_name) {
       {
         loader: 'sass-resources-loader',
         options: {
-          resources: function(theme_name){
+          resources: function(_theme_name){
             let ret_res = [
-              './pgadmin/static/scss/resources/' + theme_name + '/_theme.variables.scss',
+              './pgadmin/static/scss/resources/' + _theme_name + '/_theme.variables.scss',
               './pgadmin/static/scss/resources/pgadmin.resources.scss',
             ];
-            if(theme_name!='standard') {
-              ret_res.unshift('./pgadmin/static/scss/resources/' + theme_name + '/_theme.variables.scss');
+            if(_theme_name!='standard') {
+              ret_res.unshift('./pgadmin/static/scss/resources/' + _theme_name + '/_theme.variables.scss');
             }
             return ret_res;
           }(theme_name),
