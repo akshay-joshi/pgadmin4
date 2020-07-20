@@ -46,7 +46,7 @@ APP_ICON = 'pg-icon'
 
 # Application version number components
 APP_RELEASE = 4
-APP_REVISION = 23
+APP_REVISION = 24
 
 # Application version suffix, e.g. 'beta1', 'dev'. Usually an empty string
 # for GA releases.
@@ -55,7 +55,7 @@ APP_SUFFIX = ''
 # Numeric application version for upgrade checks. Should be in the format:
 # [X]XYYZZ, where X is the release version, Y is the revision, with a leading
 # zero if needed, and Z represents the suffix, with a leading zero if needed
-APP_VERSION_INT = 42300
+APP_VERSION_INT = 42400
 
 # DO NOT CHANGE!
 # The application version string, constructed from the components
@@ -506,7 +506,6 @@ AUTHENTICATION_SOURCES = ['internal']
 # automatically, if set to True.
 # Set it to False, if user should not be added automatically,
 # in this case Admin has to add the user manually in the SQLite database.
-
 LDAP_AUTO_CREATE_USER = True
 
 # Connection timeout
@@ -516,27 +515,47 @@ LDAP_CONNECTION_TIMEOUT = 10
 # example: ldap://<ip-address>:<port> or ldap://<hostname>:<port>
 LDAP_SERVER_URI = 'ldap://<ip-address>:<port>'
 
+# The LDAP attribute containing user names. In OpenLDAP, this may be 'uid'
+# whilst in AD, 'sAMAccountName' might be appropriate. (REQUIRED)
+LDAP_USERNAME_ATTRIBUTE = '<User-id>'
+
+##########################################################################
+# 3 ways to configure LDAP as follows (Choose anyone):
+
+# 1. Dedicated User binding
+
+# LDAP Bind User DN Example: cn=username,dc=example,dc=com
+# Set this parameter to allow the connection to bind using a dedicated user.
+# After the connection is made, the pgadmin login user will be further
+# authenticated by the username and password provided
+# at the login screen.
+LDAP_BIND_USER = None
+
+# LDAP Bind User Password
+LDAP_BIND_PASSWORD = None
+
+# OR ####################
+# 2. Anonymous Binding
+
+# Set this parameter to allow the anonymous bind.
+# After the connection is made, the pgadmin login user will be further
+# authenticated by the username and password provided
+
+LDAP_ANONYMOUS_BIND = False
+
+# OR ####################
+# 3. Bind as pgAdmin user
+
 # BaseDN (REQUIRED)
 # AD example:
 # (&(objectClass=user)(memberof=CN=MYGROUP,CN=Users,dc=example,dc=com))
 # OpenLDAP example: CN=Users,dc=example,dc=com
 LDAP_BASE_DN = '<Base-DN>'
 
-# The LDAP attribute containing user names. In OpenLDAP, this may be 'uid'
-# whilst in AD, 'sAMAccountName' might be appropriate. (REQUIRED)
-LDAP_USERNAME_ATTRIBUTE = '<User-id>'
+##########################################################################
 
-# LDAP Bind User DN Example: cn=username,dc=example,dc=com (OPTIONAL)
-# Set this parameter to allow the connection to bind using a dedicated user.
-# After the connection is made, the pgadmin login user will be further
-# authenticated by the username and password provided
-# at the login screen. (OPTIONAL)
-LDAP_BIND_USER = None
-
-# LDAP Bind User Password (OPTIONAL)
-LDAP_BIND_PASSWORD = None
-
-# Search ldap for further authentication
+# Search ldap for further authentication (REQUIRED)
+# It can be optional while bind as pgAdmin user
 LDAP_SEARCH_BASE_DN = '<Search-Base-DN>'
 
 # Filter string for the user search.
