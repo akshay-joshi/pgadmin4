@@ -201,6 +201,9 @@ def compare_dictionaries(**kwargs):
 
                 source_ddl = \
                     view_object.get_sql_from_table_diff(**temp_src_params)
+                diff_dependencies = \
+                    view_object.get_table_submodules_dependencies(
+                        **temp_src_params)
                 target_ddl = \
                     view_object.get_sql_from_table_diff(**temp_tgt_params)
                 diff_ddl = view_object.get_sql_from_submodule_diff(
@@ -208,9 +211,6 @@ def compare_dictionaries(**kwargs):
                     target_params=temp_tgt_params,
                     source=dict1[key], target=dict2[key], diff_dict=diff_dict,
                     ignore_whitespaces=ignore_whitespaces)
-                diff_dependencies = \
-                    view_object.get_table_submodules_dependencies(
-                        **temp_src_params)
             else:
                 temp_src_params = copy.deepcopy(source_params)
                 temp_tgt_params = copy.deepcopy(target_params)
@@ -232,13 +232,13 @@ def compare_dictionaries(**kwargs):
                     temp_tgt_params['fsid'] = target_dict[key]['fsid']
 
                 source_ddl = view_object.get_sql_from_diff(**temp_src_params)
+                diff_dependencies = view_object.get_dependencies(
+                    view_object.conn, source_object_id, where=None,
+                    show_system_objects=None, is_schema_diff=True)
                 target_ddl = view_object.get_sql_from_diff(**temp_tgt_params)
                 temp_tgt_params.update(
                     {'data': diff_dict})
                 diff_ddl = view_object.get_sql_from_diff(**temp_tgt_params)
-                diff_dependencies = view_object.get_dependencies(
-                    view_object.conn, source_object_id, where=None,
-                    show_system_objects=None, is_schema_diff=True)
 
             different.append({
                 'id': count,
