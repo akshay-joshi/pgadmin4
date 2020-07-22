@@ -302,3 +302,29 @@ def get_sql(conn, data, tid, fkid=None, template_path=None):
                 data=data, conn=conn)
 
     return sql, name
+
+
+@get_template_path
+def get_fkey_dependencies(conn, tid, template_path=None):
+    """
+    This function is used to get the references table of all the foreign
+    keys of the given table.
+
+    :param conn:
+    :param tid:
+    :param template_path:
+    :return:
+    """
+    deps = []
+    sql = render_template("/".join(
+        [template_path, 'properties.sql']), tid=tid)
+
+    status, result = conn.execute_dict(sql)
+    if not status:
+        return status, internal_server_error(errormsg=result)
+
+    for fk in result['rows']:
+        ref_name = fk['refnsp'] + '.' + fk['reftab']
+        deps.append({'type': 'table', 'name': ref_name})
+
+    return True, deps

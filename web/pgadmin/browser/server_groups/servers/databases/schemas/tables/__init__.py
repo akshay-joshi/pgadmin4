@@ -1722,10 +1722,22 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         table_dependencies = []
         template_path = None
 
-        table_dependencies.append(self.get_dependencies(
-            self.conn, tid, where=None, show_system_objects=None,
-            is_schema_diff=True))
+        table_deps = self.get_dependencies(self.conn, tid, where=None,
+                                           show_system_objects=None,
+                                           is_schema_diff=True)
+        if len(table_deps) > 0:
+            table_dependencies.append(table_deps)
 
+        # Fetch foreign key referenced table which is considered as
+        # dependency.
+        status, fkey_deps = fkey_utils.get_fkey_dependencies(self.conn, tid)
+        if not status:
+            return internal_server_error(errormsg=fkey_deps)
+
+        if len(fkey_deps) > 0:
+            table_dependencies.append(fkey_deps)
+
+        # Iterate all the submodules of the table and fetch the dependencies.
         for module in self.tables_sub_modules:
             module_view = SchemaDiffRegistry.get_node_view(module)
             if module == 'index':
@@ -1749,7 +1761,8 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
                 result = module_view.get_dependencies(
                     self.conn, row['oid'], where=None,
                     show_system_objects=None, is_schema_diff=True)
-                table_dependencies.append(result)
+                if len(result) > 0:
+                    table_dependencies.append(result)
 
         return table_dependencies
 
