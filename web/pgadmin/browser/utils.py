@@ -468,7 +468,8 @@ class PGChildNodeView(NodeView):
             where_clause = where
 
         query = render_template("/".join([sql_path, 'dependencies.sql']),
-                                where_clause=where_clause)
+                                where_clause=where_clause,
+                                object_id=object_id)
         # fetch the dependency for the selected object
         dependencies = self.__fetch_dependency(
             conn, query, show_system_objects, is_schema_diff)
