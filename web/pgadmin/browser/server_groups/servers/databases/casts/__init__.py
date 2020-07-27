@@ -211,6 +211,11 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
             # Set template path for the SQL scripts
             self.template_path = 'casts/sql/#{0}#'.format(self.manager.version)
 
+            self.datlastsysoid = \
+                self.manager.db_info[kwargs['did']]['datlastsysoid'] \
+                if self.manager.db_info is not None and \
+                kwargs['did'] in self.manager.db_info else 0
+
             return f(*args, **kwargs)
 
         return wrap
@@ -225,9 +230,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :return:
         """
         last_system_oid = 0 if self.blueprint.show_system_objects else \
-            (self.manager.db_info[did])['datlastsysoid'] \
-            if self.manager.db_info is not None and \
-            did in self.manager.db_info else 0
+            self.datlastsysoid
         sql = render_template(
             "/".join([self.template_path, self._PROPERTIES_SQL]),
             datlastsysoid=last_system_oid,
@@ -259,9 +262,8 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         """
         res = []
         last_system_oid = 0 if self.blueprint.show_system_objects else \
-            (self.manager.db_info[did])['datlastsysoid'] \
-            if self.manager.db_info is not None and \
-            did in self.manager.db_info else 0
+            self.datlastsysoid
+
         sql = render_template(
             "/".join([self.template_path, self._NODES_SQL]),
             datlastsysoid=last_system_oid,
@@ -337,13 +339,10 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :param cid:
         :return:
         """
-        last_system_oid = (self.manager.db_info[did])['datlastsysoid'] if \
-            self.manager.db_info is not None and \
-            did in self.manager.db_info else 0
         sql = render_template(
             "/".join([self.template_path, self._PROPERTIES_SQL]),
             cid=cid,
-            datlastsysoid=last_system_oid,
+            datlastsysoid=self.last_system_oid,
             showsysobj=self.blueprint.show_system_objects
         )
         status, res = self.conn.execute_dict(sql)
@@ -398,9 +397,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
             # we need oid to to add object in tree at browser, below sql will
             # gives the same
             last_system_oid = 0 if self.blueprint.show_system_objects else \
-                (self.manager.db_info[did])['datlastsysoid'] \
-                if self.manager.db_info is not None and \
-                did in self.manager.db_info else 0
+                self.datlastsysoid
             sql = render_template(
                 "/".join([self.template_path, self._PROPERTIES_SQL]),
                 srctyp=data['srctyp'],
@@ -565,9 +562,7 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         """
         if cid is not None:
             last_system_oid = 0 if self.blueprint.show_system_objects else \
-                (self.manager.db_info[did])['datlastsysoid'] \
-                if self.manager.db_info is not None and \
-                did in self.manager.db_info else 0
+                self.datlastsysoid
             sql = render_template(
                 "/".join([self.template_path, self._PROPERTIES_SQL]),
                 cid=cid,
@@ -615,7 +610,8 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
             request.data, encoding='utf-8'
         )
 
-        sql = render_template("/".join([self.template_path, 'functions.sql']),
+        sql = render_template("/".join([self.template_path,
+                                        self._FUNCTIONS_SQL]),
                               srctyp=data['srctyp'],
                               trgtyp=data['trgtyp'])
         status, rset = self.conn.execute_dict(sql)

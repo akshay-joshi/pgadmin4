@@ -7,7 +7,6 @@
 #
 ##########################################################################
 
-from __future__ import print_function
 import sys
 import time
 
@@ -674,7 +673,7 @@ SELECT 1, pg_sleep(300)"""
             show_jit = pg_cursor.fetchone()
             if show_jit[0] == 'on':
                 jit_enabled = True
-        except Exception as e:
+        except Exception:
             pass
 
         connection.close()

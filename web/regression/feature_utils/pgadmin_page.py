@@ -7,7 +7,6 @@
 #
 ##########################################################################
 
-from __future__ import print_function
 import time
 import sys
 
@@ -1020,7 +1019,7 @@ class PgadminPage:
             WebDriverWait(self.driver, timeout, .01).until(
                 EC.visibility_of_element_located((By.XPATH, xpath)))
             element_found = True
-        except Exception as e:
+        except Exception:
             pass
         return element_found
 
@@ -1141,7 +1140,7 @@ class PgadminPage:
                     EC.visibility_of_any_elements_located((
                         By.XPATH, locator))):
                 elements_located_status = True
-        except Exception as e:
+        except Exception:
             pass
         return elements_located_status
 

@@ -7,7 +7,6 @@
 #
 ##########################################################################
 
-from __future__ import print_function
 import random
 
 from selenium.webdriver import ActionChains
@@ -88,7 +87,7 @@ class CheckDebuggerForXssFeatureTest(BaseFeatureTest):
                            "contains(@class,'ajs-header')]")
             ))
 
-        except TimeoutException as e:
+        except TimeoutException:
             is_error = None
 
         # If debugger plugin is not found

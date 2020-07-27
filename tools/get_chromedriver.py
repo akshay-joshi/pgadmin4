@@ -17,12 +17,8 @@ import os
 import platform
 import subprocess
 import sys
-try:
-    from urllib.request import urlopen, urlretrieve
-    from urllib.error import URLError
-except Exception:
-    from urllib import urlopen, urlretrieve
-    URLError = Exception
+from urllib.request import urlopen, urlretrieve
+from urllib.error import URLError
 import zipfile
 
 
@@ -61,11 +57,11 @@ def get_chrome_version(args):
         def _read_registry(root, key, value):
             try:
                 hkey = winreg.OpenKey(root, key)
-            except Exception as e:
+            except Exception:
                 return None
             try:
                 (val, typ) = winreg.QueryValueEx(hkey, value)
-            except Exception as e:
+            except Exception:
                 winreg.CloseKey(hkey)
                 return None
 

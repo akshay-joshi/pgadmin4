@@ -680,7 +680,8 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             sid: Server ID
             did: Database ID
         """
-        sql = render_template("/".join([self.template_path, 'functions.sql']))
+        sql = render_template("/".join([self.template_path,
+                                        self._FUNCTIONS_SQL]))
         status, result = self.conn.execute_dict(sql)
         if not status:
             return internal_server_error(errormsg=result)

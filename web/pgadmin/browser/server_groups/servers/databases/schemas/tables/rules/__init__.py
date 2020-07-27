@@ -534,13 +534,13 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
         drop_sql = kwargs.get('drop_sql', False)
 
         if drop_sql:
-            SQL = self.delete(gid=gid, sid=sid, did=did,
+            sql = self.delete(gid=gid, sid=sid, did=did,
                               scid=scid, tid=tid,
                               rid=oid, only_sql=True)
         else:
-            SQL = render_template("/".join(
+            sql = render_template("/".join(
                 [self.template_path, self._PROPERTIES_SQL]), rid=oid)
-            status, res = self.conn.execute_dict(SQL)
+            status, res = self.conn.execute_dict(sql)
             if not status:
                 return internal_server_error(errormsg=res)
             if len(res['rows']) == 0:
@@ -549,20 +549,18 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
                 )
             res_data = parse_rule_definition(res)
 
-            SQL = ''
-
             if data:
                 old_data = res_data
-                SQL = render_template(
+                sql = render_template(
                     "/".join([self.template_path, self._UPDATE_SQL]),
                     data=data, o_data=old_data
                 )
             else:
-                SQL = render_template("/".join(
+                sql = render_template("/".join(
                     [self.template_path, self._CREATE_SQL]),
                     data=res_data, display_comments=True)
 
-        return SQL
+        return sql
 
     @check_precondition
     def dependents(self, gid, sid, did, scid, tid, rid):

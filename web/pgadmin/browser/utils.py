@@ -375,12 +375,19 @@ class PGChildNodeView(NodeView):
     _NODES_SQL = 'nodes.sql'
     _CREATE_SQL = 'create.sql'
     _UPDATE_SQL = 'update.sql'
+    _ALTER_SQL = 'alter.sql'
     _PROPERTIES_SQL = 'properties.sql'
     _DELETE_SQL = 'delete.sql'
     _GRANT_SQL = 'grant.sql'
     _SCHEMA_SQL = 'schema.sql'
     _ACL_SQL = 'acl.sql'
     _OID_SQL = 'get_oid.sql'
+    _FUNCTIONS_SQL = 'functions.sql'
+    _GET_CONSTRAINTS_SQL = 'get_constraints.sql'
+    _GET_TABLES_SQL = 'get_tables.sql'
+    _GET_DEFINITION_SQL = 'get_definition.sql'
+    _GET_SCHEMA_OID_SQL = 'get_schema_oid.sql'
+    _GET_COLUMNS_SQL = 'get_columns.sql'
 
     def get_children_nodes(self, manager, **kwargs):
         """
@@ -428,7 +435,7 @@ class PGChildNodeView(NodeView):
                     return internal_server_error(errormsg=msg)
         except (ConnectionLost, SSHTunnelConnectionLost, CryptKeyMissing):
             raise
-        except Exception as e:
+        except Exception:
             return precondition_required(
                 gettext(
                     "Connection to the server has been lost."
