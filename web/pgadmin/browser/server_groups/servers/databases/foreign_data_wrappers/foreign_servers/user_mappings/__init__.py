@@ -508,6 +508,29 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
+    @staticmethod
+    def get_delete_data(cmd, umid, request_object):
+        """
+        This function is used to get the data and cascade information.
+        :param cmd: Command
+        :param umid: Object ID
+        :param request_object: request object
+        :return:
+        """
+        cascade = False
+        # Below will decide if it's simple drop or drop with cascade call
+        if cmd == 'delete':
+            # This is a cascade operation
+            cascade = True
+
+        if umid is None:
+            data = request_object.form if request_object.form else \
+                json.loads(request_object.data, encoding='utf-8')
+        else:
+            data = {'ids': [umid]}
+
+        return cascade, data
+
     @check_precondition
     def delete(self, gid, sid, did, fid, fsid, **kwargs):
         """
@@ -526,18 +549,8 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
         umid = kwargs.get('umid', None)
         only_sql = kwargs.get('only_sql', False)
 
-        if umid is None:
-            data = request.form if request.form else json.loads(
-                request.data, encoding='utf-8'
-            )
-        else:
-            data = {'ids': [umid]}
-
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+        # get the value of cascade and data
+        cascade, data = self.get_delete_data(self.cmd, umid, request)
 
         try:
             for umid in data['ids']:

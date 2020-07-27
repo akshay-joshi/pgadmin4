@@ -502,6 +502,29 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
+    @staticmethod
+    def get_delete_data(cmd, fsid, request_object):
+        """
+        This function is used to get the data and cascade information.
+        :param cmd: Command
+        :param fsid: Object ID
+        :param request_object: request object
+        :return:
+        """
+        cascade = False
+        # Below will decide if it's simple drop or drop with cascade call
+        if cmd == 'delete':
+            # This is a cascade operation
+            cascade = True
+
+        if fsid is None:
+            data = request_object.form if request_object.form else \
+                json.loads(request_object.data, encoding='utf-8')
+        else:
+            data = {'ids': [fsid]}
+
+        return cascade, data
+
     @check_precondition
     def delete(self, gid, sid, did, fid, fsid=None, only_sql=False):
         """
@@ -515,19 +538,8 @@ class ForeignServerView(PGChildNodeView, SchemaDiffObjectCompare):
             fsid: foreign server ID
             only_sql:
         """
-
-        if fsid is None:
-            data = request.form if request.form else json.loads(
-                request.data, encoding='utf-8'
-            )
-        else:
-            data = {'ids': [fsid]}
-
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+        # get the value of cascade and data
+        cascade, data = self.get_delete_data(self.cmd, fsid, request)
 
         try:
             for fsid in data['ids']:

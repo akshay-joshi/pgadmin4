@@ -454,6 +454,29 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
+    @staticmethod
+    def get_delete_data(cmd, cid, request_object):
+        """
+        This function is used to get the data and cascade information.
+        :param cmd: Command
+        :param cid: Object ID
+        :param request_object: request object
+        :return:
+        """
+        cascade = False
+        # Below will decide if it's simple drop or drop with cascade call
+        if cmd == 'delete':
+            # This is a cascade operation
+            cascade = True
+
+        if cid is None:
+            data = request_object.form if request_object.form else \
+                json.loads(request_object.data, encoding='utf-8')
+        else:
+            data = {'ids': [cid]}
+
+        return cascade, data
+
     @check_precondition
     def delete(self, gid, sid, did, cid=None, only_sql=False):
         """
@@ -465,19 +488,8 @@ class CastView(PGChildNodeView, SchemaDiffObjectCompare):
         :param only_sql:
         :return:
         """
-        # Below will decide if it's simple drop or drop with cascade call
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
-
-        if cid is None:
-            data = request.form if request.form else json.loads(
-                request.data, encoding='utf-8'
-            )
-        else:
-            data = {'ids': [cid]}
+        # get the value of cascade and data
+        cascade, data = self.get_delete_data(self.cmd, cid, request)
 
         for cid in data['ids']:
             try:

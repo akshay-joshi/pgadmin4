@@ -1711,6 +1711,27 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
                 data[module] = sub_data
 
     @BaseTableView.check_precondition
+    def get_submodule_template_path(self, module_name):
+        """
+        This function is used to get the template path based on module name.
+        :param module_name:
+        :return:
+        """
+        template_path = None
+        if module_name == 'index':
+            template_path = self.index_template_path
+        elif module_name == 'trigger':
+            template_path = self.trigger_template_path
+        elif module_name == 'rule':
+            template_path = self.rules_template_path
+        elif module_name == 'compound_trigger':
+            template_path = self.compound_trigger_template_path
+        elif module_name == 'row_security_policy':
+            template_path = self.row_security_policies_template_path
+
+        return template_path
+
+    @BaseTableView.check_precondition
     def get_table_submodules_dependencies(self, **kwargs):
         """
         This function is used to get the dependencies of table and it's
@@ -1720,8 +1741,6 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         """
         tid = kwargs['tid']
         table_dependencies = []
-        template_path = None
-
         table_deps = self.get_dependencies(self.conn, tid, where=None,
                                            show_system_objects=None,
                                            is_schema_diff=True)
@@ -1740,16 +1759,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         # Iterate all the submodules of the table and fetch the dependencies.
         for module in self.tables_sub_modules:
             module_view = SchemaDiffRegistry.get_node_view(module)
-            if module == 'index':
-                template_path = self.index_template_path
-            elif module == 'trigger':
-                template_path = self.trigger_template_path
-            elif module == 'rule':
-                template_path = self.rules_template_path
-            elif module == 'compound_trigger':
-                template_path = self.compound_trigger_template_path
-            elif module == 'row_security_policy':
-                template_path = self.row_security_policies_template_path
+            template_path = self.get_submodule_template_path(module)
 
             SQL = render_template("/".join([template_path,
                                             'nodes.sql']), tid=tid)

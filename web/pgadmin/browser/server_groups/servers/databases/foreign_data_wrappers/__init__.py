@@ -503,6 +503,29 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
+    @staticmethod
+    def get_delete_data(cmd, fid, request_object):
+        """
+        This function is used to get the data and cascade information.
+        :param cmd: Command
+        :param fid: Object ID
+        :param request_object: request object
+        :return:
+        """
+        cascade = False
+        # Below will decide if it's simple drop or drop with cascade call
+        if cmd == 'delete':
+            # This is a cascade operation
+            cascade = True
+
+        if fid is None:
+            data = request_object.form if request_object.form else \
+                json.loads(request_object.data, encoding='utf-8')
+        else:
+            data = {'ids': [fid]}
+
+        return cascade, data
+
     @check_precondition
     def delete(self, gid, sid, did, fid=None, only_sql=False):
         """
@@ -515,18 +538,8 @@ class ForeignDataWrapperView(PGChildNodeView, SchemaDiffObjectCompare):
             fid: foreign data wrapper ID
             only_sql:
         """
-        if fid is None:
-            data = request.form if request.form else json.loads(
-                request.data, encoding='utf-8'
-            )
-        else:
-            data = {'ids': [fid]}
-
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+        # get the value of cascade and data
+        cascade, data = self.get_delete_data(self.cmd, fid, request)
 
         for fid in data['ids']:
             try:
