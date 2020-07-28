@@ -603,6 +603,9 @@ class PGChildNodeView(NodeView):
             type_str = row['type']
             dep_str = row['deptype']
             nsp_name = row['nspname']
+            object_id = None
+            if 'refobjid' in row:
+                object_id = row['refobjid']
 
             ref_name = ''
             if nsp_name is not None:
@@ -671,6 +674,7 @@ class PGChildNodeView(NodeView):
                     {
                         'type': type_name,
                         'name': ref_name,
+                        'oid': object_id
                     }
                 )
             elif not is_schema_diff:

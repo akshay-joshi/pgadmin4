@@ -1710,7 +1710,6 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
                     oid=None)
                 data[module] = sub_data
 
-    @BaseTableView.check_precondition
     def get_submodule_template_path(self, module_name):
         """
         This function is used to get the template path based on module name.
@@ -1745,7 +1744,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
                                            show_system_objects=None,
                                            is_schema_diff=True)
         if len(table_deps) > 0:
-            table_dependencies.append(table_deps)
+            table_dependencies.extend(table_deps)
 
         # Fetch foreign key referenced table which is considered as
         # dependency.
@@ -1754,7 +1753,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
             return internal_server_error(errormsg=fkey_deps)
 
         if len(fkey_deps) > 0:
-            table_dependencies.append(fkey_deps)
+            table_dependencies.extend(fkey_deps)
 
         # Iterate all the submodules of the table and fetch the dependencies.
         for module in self.tables_sub_modules:
@@ -1772,7 +1771,12 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
                     self.conn, row['oid'], where=None,
                     show_system_objects=None, is_schema_diff=True)
                 if len(result) > 0:
-                    table_dependencies.append(result)
+                    table_dependencies.extend(result)
+
+        # Remove the same table from the dependency list
+        for item in table_dependencies:
+            if 'oid' in item and item['oid'] == tid:
+                table_dependencies.remove(item)
 
         return table_dependencies
 
