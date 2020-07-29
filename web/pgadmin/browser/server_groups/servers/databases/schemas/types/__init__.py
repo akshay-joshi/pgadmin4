@@ -374,7 +374,7 @@ class TypeView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             status=200
         )
 
-    def _cltype_formatter(self, type):
+    def _cltype_formatter(self, in_type):
         """
 
         Args:
@@ -385,13 +385,13 @@ class TypeView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             after length/precision so we will set flag for
             sql template
         """
-        if '[]' in type:
-            type = type.replace('[]', '')
+        if '[]' in in_type:
+            in_type = in_type.replace('[]', '')
             self.hasSqrBracket = True
         else:
             self.hasSqrBracket = False
 
-        return type
+        return in_type
 
     @staticmethod
     def convert_length_precision_to_string(data):
@@ -1108,6 +1108,7 @@ class TypeView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
 
                 if not res['rows']:
                     return make_json_response(
+                        status=410,
                         success=0,
                         errormsg=gettext(
                             'Error: Object not found.'

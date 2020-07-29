@@ -583,8 +583,7 @@ class CompoundTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
                 status, res = self.conn.execute_dict(SQL)
                 if not status:
                     return internal_server_error(errormsg=res)
-
-                if not res['rows']:
+                elif not res['rows']:
                     return make_json_response(
                         success=0,
                         errormsg=gettext(
@@ -900,19 +899,19 @@ class CompoundTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
             sql = sql.strip('\n').strip(' ')
         else:
             if drop_sql:
-                SQL = self.delete(gid=gid, sid=sid, did=did,
+                sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, tid=tid,
                                   trid=oid, only_sql=True)
             else:
-                SQL = render_template("/".join([self.template_path,
+                sql = render_template("/".join([self.template_path,
                                                 self._PROPERTIES_SQL]),
                                       tid=tid, trid=oid,
                                       datlastsysoid=self.datlastsysoid)
 
-                status, res = self.conn.execute_dict(SQL)
+                status, res = self.conn.execute_dict(sql)
                 if not status:
                     return internal_server_error(errormsg=res)
-                if len(res['rows']) == 0:
+                elif len(res['rows']) == 0:
                     return gone(gettext("Could not find the compound "
                                         "trigger in the table."))
 
@@ -927,23 +926,33 @@ class CompoundTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
                     data['columns'] = self._column_details(tid, columns)
 
                 data = trigger_definition(data)
+                sql = self._check_and_add_compound_trigger(tid, data)
 
-                SQL, name = compound_trigger_utils.get_sql(self.conn,
-                                                           data,
-                                                           tid,
-                                                           None,
-                                                           self.datlastsysoid)
+        return sql
 
-                # If compound trigger is disbaled then add sql
-                # code for the same
-                if not data['is_enable_trigger']:
-                    SQL += '\n\n'
-                    SQL += render_template("/".join([
-                        self.template_path,
-                        'enable_disable_trigger.sql']),
-                        data=data, conn=self.conn)
+    def _check_and_add_compound_trigger(self, tid, data):
+        """
+        This get compound trigger and check for disable.
+        :param tid: Table Id.
+        :param data: Data.
+        :param diff_schema: schema diff check.
+        """
+        sql, name = compound_trigger_utils.get_sql(self.conn,
+                                                   data,
+                                                   tid,
+                                                   None,
+                                                   self.datlastsysoid)
 
-        return SQL
+        # If compound trigger is disbaled then add sql
+        # code for the same
+        if not data['is_enable_trigger']:
+            sql += '\n\n'
+            sql += render_template("/".join([
+                self.template_path,
+                'enable_disable_trigger.sql']),
+                data=data, conn=self.conn)
+        return sql
+
 
     @check_precondition
     def fetch_objects_to_compare(self, sid, did, scid, tid, oid=None):
