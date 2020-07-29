@@ -953,7 +953,6 @@ class CompoundTriggerView(PGChildNodeView, SchemaDiffObjectCompare):
                 data=data, conn=self.conn)
         return sql
 
-
     @check_precondition
     def fetch_objects_to_compare(self, sid, did, scid, tid, oid=None):
         """

@@ -201,6 +201,8 @@ class FtsParserView(PGChildNodeView, SchemaDiffObjectCompare):
                                {'get': 'headline_functions'}]
     })
 
+    keys_to_ignore = ['oid', 'oid-2', 'schema']
+
     def _init_(self, **kwargs):
         """
         Method is used to initialize the FtsParserView and it's base view.

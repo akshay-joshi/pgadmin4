@@ -187,6 +187,8 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         'get_init': [{'get': 'get_init'}, {'get': 'get_init'}]
     })
 
+    keys_to_ignore = ['oid', 'oid-2', 'schema']
+
     def _init_(self, **kwargs):
         self.conn = None
         self.template_path = None

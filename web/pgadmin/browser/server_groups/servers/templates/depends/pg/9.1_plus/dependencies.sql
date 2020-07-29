@@ -83,5 +83,5 @@ LEFT JOIN pg_class cl ON dep.refobjid=cl.oid
 LEFT JOIN pg_attribute att ON dep.refobjid=att.attrelid AND dep.refobjsubid=att.attnum
 LEFT JOIN pg_namespace nsc ON cl.relnamespace=nsc.oid
 LEFT JOIN pg_attrdef ad ON ad.adrelid=att.attrelid AND ad.adnum=att.attnum
-WHERE dep.objid=(SELECT oid FROM pg_rewrite WHERE ev_class={{object_id}}) AND cl.relkind not in ('v', 'm')
+WHERE dep.objid IN (SELECT oid FROM pg_rewrite WHERE ev_class={{object_id}}) AND cl.relkind not in ('v', 'm')
 ORDER BY refclassid, relkind
