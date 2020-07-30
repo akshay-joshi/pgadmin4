@@ -528,7 +528,7 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
         sid = kwargs.get('sid')
         did = kwargs.get('did')
         scid = kwargs.get('scid')
-        tid = kwargs.get('oid')
+        tid = kwargs.get('tid')
         oid = kwargs.get('oid')
         data = kwargs.get('data', None)
         drop_sql = kwargs.get('drop_sql', False)
