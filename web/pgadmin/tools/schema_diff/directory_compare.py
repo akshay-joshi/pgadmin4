@@ -362,7 +362,7 @@ def are_dictionaries_identical(source_dict, target_dict, ignore_whitespaces,
     return True
 
 
-def directory_diff(source_dict, target_dict, ignore_keys=[], difference={}):
+def directory_diff(source_dict, target_dict, ignore_keys=[], difference=None):
     """
     This function is used to recursively compare two dictionaries and
     return the difference.
@@ -373,6 +373,7 @@ def directory_diff(source_dict, target_dict, ignore_keys=[], difference={}):
     :param difference:
     """
 
+    difference = {} if difference is None else difference
     src_keys = set(source_dict.keys())
     tar_keys = set(target_dict.keys())
 
