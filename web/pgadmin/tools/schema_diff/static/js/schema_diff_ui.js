@@ -452,11 +452,11 @@ export default class SchemaDiffUI {
       this.gridContext = {};
       if (rowData.status) {
         this.selectedRowCount = this.grid.getSelectedRows().length;
-        let depRows = this.selectDependencies(rowData);
+        let depRows = this.selectDependencies(rowData, event.target.checked);
         if (event.target.checked)
           this.grid.setSelectedRows(depRows);
         else
-           this.grid.setSelectedRows(this.grid.getSelectedRows().filter(x => !depRows.includes(x)));
+          this.grid.setSelectedRows(this.grid.getSelectedRows().filter(x => !depRows.includes(x)));
 
         this.ddlCompare(rowData);
       }
@@ -544,7 +544,7 @@ export default class SchemaDiffUI {
     if (event.target.checked)
       self.grid.setSelectedRows(finalRows);
     else
-       self.grid.setSelectedRows(self.grid.getSelectedRows().filter(x => !finalRows.includes(x)));
+      self.grid.setSelectedRows(self.grid.getSelectedRows().filter(x => !finalRows.includes(x)));
 
   }
   selectDependencies(data, isChecked) {
