@@ -91,7 +91,7 @@ export default class SchemaDiffUI {
 
 
     this.panelObj = this.docker.addPanel('schema_diff_header_panel', wcDocker.DOCK.TOP, {w:'95%', h:'50%'});
-    this.footerPanelObj = this.docker.addPanel('schema_diff_footer_panel', wcDocker.DOCK.BOTTOM, this.panelObj, {w:'95%', h:'50%'});
+    this.footerPanelObj = this.docker.addPanel('schema_diff_footer_panel', wcDocker.DOCK.BOTTOM, this.panelObj, {w:'95%', h:'10%'});
 
     self.footerPanelObj.on(wcDocker.EVENT.VISIBILITY_CHANGED, function() {
       setTimeout(function() {
@@ -465,8 +465,14 @@ export default class SchemaDiffUI {
      this.selectedRowCount != this.grid.getSelectedRows().length) {
 
       this.selectedRowCount = this.grid.getSelectedRows().length;
-      this.gridContext = {};
-      this.selectDependenciesForAll(isChecked);
+      if (this.gridContext.row && this.gridContext.row.__group) {
+        let context = this.gridContext;
+        this.gridContext = {};
+        this.selectDependenciesForGroup(isChecked, context);
+      } else {
+        this.gridContext = {};
+        this.selectDependenciesForAll(isChecked);
+      }
     }
 
     if (this.grid.getSelectedRows().length > 0 || (this.model.get('diff_ddl') != '' && !_.isUndefined(this.model.get('diff_ddl')))) {
@@ -528,6 +534,45 @@ export default class SchemaDiffUI {
 
     $('#diff_fetching_data').find('.schema-diff-busy-text').text('');
     $('#diff_fetching_data').addClass('d-none');
+
+  }
+
+  selectDependenciesForGroup(isChecked, context) {
+    let self = this,
+      finalRows = [];
+
+    if (!isChecked) {
+      _.each(context.row.rows, function(row) {
+        if (row && row.status) {
+          let d = self.selectDependencies(row, isChecked);
+
+          finalRows = finalRows.concat(d);
+        }
+      });
+    }
+    else {
+      _.each(self.grid.getSelectedRows(), function(row) {
+        let data = self.grid.getData().getItem(row);
+        if (data.status) {
+          finalRows = finalRows.concat(self.selectDependencies(data, isChecked));
+        }
+      });
+    }
+
+    finalRows = [...new Set(finalRows)];
+
+    if (isChecked)
+      self.grid.setSelectedRows(finalRows);
+    else {
+      let filterRows = [];
+      filterRows = self.grid.getSelectedRows().filter(x => !finalRows.includes(x));
+
+      if (filterRows.length > 0) {
+        self.selectedRowCount = filterRows.length;
+        self.grid.setSelectedRows(filterRows);
+      }
+
+    }
 
   }
 
