@@ -446,14 +446,15 @@ export default class SchemaDiffUI {
   }
 
   handleDependencies() {
+    let isChecked = event.target.checked || (event.target.checked === undefined && event.target.className.indexOf('unchecked') == -1);
     if (this.gridContext && this.gridContext.rowIndex && _.isUndefined(this.gridContext.row.rows)) {
       let rowData = this.grid.getData().getItem(this.gridContext.rowIndex);
 
       this.gridContext = {};
       if (rowData.status) {
         this.selectedRowCount = this.grid.getSelectedRows().length;
-        let depRows = this.selectDependencies(rowData, event.target.checked);
-        if (event.target.checked)
+        let depRows = this.selectDependencies(rowData, isChecked);
+        if (isChecked)
           this.grid.setSelectedRows(depRows);
         else
           this.grid.setSelectedRows(this.grid.getSelectedRows().filter(x => !depRows.includes(x)));
@@ -465,7 +466,7 @@ export default class SchemaDiffUI {
 
       this.selectedRowCount = this.grid.getSelectedRows().length;
       this.gridContext = {};
-      this.selectDependenciesForAll();
+      this.selectDependenciesForAll(isChecked);
     }
 
     if (this.grid.getSelectedRows().length > 0 || (this.model.get('diff_ddl') != '' && !_.isUndefined(this.model.get('diff_ddl')))) {
@@ -530,21 +531,27 @@ export default class SchemaDiffUI {
 
   }
 
-  selectDependenciesForAll() {
+  selectDependenciesForAll(isChecked) {
     let self = this,
       finalRows = [];
 
     _.each(self.grid.getSelectedRows(), function(row) {
       let data = self.grid.getData().getItem(row);
       if (data.status) {
-        finalRows = finalRows.concat(self.selectDependencies(data, event.target.checked));
+        finalRows = finalRows.concat(self.selectDependencies(data, isChecked));
       }
     });
 
-    if (event.target.checked)
+    finalRows = [...new Set(finalRows)];
+
+    if (isChecked)
       self.grid.setSelectedRows(finalRows);
-    else
-      self.grid.setSelectedRows(self.grid.getSelectedRows().filter(x => !finalRows.includes(x)));
+    else {
+      let filterRows = [];
+      filterRows = self.grid.getSelectedRows().filter(x => !finalRows.includes(x));
+
+      if (filterRows.length > 0) self.grid.setSelectedRows(filterRows);
+    }
 
   }
   selectDependencies(data, isChecked) {
@@ -589,9 +596,7 @@ export default class SchemaDiffUI {
 
     setDependencies(data, data.dependencies);
 
-    if (!isChecked) return rows;
-
-    finalRows = self.grid.getSelectedRows();
+    if (isChecked) finalRows = self.grid.getSelectedRows();
 
     _.each(rows, function(row) {
       let r = self.grid.getData().getRowByItem(row);
