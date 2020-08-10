@@ -15,6 +15,8 @@ from pgadmin.utils.ajax import internal_server_error
 from pgadmin.utils.exception import ObjectGone, ExecuteError
 from functools import wraps
 
+FKEY_PROPERTIES_SQL = 'properties.sql'
+
 
 def get_template_path(f):
     """
@@ -47,7 +49,7 @@ def get_foreign_keys(conn, tid, fkid=None, template_path=None):
     """
 
     sql = render_template("/".join(
-        [template_path, 'properties.sql']), tid=tid, cid=fkid)
+        [template_path, FKEY_PROPERTIES_SQL]), tid=tid, cid=fkid)
 
     status, result = conn.execute_dict(sql)
     if not status:
@@ -286,7 +288,7 @@ def _get_properties_for_fk_const(tid, fkid, data, template_path, conn):
     conn: Connection.
     """
     name = data['name'] if 'name' in data else None
-    sql = render_template("/".join([template_path, 'properties.sql']),
+    sql = render_template("/".join([template_path, FKEY_PROPERTIES_SQL]),
                           tid=tid, cid=fkid)
     status, res = conn.execute_dict(sql)
     if not status:
@@ -320,6 +322,14 @@ def _get_sql_for_create_fk_const(data, conn, template_path):
             ('coveringindex' not in data or data['coveringindex'] == ''):
         return True, '-- definition incomplete', name, ''
 
+    # Get the parent schema and table.
+    schema, table = get_parent(conn,
+                               data['columns'][0]['references'])
+
+    # Below handling will be used in Schema diff in case
+    # of different database comparison
+    _checks_for_schema_diff(table, schema, data)
+
     sql = render_template("/".join([template_path, 'create.sql']),
                           data=data, conn=conn)
 
@@ -329,6 +339,26 @@ def _get_sql_for_create_fk_const(data, conn, template_path):
             data=data, conn=conn)
 
     return False, '', '', sql
+
+
+def _checks_for_schema_diff(table, schema, data):
+    """
+    Check for schema diff in case of different database comparisons.
+    table: table data
+    schema: schema data
+    data:Data
+    """
+    if schema and table:
+        data['remote_schema'] = schema
+        data['remote_table'] = table
+
+    if 'remote_schema' not in data:
+        data['remote_schema'] = None
+    elif 'schema' in data and (schema is None or schema == ''):
+        data['remote_schema'] = data['schema']
+
+    if 'remote_table' not in data:
+        data['remote_table'] = None
 
 
 @get_template_path
@@ -344,7 +374,7 @@ def get_fkey_dependencies(conn, tid, template_path=None):
     """
     deps = []
     sql = render_template("/".join(
-        [template_path, 'properties.sql']), tid=tid)
+        [template_path, FKEY_PROPERTIES_SQL]), tid=tid)
 
     status, result = conn.execute_dict(sql)
     if not status:
