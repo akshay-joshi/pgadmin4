@@ -429,7 +429,6 @@ export default class SchemaDiffUI {
     self.model.on('change:diff_ddl', self.handleDependencies.bind(self));
 
     $('#schema-diff-grid').on('keyup', function() {
-      console.warn('Key up....');
       if ((event.keyCode == 38 || event.keyCode ==40) && this.grid.getActiveCell().row) {
         data = this.grid.getData().getItem(this.grid.getActiveCell().row);
         this.ddlCompare(data);
@@ -452,6 +451,14 @@ export default class SchemaDiffUI {
     self.dataView.refresh();
 
     self.resize_grid();
+  }
+
+  handle_generate_button(){
+    if (this.grid.getSelectedRows().length > 0 || (this.model.get('diff_ddl') != '' && !_.isUndefined(this.model.get('diff_ddl')))) {
+      this.header.$el.find('button#generate-script').removeAttr('disabled');
+    } else {
+      this.header.$el.find('button#generate-script').attr('disabled', true);
+    }
   }
 
   resize_grid() {
