@@ -19,8 +19,11 @@ import {generateScript} from 'tools/datagrid/static/js/show_query_tool';
 import 'pgadmin.sqleditor';
 import pgWindow from 'sources/window';
 
-import {SchemaDiffSelect2Control, SchemaDiffHeaderView,
+import { SchemaDiffSelect2Control, SchemaDiffHeaderView,
   SchemaDiffFooterView, SchemaDiffSqlControl} from './schema_diff.backform';
+
+import { handleDependencies, selectDependenciesForGroup,
+  selectDependenciesForAll, selectDependencies } from './schema_diff_dependency';
 
 var wcDocker = window.wcDocker;
 
@@ -254,16 +257,16 @@ export default class SchemaDiffUI {
       for (var row = 0; row < sel_rows.length; row++) {
         let data = self.grid.getData().getItem(sel_rows[row]);
         if(!_.isUndefined(data.diff_ddl)) {
+          if (!(data.dependLevel in script_array)) script_array[data.dependLevel] = [];
           script_array[data.dependLevel].push(data.diff_ddl);
         }
       }
 
-      for (var s = Object.keys(script_array).length; s > 0; s--) {
+      _.each(Object.keys(script_array).reverse(), function(s) {
         if (script_array[s].length > 0) {
           script_body += script_array[s].join('\n') + '\n\n';
         }
-      }
-
+      });
 
       generated_script = script_header + 'BEGIN;' + '\n' + script_body + 'END;';
       open_query_tool();
@@ -413,6 +416,13 @@ export default class SchemaDiffUI {
       self.gridContext = {};
     });
 
+    grid.onClick.subscribe(function(e, args) {
+      if (args.row) {
+        data = args.grid.getData().getItem(args.row);
+        if (data.status) this.ddlCompare(data);
+      }
+    }.bind(self));
+
     grid.onSelectedRowsChanged.subscribe(self.handleDependencies.bind(this));
 
     self.model.on('change:diff_ddl', self.handleDependencies.bind(self));
@@ -441,43 +451,6 @@ export default class SchemaDiffUI {
     self.dataView.refresh();
 
     self.resize_grid();
-  }
-
-  handleDependencies() {
-    let isChecked = event.target.checked || (event.target.checked === undefined && event.target.className.indexOf('unchecked') == -1);
-    if (this.gridContext && this.gridContext.rowIndex && _.isUndefined(this.gridContext.row.rows)) {
-      let rowData = this.grid.getData().getItem(this.gridContext.rowIndex);
-
-      this.gridContext = {};
-      if (rowData.status) {
-        this.selectedRowCount = this.grid.getSelectedRows().length;
-        let depRows = this.selectDependencies(rowData, isChecked);
-        if (isChecked)
-          this.grid.setSelectedRows(depRows);
-        else
-          this.grid.setSelectedRows(this.grid.getSelectedRows().filter(x => !depRows.includes(x)));
-
-        this.ddlCompare(rowData);
-      }
-    } else if((this.gridContext && this.gridContext.row && !_.isUndefined(this.gridContext.row.rows)) ||
-     this.selectedRowCount != this.grid.getSelectedRows().length) {
-
-      this.selectedRowCount = this.grid.getSelectedRows().length;
-      if (this.gridContext.row && this.gridContext.row.__group) {
-        let context = this.gridContext;
-        this.gridContext = {};
-        this.selectDependenciesForGroup(isChecked, context);
-      } else {
-        this.gridContext = {};
-        this.selectDependenciesForAll(isChecked);
-      }
-    }
-
-    if (this.grid.getSelectedRows().length > 0 || (this.model.get('diff_ddl') != '' && !_.isUndefined(this.model.get('diff_ddl')))) {
-      this.header.$el.find('button#generate-script').removeAttr('disabled');
-    } else {
-      this.header.$el.find('button#generate-script').attr('disabled', true);
-    }
   }
 
   resize_grid() {
@@ -535,123 +508,6 @@ export default class SchemaDiffUI {
 
   }
 
-  selectDependenciesForGroup(isChecked, context) {
-    let self = this,
-      finalRows = [];
-
-    if (!isChecked) {
-      _.each(context.row.rows, function(row) {
-        if (row && row.status) {
-          let d = self.selectDependencies(row, isChecked);
-
-          finalRows = finalRows.concat(d);
-        }
-      });
-    }
-    else {
-      _.each(self.grid.getSelectedRows(), function(row) {
-        let data = self.grid.getData().getItem(row);
-        if (data.status) {
-          finalRows = finalRows.concat(self.selectDependencies(data, isChecked));
-        }
-      });
-    }
-
-    finalRows = [...new Set(finalRows)];
-
-    if (isChecked)
-      self.grid.setSelectedRows(finalRows);
-    else {
-      let filterRows = [];
-      filterRows = self.grid.getSelectedRows().filter(x => !finalRows.includes(x));
-
-      if (filterRows.length > 0) {
-        self.selectedRowCount = filterRows.length;
-        self.grid.setSelectedRows(filterRows);
-      }
-
-    }
-
-  }
-
-  selectDependenciesForAll(isChecked) {
-    let self = this,
-      finalRows = [];
-
-    _.each(self.grid.getSelectedRows(), function(row) {
-      let data = self.grid.getData().getItem(row);
-      if (data.status) {
-        finalRows = finalRows.concat(self.selectDependencies(data, isChecked));
-      }
-    });
-
-    finalRows = [...new Set(finalRows)];
-
-    if (isChecked)
-      self.grid.setSelectedRows(finalRows);
-    else {
-      let filterRows = [];
-      filterRows = self.grid.getSelectedRows().filter(x => !finalRows.includes(x));
-
-      if (filterRows.length > 0) self.grid.setSelectedRows(filterRows);
-    }
-
-  }
-  selectDependencies(data, isChecked) {
-    let self = this,
-      rows = [],
-      setDependencies = undefined,
-      finalRows = [];
-
-    if (!data.dependLevel) data.dependLevel = 1;
-
-    setDependencies = function(rowData, dependencies) {
-      _.each(dependencies, function(dependency) {
-        if (dependency.length == 0) return;
-        let dependencyData = [];
-
-        dependencyData = self.dataView.getItems().filter(item => item.type  == dependency.type && item.oid == dependency.oid);
-
-        if (dependencyData.length > 0) {
-          dependencyData = dependencyData[0];
-          dependencyData.dependLevel = rowData.dependLevel + 1;
-          let groupData = [];
-
-          groupData = self.dataView.getGroups().find(
-            (item) => { if (dependencyData.group_name == item.groupingKey) return item.groups; }
-          );
-
-          if (groupData && groupData.groups) {
-            groupData = groupData.groups.find(
-              (item) => { return item.groupingKey == dependencyData.group_name + ':|:' + dependencyData.type; }
-            );
-
-            if (groupData && groupData.collapsed == 1)
-              self.dataView.expandGroup(dependencyData.group_name + ':|:' + dependencyData.type);
-          }
-          rows[rows.length] = dependencyData;
-          if (dependencyData.dependencies.length > 0) {
-            setDependencies(dependencyData, dependencyData.dependencies);
-          }
-        }
-      });
-    };
-
-    setDependencies(data, data.dependencies);
-
-    if (isChecked) finalRows = self.grid.getSelectedRows();
-
-    _.each(rows, function(row) {
-      let r = self.grid.getData().getRowByItem(row);
-      if(!_.isUndefined(r) && finalRows.indexOf(r) === -1 ) {
-        finalRows.push(self.grid.getData().getRowByItem(row));
-      }
-    });
-
-    self.selectedRowCount = finalRows.length;
-    return finalRows;
-  }
-
   ddlCompare(data) {
     var self = this,
       node_type = data.type,
@@ -662,7 +518,7 @@ export default class SchemaDiffUI {
       'source_ddl': undefined,
       'target_ddl': undefined,
       'diff_ddl': undefined,
-    });
+    }, {silent: true});
 
     if(data.status && data.status.toLowerCase() == 'identical') {
       var url_params = self.selection;
@@ -700,7 +556,7 @@ export default class SchemaDiffUI {
         'source_ddl': data.source_ddl,
         'target_ddl': data.target_ddl,
         'diff_ddl': data.diff_ddl,
-      });
+      }, {silent: true});
 
       self.footer.render();
     }
@@ -1014,3 +870,8 @@ export default class SchemaDiffUI {
       });
   }
 }
+
+SchemaDiffUI.prototype.handleDependencies = handleDependencies;
+SchemaDiffUI.prototype.selectDependenciesForGroup = selectDependenciesForGroup;
+SchemaDiffUI.prototype.selectDependenciesForAll = selectDependenciesForAll;
+SchemaDiffUI.prototype.selectDependencies = selectDependencies;
