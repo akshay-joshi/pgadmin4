@@ -153,6 +153,7 @@ class CheckConstraintView(PGChildNodeView):
       - Validate check constraint.
     """
     node_type = blueprint.node_type
+    CHECK_CONSTRAINT_PATH = 'check_constraint/sql/#{0}#'
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -201,7 +202,7 @@ class CheckConstraintView(PGChildNodeView):
                 kwargs['did'] in self.manager.db_info else 0
 
             # Set the template path for the SQL scripts
-            self.template_path = 'check_constraint/sql/#{0}#'.format(
+            self.template_path = self.CHECK_CONSTRAINT_PATH.format(
                 self.manager.version)
 
             schema, table = check_utils.get_parent(self.conn, kwargs['tid'])
@@ -265,7 +266,7 @@ class CheckConstraintView(PGChildNodeView):
         self.qtIdent = driver.qtIdent
 
         # Set the template path for the SQL scripts
-        self.template_path = 'check_constraint/sql/#{0}#'.format(
+        self.template_path = self.CHECK_CONSTRAINT_PATH.format(
             self.manager.version)
 
         schema, table = check_utils.get_parent(self.conn, tid)
@@ -382,7 +383,7 @@ class CheckConstraintView(PGChildNodeView):
         self.qtIdent = driver.qtIdent
 
         # Set the template path for the SQL scripts
-        self.template_path = 'check_constraint/sql/#{0}#'.format(
+        self.template_path = self.CHECK_CONSTRAINT_PATH.format(
             self.manager.version)
 
         schema, table = check_utils.get_parent(self.conn, tid)
@@ -520,7 +521,7 @@ class CheckConstraintView(PGChildNodeView):
         data['table'] = self.table
         # Checking whether the table is deleted via query tool
         if len(data['table']) == 0:
-            return gone(_("The specified table could not be found."))
+            return gone(_(self.not_found_error_msg('Table')))
 
         try:
             if 'name' not in data or data['name'] == "":
@@ -737,7 +738,7 @@ class CheckConstraintView(PGChildNodeView):
                                         self._CREATE_SQL]),
                               data=data)
 
-        sql_header = u"-- Constraint: {0}\n\n-- ".format(data['name'])
+        sql_header = "-- Constraint: {0}\n\n-- ".format(data['name'])
 
         sql_header += render_template(
             "/".join([self.template_path, self._DELETE_SQL]),

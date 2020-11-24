@@ -1170,6 +1170,7 @@ define([
       var uniqueCol = this.field.get('uniqueCol') || [],
         uniqueChangedAttr = [],
         self = this;
+
       // Check if changed model attributes are also in unique columns. And then only check for uniqueness.
       if (newModel.attributes) {
         _.each(uniqueCol, function(col) {
@@ -1386,6 +1387,10 @@ define([
         },
       });
 
+      for(let i = 0; i < (collection.length); i++) {
+        collection.at(i).parentTr = self.grid.body.rows[i].$el;
+      }
+
       // Render subNode grid
       var subNodeGrid = self.grid.render().$el;
 
@@ -1461,6 +1466,9 @@ define([
             var idx = collection.indexOf(m),
               newRow = self.grid.body.rows[idx].$el;
 
+            collection.get(m).parentTr = newRow;
+            m.parentTr = newRow;
+
             newRow.addClass('new');
             if(!$(newRow).pgMakeBackgridVisible('.backform-tab')){
               // We can have subnode controls in Panels
@@ -1480,25 +1488,11 @@ define([
     },
     updateInvalid: function() {
       var self = this,
-        errorModel = this.model.errorModel;
+        errorModel = self.model.errorModel;
 
       if (!(errorModel instanceof Backbone.Model)) return this;
 
       this.clearInvalid();
-
-      this.$el.find('.subnode-body').each(function() {
-        var error = self.keyPathAccessor(
-          errorModel.toJSON(), self.field.get('name')
-        );
-
-        if (_.isEmpty(error)) return;
-
-        self.$el.addClass('subnode-error').append(
-          $('<div></div>').addClass(
-            'pgadmin-control-error-message pg-el-offset-4 pg-el-8 help-block'
-          ).text(error)
-        );
-      });
     },
   });
 
@@ -1810,15 +1804,13 @@ define([
       // Use the Backform Control's render function
       Backform.Control.prototype.render.apply(this, arguments);
 
-      var field = _.defaults(this.field.toJSON(), this.defaults);
-
       this.sqlCtrl = CodeMirror.fromTextArea(
         (this.$el.find('textarea')[0]), {
           lineNumbers: true,
           mode: 'text/x-pgsql',
           readOnly: true,
           extraKeys: pgAdmin.Browser.editor_shortcut_keys,
-          screenReaderLabel: field.label,
+          screenReaderLabel: 'SQL',
         });
 
       this.reflectPreferences();
@@ -2681,7 +2673,7 @@ define([
       text: '',
       extraClasses: ['pg-el-12', 'd-flex'],
       noteClass: 'backform-note',
-      faIcon: 'fa-file-text-o',
+      faIcon: 'fa-file-alt',
       faExtraClass: 'fa-rotate-180 fa-flip-vertical',
       iconWidthClass: 'col-0 pr-2',
       textWidthClass: 'col-sm',
@@ -2806,7 +2798,10 @@ define([
         options: {
           format: 'YYYY-MM-DD HH:mm:ss Z',
           icons: {
-            clear: 'fa fa-trash',
+            time: 'fa fa-clock',
+            data: 'fa fa-calendar-alt',
+            today: 'fa fa-calendar-check',
+            clear: 'fa fa-trash-alt',
           },
           buttons: {
             showToday: true,
@@ -2847,7 +2842,7 @@ define([
         '<div class="input-group  <%=Backform.controlsClassName%>">',
         ' <input id="<%=cId%>" type="text" class="<%=Backform.controlClassName%> datetimepicker-input <%=extraClasses.join(\' \')%>" name="<%=name%>" value="<%-value%>" placeholder="<%-placeholder%>" <%=disabled ? "disabled" : ""%> <%=readonly ? "readonly aria-readonly=true" : ""%> <%=required ? "required" : ""%> data-toggle="datetimepicker"/>',
         ' <div class="input-group-append">',
-        '   <span class="input-group-text fa fa-calendar"></span>',
+        '   <span class="input-group-text fa fa-calendar-alt"></span>',
         ' </div>',
         '</div>',
         '<% if (helpMessage && helpMessage.length) { %>',
@@ -2938,21 +2933,21 @@ define([
 
       timePicker:function() {
         if (this.$el.find('.timepicker').is(':visible')){
-          this.$el.find('.fa-calendar').click();
+          this.$el.find('.fa-calendar-alt').click();
         }else{
-          this.$el.find('.fa-clock-o').click();
+          this.$el.find('.fa-clock').click();
         }
       },
 
       controlUp:function() {
-        this.$el.find('.fa-clock-o').click();
+        this.$el.find('.fa-clock').click();
         let $el = this.$el.find('.datetimepicker-input');
         let currdate = $el.data('datetimepicker').date().clone();
         $el.datetimepicker('date', currdate.add(1, 'h'));
       },
 
       controlDown:function() {
-        this.$el.find('.fa-clock-o').click();
+        this.$el.find('.fa-clock').click();
         let $el = this.$el.find('.datetimepicker-input');
         let currdate = $el.data('datetimepicker').date().clone();
         $el.datetimepicker('date', currdate.subtract(1, 'h'));

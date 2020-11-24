@@ -113,9 +113,9 @@ class PGChildModule(object):
         super(PGChildModule, self).__init__()
 
     def backend_supported(self, manager, **kwargs):
-        if hasattr(self, 'show_node'):
-            if not self.show_node:
-                return False
+        if hasattr(self, 'show_node') and not self.show_node:
+            return False
+
         sversion = getattr(manager, 'sversion', None)
 
         if sversion is None or not isinstance(sversion, int):
@@ -221,6 +221,8 @@ class NodeView(with_metaclass(MethodViewType, View)):
 
     # Inherited class needs to modify these parameters
     node_type = None
+    # Inherited class needs to modify these parameters
+    node_label = None
     # This must be an array object with attributes (type and id)
     parent_ids = []
     # This must be an array object with attributes (type and id)
@@ -388,6 +390,9 @@ class PGChildNodeView(NodeView):
     _GET_DEFINITION_SQL = 'get_definition.sql'
     _GET_SCHEMA_OID_SQL = 'get_schema_oid.sql'
     _GET_COLUMNS_SQL = 'get_columns.sql'
+    _GET_COLUMNS_FOR_TABLE_SQL = 'get_columns_for_table.sql'
+    _GET_SUBTYPES_SQL = 'get_subtypes.sql'
+    _GET_EXTERNAL_FUNCTIONS_SQL = 'get_external_functions.sql'
 
     def get_children_nodes(self, manager, **kwargs):
         """
@@ -633,7 +638,9 @@ class PGChildNodeView(NodeView):
                 # if type is present in the types dictionary, but it's
                 # value is None then it requires special handling.
                 if type_str[0] == 'r':
-                    if int(type_str[1]) > 0:
+                    if (type_str[1].isdigit() and int(type_str[1]) > 0) or \
+                        (len(type_str) > 2 and type_str[2].isdigit() and
+                         int(type_str[2]) > 0):
                         type_name = 'column'
                     else:
                         type_name = 'table'
@@ -707,3 +714,20 @@ class PGChildNodeView(NodeView):
                 )
 
         return dependency
+
+    def _check_cascade_operation(self, only_sql=None):
+        """
+        Check cascade operation.
+        :param only_sql:
+        :return:
+        """
+        if self.cmd == 'delete' or only_sql:
+            # This is a cascade operation
+            cascade = True
+        else:
+            cascade = False
+        return cascade
+
+    def not_found_error_msg(self, custom_label=None):
+        return gettext("Could not find the specified {}.".format(
+            custom_label if custom_label else self.node_label).lower())

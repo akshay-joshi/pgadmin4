@@ -12,6 +12,8 @@ such as setup of logging, dynamic loading of modules etc."""
 import logging
 import os
 import sys
+import re
+import ipaddress
 from types import MethodType
 from collections import defaultdict
 from importlib import import_module
@@ -19,6 +21,7 @@ from importlib import import_module
 from flask import Flask, abort, request, current_app, session, url_for
 from werkzeug.exceptions import HTTPException
 from flask_babelex import Babel, gettext
+from flask_babelex import gettext as _
 from flask_login import user_logged_in, user_logged_out
 from flask_mail import Mail
 from flask_paranoid import Paranoid
@@ -28,7 +31,7 @@ from werkzeug.datastructures import ImmutableDict
 from werkzeug.local import LocalProxy
 from werkzeug.utils import find_modules
 
-from pgadmin.model import db, Role, Server, ServerGroup, \
+from pgadmin.model import db, Role, Server, SharedServer, ServerGroup, \
     User, Keys, Version, SCHEMA_VERSION as CURRENT_SCHEMA_VERSION
 from pgadmin.utils import PgAdminModule, driver, KeyManager
 from pgadmin.utils.preferences import Preferences
@@ -36,14 +39,19 @@ from pgadmin.utils.session import create_session_interface, pga_unauthorised
 from pgadmin.utils.versioned_template_loader import VersionedTemplateLoader
 from datetime import timedelta
 from pgadmin.setup import get_version, set_version
-from pgadmin.utils.ajax import internal_server_error
+from pgadmin.utils.ajax import internal_server_error, make_json_response
 from pgadmin.utils.csrf import pgCSRFProtect
 from pgadmin import authenticate
+from pgadmin.utils.security_headers import SecurityHeaders
 
-# If script is running under python3, it will not have the xrange function
-# defined
+# Explicitly set the mime-types so that a corrupted windows registry will not
+# affect pgAdmin 4 to be load properly. This will avoid the issues that may
+# occur due to security fix of X_CONTENT_TYPE_OPTIONS = "nosniff".
+import mimetypes
+mimetypes.add_type('text/javascript', '.js')
+mimetypes.add_type('text/css', '.css')
+
 winreg = None
-xrange = range
 if os.name == 'nt':
     import winreg
 
@@ -164,7 +172,7 @@ class PgAdmin(Flask):
 
     def register_logout_hook(self, module):
         if hasattr(module, 'on_logout') and \
-                type(getattr(module, 'on_logout')) == MethodType:
+                isinstance(getattr(module, 'on_logout'), MethodType):
             self.logout_hooks.append(module)
 
 
@@ -312,10 +320,15 @@ def create_app(app_name=None):
     # Setup authentication
     ##########################################################################
 
-    app.config['SQLALCHEMY_DATABASE_URI'] = u'sqlite:///{0}?timeout={1}' \
-        .format(config.SQLITE_PATH.replace(u'\\', u'/'),
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///{0}?timeout={1}' \
+        .format(config.SQLITE_PATH.replace('\\', '/'),
                 getattr(config, 'SQLITE_TIMEOUT', 500)
                 )
+
+    # Override USER_DOES_NOT_EXIST and INVALID_PASSWORD messages from flask.
+    app.config['SECURITY_MSG_USER_DOES_NOT_EXIST'] = \
+        app.config['SECURITY_MSG_INVALID_PASSWORD'] = \
+        (gettext("Incorrect username or password."), "error")
 
     # Create database connection object and mailer
     db.init_app(app)
@@ -506,7 +519,7 @@ def create_app(app_name=None):
                             "SOFTWARE\\" + server_type + "\\Services", 0,
                             winreg.KEY_READ | arch_key
                         )
-                        for i in xrange(0, winreg.QueryInfoKey(root_key)[0]):
+                        for i in range(0, winreg.QueryInfoKey(root_key)[0]):
                             inst_id = winreg.EnumKey(root_key, i)
                             inst_key = winreg.OpenKey(root_key, inst_id)
 
@@ -568,11 +581,8 @@ def create_app(app_name=None):
                     svr_discovery_id = section
                     description = registry.get(section, 'Description')
                     data_directory = registry.get(section, 'DataDirectory')
-                    if hasattr(str, 'decode'):
-                        description = description.decode('utf-8')
-                        data_directory = data_directory.decode('utf-8')
-                    svr_comment = gettext(u"Auto-detected {0} installation "
-                                          u"with the data directory at {1}"
+                    svr_comment = gettext("Auto-detected {0} installation "
+                                          "with the data directory at {1}"
                                           ).format(description, data_directory)
                     add_server(user_id, servergroup_id, svr_name,
                                svr_superuser, svr_port, svr_discovery_id,
@@ -618,6 +628,41 @@ def create_app(app_name=None):
         app.logger.info('Registering blueprint module: %s' % module)
         app.register_blueprint(module)
         app.register_logout_hook(module)
+
+    @app.before_request
+    def limit_host_addr():
+        """
+        This function validate the hosts from ALLOWED_HOSTS before allowing
+        HTTP request to avoid Host Header Injection attack
+        :return: None/JSON response with 403 HTTP status code
+        """
+        client_host = str(request.host).split(':')[0]
+        valid = True
+        allowed_hosts = config.ALLOWED_HOSTS
+
+        if len(allowed_hosts) != 0:
+            regex = re.compile(
+                r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?:/\d{1,2}|)')
+            # Create separate list for ip addresses and host names
+            ip_set = list(filter(lambda ip: regex.match(ip), allowed_hosts))
+            host_set = list(filter(lambda ip: not regex.match(ip),
+                                   allowed_hosts))
+            is_ip = regex.match(client_host)
+            if is_ip:
+                ip_address = []
+                for ip in ip_set:
+                    ip_address.extend(list(ipaddress.ip_network(ip)))
+                valid = ip_address.__contains__(
+                    ipaddress.ip_address(client_host)
+                )
+            else:
+                valid = host_set.__contains__(client_host)
+
+        if not valid:
+            return make_json_response(
+                status=403, success=0,
+                errormsg=_("403 FORBIDDEN")
+            )
 
     ##########################################################################
     # Handle the desktop login
@@ -668,13 +713,12 @@ def create_app(app_name=None):
                 domain['domain'] = config.COOKIE_DEFAULT_DOMAIN
             response.set_cookie('PGADMIN_INT_KEY', value=request.args['key'],
                                 path=config.COOKIE_DEFAULT_PATH,
+                                secure=config.SESSION_COOKIE_SECURE,
+                                httponly=config.SESSION_COOKIE_HTTPONLY,
+                                samesite=config.SESSION_COOKIE_SAMESITE,
                                 **domain)
 
-        # X-Frame-Options for security
-        if config.X_FRAME_OPTIONS != "" and \
-                config.X_FRAME_OPTIONS.lower() != "deny":
-            response.headers["X-Frame-Options"] = config.X_FRAME_OPTIONS
-
+        SecurityHeaders.set_response_headers(response)
         return response
 
     ##########################################################################

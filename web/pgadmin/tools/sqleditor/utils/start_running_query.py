@@ -27,6 +27,7 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error
 from pgadmin.utils.driver import get_driver
 from pgadmin.utils.exception import ConnectionLost, SSHTunnelConnectionLost,\
     CryptKeyMissing
+from pgadmin.utils.constants import ERROR_MSG_TRANS_ID_NOT_FOUND
 
 
 class StartRunningQuery:
@@ -42,7 +43,7 @@ class StartRunningQuery:
             http_session,
             trans_id
         )
-        if type(session_obj) is Response:
+        if isinstance(session_obj, Response):
             return session_obj
 
         # Remove any existing primary keys or has_oids in session_obj
@@ -173,7 +174,7 @@ class StartRunningQuery:
         if 'gridData' not in http_session:
             return make_json_response(
                 success=0,
-                errormsg=gettext('Transaction ID not found in the session.'),
+                errormsg=ERROR_MSG_TRANS_ID_NOT_FOUND,
                 info='DATAGRID_TRANSACTION_REQUIRED', status=404
             )
         grid_data = http_session['gridData']
@@ -181,7 +182,7 @@ class StartRunningQuery:
         if str(transaction_id) not in grid_data:
             return make_json_response(
                 success=0,
-                errormsg=gettext('Transaction ID not found in the session.'),
+                errormsg=ERROR_MSG_TRANS_ID_NOT_FOUND,
                 info='DATAGRID_TRANSACTION_REQUIRED',
                 status=404
             )

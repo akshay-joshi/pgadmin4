@@ -268,7 +268,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                                             data=json.dumps(scenario['data']),
                                             content_type='html/json')
                 try:
-                    self.assertEquals(response.status_code, 200)
+                    self.assertEqual(response.status_code, 200)
                 except Exception as e:
                     self.final_test_status = False
                     print(scenario['name'] + "... FAIL")
@@ -281,7 +281,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                 # Store the object id based on endpoints
                 if 'store_object_id' in scenario:
                     self.store_object_ids(object_id,
-                                          scenario['data']['name'],
+                                          scenario['data'],
                                           scenario['endpoint'])
 
                 # Compare the reverse engineering SQL
@@ -302,7 +302,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                                            data=json.dumps(scenario['data']),
                                            follow_redirects=True)
                 try:
-                    self.assertEquals(response.status_code, 200)
+                    self.assertEqual(response.status_code, 200)
                 except Exception as e:
                     self.final_test_status = False
                     print(scenario['name'] + "... FAIL")
@@ -324,10 +324,11 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
             elif 'type' in scenario and scenario['type'] == 'delete':
                 # Get the delete url and delete the object created above.
                 delete_url = self.get_url(scenario['endpoint'], object_id)
-                delete_response = self.tester.delete(delete_url,
-                                                     follow_redirects=True)
+                delete_response = self.tester.delete(
+                    delete_url, data=json.dumps(scenario.get('data', {})),
+                    follow_redirects=True)
                 try:
-                    self.assertEquals(delete_response.status_code, 200)
+                    self.assertEqual(delete_response.status_code, 200)
                 except Exception as e:
                     self.final_test_status = False
                     print(scenario['name'] + "... FAIL")
@@ -394,14 +395,14 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
         response = self.tester.get(url,
                                    follow_redirects=True)
         try:
-            self.assertEquals(response.status_code, 200)
+            self.assertEqual(response.status_code, 200)
         except Exception as e:
             self.final_test_status = False
             print(scenario['name'] + "... FAIL")
             traceback.print_exc()
             return False
         try:
-            if type(response.data) == bytes:
+            if isinstance(response.data, bytes):
                 response_data = response.data.decode('utf8')
                 resp = json.loads(response_data)
             else:
@@ -431,7 +432,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                 sql = self.preprocess_expected_sql(scenario, sql, resp_sql,
                                                    object_id)
                 try:
-                    self.assertEquals(sql, resp_sql)
+                    self.assertEqual(sql, resp_sql)
                 except Exception as e:
                     self.final_test_status = False
                     traceback.print_exc()
@@ -457,7 +458,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
         response = self.tester.get(sql_url)
 
         try:
-            self.assertEquals(response.status_code, 200)
+            self.assertEqual(response.status_code, 200)
         except Exception as e:
 
             self.final_test_status = False
@@ -486,7 +487,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                 sql = self.preprocess_expected_sql(scenario, sql, resp_sql,
                                                    object_id)
                 try:
-                    self.assertEquals(sql, resp_sql)
+                    self.assertEqual(sql, resp_sql)
                 except Exception as e:
                     self.final_test_status = False
                     traceback.print_exc()
@@ -503,7 +504,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
             exp_sql = self.preprocess_expected_sql(scenario, exp_sql, resp_sql,
                                                    object_id)
             try:
-                self.assertEquals(exp_sql, resp_sql)
+                self.assertEqual(exp_sql, resp_sql)
             except Exception as e:
                 self.final_test_status = False
                 traceback.print_exc()
@@ -628,7 +629,7 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
 
         return sql
 
-    def store_object_ids(self, object_id, object_name, endpoint):
+    def store_object_ids(self, object_id, object_data, endpoint):
         """
         This functions will store the object id based on endpoints
         :param object_id: Object id of the created node
@@ -636,12 +637,15 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
         :param endpoint:
         :return:
         """
+        object_name = object_data.get('name', '')
         if endpoint.__contains__("NODE-table"):
             self.parent_ids['tid'] = object_id
         elif endpoint.__contains__("NODE-foreign_data_wrapper"):
             self.parent_ids['fid'] = object_id
         elif endpoint.__contains__("NODE-foreign_server"):
             self.parent_ids['fsid'] = object_id
+        elif endpoint.__contains__("NODE-role.obj"):
+            object_name = object_data['rolname']
 
         # Store object id with object name
         self.all_object_ids[object_name] = object_id
@@ -701,6 +705,12 @@ class ReverseEngineeredSQLTestCases(BaseTestGenerator):
                     break
 
             sql = sql.replace(self.JSON_PLACEHOLDERS['password'], password)
+
+        if 'replace_regex_pattern' in scenario:
+            for a_patten in scenario['replace_regex_pattern']:
+                found = re.findall(a_patten, resp_sql)
+                if len(found) > 0:
+                    sql = re.sub(a_patten, found[0], sql)
 
         # Replace place holder <owner> with the current username
         # used to connect to the database

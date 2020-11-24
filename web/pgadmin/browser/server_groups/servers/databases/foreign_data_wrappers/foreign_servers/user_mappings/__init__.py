@@ -179,6 +179,7 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
     """
 
     node_type = blueprint.node_type
+    node_label = "User Mapping"
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -374,9 +375,7 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
             return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return False, gone(
-                gettext("Could not find the user mapping information.")
-            )
+            return False, gone(self.not_found_error_msg())
 
         res['rows'][0]['is_sys_obj'] = (
             res['rows'][0]['oid'] <= self.datlastsysoid)
@@ -531,6 +530,32 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
 
         return cascade, data
 
+    def _fetch_specified_user_mapping_properties(self, umid):
+        """
+        This function is used to fetch the specified user mapping.
+        :param umid:
+        :return:
+        """
+        try:
+            sql = render_template("/".join([self.template_path,
+                                            'properties.sql']),
+                                  umid=umid, conn=self.conn)
+            status, res = self.conn.execute_dict(sql)
+            if not status:
+                return False, internal_server_error(errormsg=res)
+
+            if not res['rows']:
+                return False, make_json_response(
+                    status=410,
+                    success=0,
+                    errormsg=gettext(
+                        'The specified user mapping could not be found.\n'
+                    )
+                )
+            return True, res
+        except Exception as e:
+            return False, internal_server_error(errormsg=str(e))
+
     @check_precondition
     def delete(self, gid, sid, did, fid, fsid, **kwargs):
         """
@@ -574,22 +599,11 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
                             'could not be found.\n'
                         )
                     )
+                status, res = \
+                    self._fetch_specified_user_mapping_properties(umid)
 
-                sql = render_template("/".join([self.template_path,
-                                                self._PROPERTIES_SQL]),
-                                      umid=umid, conn=self.conn)
-                status, res = self.conn.execute_dict(sql)
                 if not status:
-                    return internal_server_error(errormsg=res)
-
-                if not res['rows']:
-                    return make_json_response(
-                        status=410,
-                        success=0,
-                        errormsg=gettext(
-                            'The specified user mapping could not be found.\n'
-                        )
-                    )
+                    return res
 
                 data = res['rows'][0]
 
@@ -649,6 +663,48 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
+    def get_update_sql(self, data, old_data, required_args, fdw_data):
+        """
+        Get update SQL for user mapping.
+        :param data:
+        :param old_data:
+        :param required_args:
+        :param fdw_data:
+        :return: SQL and display name for user mapping.
+        """
+        for arg in required_args:
+            if arg not in data:
+                data[arg] = old_data[arg]
+
+        # Allow user to set the blank value in fdwvalue
+        # field in option model
+        is_valid_added_options = is_valid_changed_options = False
+        if 'umoptions' in data and data['umoptions'] is not None and \
+                'added' in data['umoptions']:
+            is_valid_added_options, data['umoptions']['added'] = \
+                validate_options(
+                    data['umoptions']['added'],
+                    'umoption',
+                    'umvalue')
+        if 'umoptions' in data and data['umoptions'] is not None and \
+                'changed' in data['umoptions']:
+            is_valid_changed_options, data['umoptions']['changed'] = \
+                validate_options(
+                    data['umoptions']['changed'],
+                    'umoption',
+                    'umvalue')
+
+        sql = render_template(
+            "/".join([self.template_path, self._UPDATE_SQL]),
+            data=data,
+            o_data=old_data,
+            is_valid_added_options=is_valid_added_options,
+            is_valid_changed_options=is_valid_changed_options,
+            fdwdata=fdw_data,
+            conn=self.conn
+        )
+        return sql, data['name'] if 'name' in data else old_data['name']
+
     def get_sql(self, **kwargs):
         """
         This function will generate sql from model data.
@@ -672,9 +728,7 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
             if not status:
                 return internal_server_error(errormsg=res)
             if len(res['rows']) == 0:
-                return gone(
-                    gettext("Could not find the user mapping information.")
-                )
+                return gone(self.not_found_error_msg())
 
             if res['rows'][0]['umoptions'] is not None:
                 res['rows'][0]['umoptions'] = tokenize_options(
@@ -691,37 +745,10 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
                 return internal_server_error(errormsg=res1)
 
             fdw_data = res1['rows'][0]
-
-            for arg in required_args:
-                if arg not in data:
-                    data[arg] = old_data[arg]
-
-            # Allow user to set the blank value in fdwvalue
-            # field in option model
-            is_valid_added_options = is_valid_changed_options = False
-            if 'umoptions' in data and 'added' in data['umoptions']:
-                is_valid_added_options, data['umoptions']['added'] =\
-                    validate_options(
-                        data['umoptions']['added'],
-                        'umoption',
-                        'umvalue')
-            if 'umoptions' in data and 'changed' in data['umoptions']:
-                is_valid_changed_options, data['umoptions']['changed'] =\
-                    validate_options(
-                        data['umoptions']['changed'],
-                        'umoption',
-                        'umvalue')
-
-            sql = render_template(
-                "/".join([self.template_path, self._UPDATE_SQL]),
-                data=data,
-                o_data=old_data,
-                is_valid_added_options=is_valid_added_options,
-                is_valid_changed_options=is_valid_changed_options,
-                fdwdata=fdw_data,
-                conn=self.conn
-            )
-            return sql, data['name'] if 'name' in data else old_data['name']
+            # Get SQL for update.
+            sql, name = self.get_update_sql(data, old_data, required_args,
+                                            fdw_data)
+            return sql, name
         else:
             sql = render_template("/".join([self.template_path,
                                             self._PROPERTIES_SQL]),
@@ -769,9 +796,7 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
         if not status:
             return internal_server_error(errormsg=res)
         if len(res['rows']) == 0:
-            return gone(
-                gettext("Could not find the user mapping information.")
-            )
+            return gone(self.not_found_error_msg())
 
         if fsid is None and 'fsid' in res['rows'][0]:
             fsid = res['rows'][0]['fsid']
@@ -803,7 +828,7 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
                               conn=self.conn)
         sql += "\n"
 
-        sql_header = u"""-- User Mapping : {0}
+        sql_header = """-- User Mapping : {0}
 
 -- DROP USER MAPPING FOR {0} SERVER {1}
 
@@ -878,6 +903,10 @@ class UserMappingView(PGChildNodeView, SchemaDiffObjectCompare):
         for row in rset['rows']:
             status, data = self._fetch_properties(row['oid'])
             if status:
+                # For schema diff if umoptions is None then convert it to
+                # the empty list.
+                if 'umoptions' in data and data['umoptions'] is None:
+                    data['umoptions'] = []
                 res[row['name']] = data
 
         return res

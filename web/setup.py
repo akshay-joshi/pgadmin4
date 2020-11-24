@@ -15,8 +15,6 @@ import json
 import os
 import sys
 import builtins
-from pgadmin.model import db, User, Version, ServerGroup, Server, \
-    SCHEMA_VERSION as CURRENT_SCHEMA_VERSION
 
 # Grab the SERVER_MODE if it's been set by the runtime
 if 'SERVER_MODE' in globals():
@@ -31,6 +29,8 @@ if sys.path[0] != root:
     sys.path.insert(0, root)
 
 from pgadmin import create_app
+from pgadmin.model import db, User, Version, ServerGroup, Server, \
+    SCHEMA_VERSION as CURRENT_SCHEMA_VERSION
 
 
 def add_value(attr_dict, key, value):
@@ -110,6 +110,7 @@ def dump_servers(args):
                 add_value(attr_dict, "Role", server.role)
                 add_value(attr_dict, "SSLMode", server.ssl_mode)
                 add_value(attr_dict, "Comment", server.comment)
+                add_value(attr_dict, "Shared", server.shared)
                 add_value(attr_dict, "DBRestriction", server.db_res)
                 add_value(attr_dict, "PassFile", server.passfile)
                 add_value(attr_dict, "SSLCert", server.sslcert)
@@ -154,6 +155,55 @@ def dump_servers(args):
               (servers_dumped, args.dump_servers))
 
 
+def _validate_servers_data(data, is_admin):
+    """
+    Used internally by load_servers to validate servers data.
+    :param data: servers data
+    :return: error message if any
+    """
+    skip_servers = []
+    # Loop through the servers...
+    if "Servers" not in data:
+        return ("'Servers' attribute not found in file '%s'" %
+                args.load_servers)
+
+    for server in data["Servers"]:
+        obj = data["Servers"][server]
+
+        # Check if server is shared.Won't import if user is non-admin
+        if obj.get('Shared', None) and not is_admin:
+            print("Won't import the server '%s' as it is shared " %
+                  obj["Name"])
+            skip_servers.append(server)
+            continue
+
+        def check_attrib(attrib):
+            if attrib not in obj:
+                return ("'%s' attribute not found for server '%s'" %
+                        (attrib, server))
+
+        check_attrib("Name")
+        check_attrib("Group")
+
+        is_service_attrib_available = obj.get("Service", None) is not None
+
+        if not is_service_attrib_available:
+            check_attrib("Port")
+            check_attrib("Username")
+
+        check_attrib("SSLMode")
+        check_attrib("MaintenanceDB")
+
+        if "Host" not in obj and "HostAddr" not in obj and not \
+                is_service_attrib_available:
+            return ("'Host', 'HostAddr' or 'Service' attribute "
+                    "not found for server '%s'" % server)
+
+    for server in skip_servers:
+        del data["Servers"][server]
+    return None
+
+
 def load_servers(args):
     """Load server groups and servers.
 
@@ -162,10 +212,7 @@ def load_servers(args):
     """
 
     # What user?
-    if args.user is not None:
-        load_user = args.user
-    else:
-        load_user = config.DESKTOP_USER
+    load_user = args.user if args.user is not None else config.DESKTOP_USER
 
     # And the sqlite path
     if args.sqlite_path is not None:
@@ -212,44 +259,19 @@ def load_servers(args):
         def print_summary():
             print("Added %d Server Group(s) and %d Server(s)." %
                   (groups_added, servers_added))
-        # Loop through the servers...
-        if "Servers" not in data:
-            print("'Servers' attribute not found in file '%s'" %
-                  args.load_servers)
+
+        err_msg = _validate_servers_data(data, user.has_role("Administrator"))
+        if err_msg is not None:
+            print(err_msg)
             print_summary()
             sys.exit(1)
 
         for server in data["Servers"]:
             obj = data["Servers"][server]
 
-            def check_attrib(attrib):
-                if attrib not in obj:
-                    print("'%s' attribute not found for server '%s'" %
-                          (attrib, server))
-                    print_summary()
-                    sys.exit(1)
-
-            check_attrib("Name")
-            check_attrib("Group")
-            check_attrib("Port")
-            check_attrib("Username")
-            check_attrib("SSLMode")
-            check_attrib("MaintenanceDB")
-
-            if "Host" not in obj and \
-                "HostAddr" not in obj and \
-                    "Service" not in obj:
-                print("'Host', 'HostAddr' or 'Service' attribute not found "
-                      "for server '%s'" % server)
-                print_summary()
-                sys.exit(1)
-
             # Get the group. Create if necessary
-            group_id = -1
-            for g in groups:
-                if g.name == obj["Group"]:
-                    group_id = g.id
-                    break
+            group_id = next(
+                (g.id for g in groups if g.name == obj["Group"]), -1)
 
             if group_id == -1:
                 new_group = ServerGroup()
@@ -274,71 +296,55 @@ def load_servers(args):
             new_server.name = obj["Name"]
             new_server.servergroup_id = group_id
             new_server.user_id = user_id
-
-            new_server.host = obj["Host"]
-
-            if "HostAddr" in obj:
-                new_server.hostaddr = obj["HostAddr"]
-
-            new_server.port = obj["Port"]
+            new_server.ssl_mode = obj["SSLMode"]
             new_server.maintenance_db = obj["MaintenanceDB"]
-            new_server.username = obj["Username"]
 
-            if "Role" in obj:
-                new_server.role = obj["Role"]
+            new_server.host = obj.get("Host", None)
+
+            new_server.hostaddr = obj.get("HostAddr", None)
+
+            new_server.port = obj.get("Port", None)
+
+            new_server.username = obj.get("Username", None)
+
+            new_server.role = obj.get("Role", None)
 
             new_server.ssl_mode = obj["SSLMode"]
 
-            if "Comment" in obj:
-                new_server.comment = obj["Comment"]
+            new_server.comment = obj.get("Comment", None)
 
-            if "DBRestriction" in obj:
-                new_server.db_res = obj["DBRestriction"]
+            new_server.db_res = obj.get("DBRestriction", None)
 
-            if "PassFile" in obj:
-                new_server.passfile = obj["PassFile"]
+            new_server.passfile = obj.get("PassFile", None)
 
-            if "SSLCert" in obj:
-                new_server.sslcert = obj["SSLCert"]
+            new_server.sslcert = obj.get("SSLCert", None)
 
-            if "SSLKey" in obj:
-                new_server.sslkey = obj["SSLKey"]
+            new_server.sslkey = obj.get("SSLKey", None)
 
-            if "SSLRootCert" in obj:
-                new_server.sslrootcert = obj["SSLRootCert"]
+            new_server.sslrootcert = obj.get("SSLRootCert", None)
 
-            if "SSLCrl" in obj:
-                new_server.sslcrl = obj["SSLCrl"]
+            new_server.sslcrl = obj.get("SSLCrl", None)
 
-            if "SSLCompression" in obj:
-                new_server.sslcompression = obj["SSLCompression"]
+            new_server.sslcompression = obj.get("SSLCompression", None)
 
-            if "BGColor" in obj:
-                new_server.bgcolor = obj["BGColor"]
+            new_server.bgcolor = obj.get("BGColor", None)
 
-            if "FGColor" in obj:
-                new_server.fgcolor = obj["FGColor"]
+            new_server.fgcolor = obj.get("FGColor", None)
 
-            if "Service" in obj:
-                new_server.service = obj["Service"]
+            new_server.service = obj.get("Service", None)
 
-            if "Timeout" in obj:
-                new_server.connect_timeout = obj["Timeout"]
+            new_server.connect_timeout = obj.get("Timeout", None)
 
-            if "UseSSHTunnel" in obj:
-                new_server.use_ssh_tunnel = obj["UseSSHTunnel"]
+            new_server.use_ssh_tunnel = obj.get("UseSSHTunnel", None)
 
-            if "TunnelHost" in obj:
-                new_server.tunnel_host = obj["TunnelHost"]
+            new_server.tunnel_host = obj.get("TunnelHost", None)
 
-            if "TunnelPort" in obj:
-                new_server.tunnel_port = obj["TunnelPort"]
+            new_server.tunnel_port = obj.get("TunnelPort", None)
 
-            if "TunnelUsername" in obj:
-                new_server.tunnel_username = obj["TunnelUsername"]
+            new_server.tunnel_username = obj.get("TunnelUsername", None)
 
-            if "TunnelAuthentication" in obj:
-                new_server.tunnel_authentication = obj["TunnelAuthentication"]
+            new_server.tunnel_authentication = \
+                obj.get("TunnelAuthentication", None)
 
             db.session.add(new_server)
 
@@ -362,8 +368,8 @@ def setup_db():
 
     app = create_app()
 
-    print(u"pgAdmin 4 - Application Initialisation")
-    print(u"======================================\n")
+    print("pgAdmin 4 - Application Initialisation")
+    print("======================================\n")
 
     with app.app_context():
         # Run migration for the first time i.e. create database

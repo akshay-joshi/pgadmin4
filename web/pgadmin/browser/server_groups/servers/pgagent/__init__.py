@@ -25,7 +25,7 @@ from pgadmin.utils.ajax import make_json_response, internal_server_error, \
 from pgadmin.utils.driver import get_driver
 from pgadmin.utils.preferences import Preferences
 from pgadmin.browser.server_groups.servers.pgagent.utils \
-    import format_schedule_data
+    import format_schedule_data, format_step_data
 
 
 class JobModule(CollectionNodeModule):
@@ -90,7 +90,7 @@ SELECT EXISTS(
         """
         snippets = [
             render_template(
-                "browser/css/collection.css",
+                self._COLLECTION_CSS,
                 node_type=self.node_type,
                 _=_
             ),
@@ -271,7 +271,7 @@ SELECT EXISTS(
     def create(self, gid, sid):
         """Create the pgAgent job."""
         required_args = [
-            u'jobname'
+            'jobname'
         ]
 
         data = request.form if request.form else json.loads(
@@ -566,41 +566,22 @@ SELECT EXISTS(
         :return:
         """
         # Format the schedule data. Convert the boolean array
-        if 'jschedules' in data:
-            if 'added' in data['jschedules']:
-                for added_schedule in data['jschedules']['added']:
-                    format_schedule_data(added_schedule)
-            if 'changed' in data['jschedules']:
-                for changed_schedule in data['jschedules']['changed']:
-                    format_schedule_data(changed_schedule)
+        jschedules = data.get('jschedules', {})
+        if type(jschedules) == dict:
+            for schedule in jschedules.get('added', []):
+                format_schedule_data(schedule)
+            for schedule in jschedules.get('changed', []):
+                format_schedule_data(schedule)
 
         has_connection_str = self.manager.db_info['pgAgent']['has_connstr']
-        if 'jsteps' in data and has_connection_str and \
-                'changed' in data['jsteps']:
-            for changed_step in data['jsteps']['changed']:
-                if 'jstconntype' not in changed_step and (
-                    'jstdbname' in changed_step or
-                        'jstconnstr' in changed_step):
-                    status, rset = self.conn.execute_dict(
-                        render_template(
-                            "/".join([self.template_path, 'steps.sql']),
-                            jid=data['jobid'],
-                            jstid=changed_step['jstid'],
-                            conn=self.conn,
-                            has_connstr=has_connection_str
-                        )
-                    )
-                    if not status:
-                        return internal_server_error(errormsg=rset)
-
-                    row = rset['rows'][0]
-                    changed_step['jstconntype'] = row['jstconntype']
-                    if row['jstconntype']:
-                        if not ('jstdbname' in changed_step):
-                            changed_step['jstdbname'] = row['jstdbname']
-                    else:
-                        if not ('jstconnstr' in changed_step):
-                            changed_step['jstconnstr'] = row['jstconnstr']
+        jssteps = data.get('jsteps', {})
+        if type(jssteps) == dict:
+            for changed_step in jssteps.get('changed', []):
+                status, res = format_step_data(
+                    data['jobid'], changed_step, has_connection_str,
+                    self.conn, self.template_path)
+                if not status:
+                    internal_server_error(errormsg=res)
 
 
 JobView.register_node_view(blueprint)

@@ -9,9 +9,9 @@
 
 define('pgadmin.schemadiff', [
   'sources/gettext', 'sources/url_for', 'jquery', 'underscore',
-  'sources/pgadmin', 'sources/csrf', 'pgadmin.browser.node',
+  'sources/pgadmin', 'sources/csrf', 'pgadmin.alertifyjs', 'pgadmin.browser.node',
 ], function(
-  gettext, url_for, $, _, pgAdmin, csrfToken
+  gettext, url_for, $, _, pgAdmin, csrfToken, Alertify,
 ) {
 
   var wcDocker = window.wcDocker,
@@ -37,7 +37,7 @@ define('pgadmin.schemadiff', [
         applies: ['tools'],
         callback: 'show_schema_diff_tool',
         priority: 1,
-        label: gettext('Schema Diff (Beta)'),
+        label: gettext('Schema Diff'),
         enable: true,
       }];
 
@@ -85,7 +85,7 @@ define('pgadmin.schemadiff', [
       })
         .done(function(res) {
           self.trans_id = res.data.schemaDiffTransId;
-          res.data.panel_title = gettext('Schema Diff (Beta)'); //TODO: Set the panel title
+          res.data.panel_title = gettext('Schema Diff'); //TODO: Set the panel title
           // TODO: Following function is used to test the fetching of the
           // databases this should be moved to server selection event later.
           self.launch_schema_diff(res.data);
@@ -106,12 +106,29 @@ define('pgadmin.schemadiff', [
         },
         baseUrl = url_for('schema_diff.panel', url_params);
 
-      if (this.preferences.schema_diff_new_browser_tab) {
+      var browser_preferences = pgBrowser.get_preferences_for_module('browser');
+      var open_new_tab = browser_preferences.new_browser_tab_open;
+      if (open_new_tab && open_new_tab.includes('schema_diff')) {
         window.open(baseUrl, '_blank');
       } else {
 
         var propertiesPanel = pgBrowser.docker.findPanels('properties'),
           schemaDiffPanel = pgBrowser.docker.addPanel('frm_schemadiff', wcDocker.DOCK.STACKED, propertiesPanel[0]);
+
+        // Rename schema diff tab
+        schemaDiffPanel.on(wcDocker.EVENT.RENAME, function(panel_data) {
+          Alertify.prompt('', panel_data.$titleText[0].textContent,
+            // We will execute this function when user clicks on the OK button
+            function(evt, value) {
+              if(value) {
+                schemaDiffPanel.title('<span>'+ _.escape(value) +'</span>');
+              }
+            },
+            // We will execute this function when user clicks on the Cancel
+            // button.  Do nothing just close it.
+            function(evt) { evt.cancel = false; }
+          ).set({'title': gettext('Rename Panel')});
+        });
 
         // Set panel title and icon
         schemaDiffPanel.title('<span title="'+panel_tooltip+'">'+panel_title+'</span>');

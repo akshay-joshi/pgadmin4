@@ -9,7 +9,7 @@
 import gettext from '../../../../static/js/gettext';
 import url_for from '../../../../static/js/url_for';
 import {getTreeNodeHierarchyFromIdentifier} from '../../../../static/js/tree/pgadmin_tree_node';
-import {getPanelTitle} from './datagrid_panel_title';
+import {getDatabaseLabel, generateTitle} from './datagrid_panel_title';
 import CodeMirror from 'bundled_codemirror';
 import * as SqlEditorUtils from 'sources/sqleditor_utils';
 import $ from 'jquery';
@@ -278,17 +278,35 @@ function hasSchemaOrCatalogOrViewInformation(parentData) {
     parentData.catalog !== undefined;
 }
 
-export function generateDatagridTitle(pgBrowser, aciTreeIdentifier) {
-  const baseTitle = getPanelTitle(pgBrowser, aciTreeIdentifier);
-
+export function generateDatagridTitle(pgBrowser, aciTreeIdentifier, custom_title=null) {
+  //const baseTitle = getPanelTitle(pgBrowser, aciTreeIdentifier);
+  var preferences = pgBrowser.get_preferences_for_module('browser');
   const parentData = getTreeNodeHierarchyFromIdentifier.call(
     pgBrowser,
     aciTreeIdentifier
   );
 
   const namespaceName = retrieveNameSpaceName(parentData);
-
+  const db_label = getDatabaseLabel(parentData);
   const node = pgBrowser.treeMenu.findNodeByDomElement(aciTreeIdentifier);
 
-  return `${namespaceName}.${node.getData().label}/${baseTitle}`;
+  var dtg_title_placeholder = '';
+  if(custom_title) {
+    dtg_title_placeholder = custom_title;
+  } else {
+    dtg_title_placeholder = preferences['vw_edt_tab_title_placeholder'];
+  }
+
+
+  var title_data = {
+    'database': db_label,
+    'username': parentData.server.user.name,
+    'server': parentData.server.label,
+    'schema': namespaceName,
+    'table': node.getData().label,
+    'type': 'datagrid',
+  };
+  var title = generateTitle(dtg_title_placeholder, title_data);
+
+  return title;
 }

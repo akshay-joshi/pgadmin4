@@ -106,7 +106,7 @@ class RuleModule(CollectionNodeModule):
         """
         snippets = [
             render_template(
-                "browser/css/collection.css",
+                self._COLLECTION_CSS,
                 node_type=self.node_type,
                 _=gettext
             ),
@@ -149,6 +149,7 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
     * operations - function routes mappings defined.
     """
     node_type = blueprint.node_type
+    node_label = "Rule"
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -242,7 +243,7 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
             return internal_server_error(errormsg=rset)
 
         if len(rset['rows']) == 0:
-            return gone(gettext("""Could not find the rule in the table."""))
+            return gone(self.not_found_error_msg())
 
         res = self.blueprint.generate_browser_node(
             rset['rows'][0]['oid'],
@@ -313,8 +314,7 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
             return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return False, gone(
-                gettext("""Could not find the rule in the table."""))
+            return False, gone(self.not_found_error_msg())
 
         return True, parse_rule_definition(res)
 
@@ -407,7 +407,8 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
             data = {'ids': [rid]}
 
         # Below will decide if it's simple drop or drop with cascade call
-        cascade = True if self.cmd == 'delete' else False
+
+        cascade = self._check_cascade_operation()
 
         try:
             for rid in data['ids']:
@@ -424,9 +425,7 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
                         errormsg=gettext(
                             'Error: Object not found.'
                         ),
-                        info=gettext(
-                            'The specified rule could not be found.\n'
-                        )
+                        info=self.not_found_error_msg()
                     )
 
                 # drop rule
@@ -481,7 +480,7 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
         if not status:
             return internal_server_error(errormsg=res)
         if len(res['rows']) == 0:
-            return gone(gettext("""Could not find the rule in the table."""))
+            return gone(self.not_found_error_msg())
 
         res_data = parse_rule_definition(res)
         SQL = render_template("/".join(
@@ -502,9 +501,7 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
             if not status:
                 return internal_server_error(errormsg=res)
             if len(res['rows']) == 0:
-                return gone(
-                    gettext("""Could not find the rule in the table.""")
-                )
+                return gone(self.not_found_error_msg())
             res_data = parse_rule_definition(res)
 
             old_data = res_data
@@ -532,6 +529,7 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
         oid = kwargs.get('oid')
         data = kwargs.get('data', None)
         drop_sql = kwargs.get('drop_sql', False)
+        target_schema = kwargs.get('target_schema', None)
 
         if drop_sql:
             sql = self.delete(gid=gid, sid=sid, did=did,
@@ -544,9 +542,7 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
             if not status:
                 return internal_server_error(errormsg=res)
             if len(res['rows']) == 0:
-                return gone(
-                    gettext("""Could not find the rule in the table.""")
-                )
+                return gone(self.not_found_error_msg())
             res_data = parse_rule_definition(res)
 
             if data:
@@ -556,11 +552,27 @@ class RuleView(PGChildNodeView, SchemaDiffObjectCompare):
                     data=data, o_data=old_data
                 )
             else:
+                RuleView._check_schema_diff(target_schema, res_data)
                 sql = render_template("/".join(
                     [self.template_path, self._CREATE_SQL]),
                     data=res_data, display_comments=True)
 
         return sql
+
+    @ staticmethod
+    def _check_schema_diff(target_schema, res_data):
+        """
+        Check for schema diff, if yes then replace source schema with target
+        schema.
+        diff_schema: schema diff schema
+        res_data: response from properties sql.
+        """
+        if target_schema and 'statements' in res_data:
+            # Replace the source schema with the target schema
+            res_data['statements'] = \
+                res_data['statements'].replace(
+                    res_data['schema'], target_schema)
+            res_data['schema'] = target_schema
 
     @check_precondition
     def dependents(self, gid, sid, did, scid, tid, rid):

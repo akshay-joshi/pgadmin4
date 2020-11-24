@@ -10,9 +10,11 @@
 define([
   'sources/gettext', 'sources/url_for', 'jquery', 'underscore', 'backbone',
   'pgadmin.alertifyjs', 'sources/pgadmin', 'pgadmin.browser',
-  'pgadmin.backgrid', 'sources/window', 'wcdocker',
+  'pgadmin.backgrid', 'sources/window', 'pgadmin.tools.debugger.utils',
+  'wcdocker',
 ], function(
-  gettext, url_for, $, _, Backbone, Alertify, pgAdmin, pgBrowser, Backgrid, pgWindow
+  gettext, url_for, $, _, Backbone, Alertify, pgAdmin, pgBrowser, Backgrid,
+  pgWindow, debuggerUtils,
 ) {
 
   var wcDocker = window.wcDocker;
@@ -759,7 +761,9 @@ define([
                       }
                     );
 
-                    if (self.preferences.debugger_new_browser_tab) {
+                    var browserPreferences = pgWindow.default.pgAdmin.Browser.get_preferences_for_module('browser');
+                    var open_new_tab = browserPreferences.new_browser_tab_open;
+                    if (open_new_tab && open_new_tab.includes('debugger')) {
                       window.open(url, '_blank');
                     } else {
                       pgBrowser.Events.once(
@@ -773,7 +777,9 @@ define([
                         panel = pgBrowser.docker.addPanel(
                           'frm_debugger', wcDocker.DOCK.STACKED, dashboardPanel[0]
                         );
-
+                      var browser_pref = pgBrowser.get_preferences_for_module('browser');
+                      var label = treeInfo.function ? treeInfo.function.label : treeInfo.procedure.label;
+                      debuggerUtils.setDebuggerTitle(panel, browser_pref, label, treeInfo.schema.label, treeInfo.database.label, null, pgBrowser);
                       panel.focus();
 
                       // Panel Closed event
@@ -785,6 +791,22 @@ define([
                           url: closeUrl,
                           method: 'DELETE',
                         });
+                      });
+
+                      // Panel Rename event
+                      panel.on(wcDocker.EVENT.RENAME, function(panel_data) {
+                        Alertify.prompt('', panel_data.$titleText[0].textContent,
+                          // We will execute this function when user clicks on the OK button
+                          function(evt, value) {
+                            if(value) {
+                              var label = treeInfo.function ? treeInfo.function.label : treeInfo.procedure.label;
+                              debuggerUtils.setDebuggerTitle(panel, self.preferences, label, treeInfo.schema.label, treeInfo.database.label, value, pgBrowser);
+                            }
+                          },
+                          // We will execute this function when user clicks on the Cancel
+                          // button.  Do nothing just close it.
+                          function(evt) { evt.cancel = false; }
+                        ).set({'title': gettext('Rename Panel')});
                       });
                     }
                     var _url;

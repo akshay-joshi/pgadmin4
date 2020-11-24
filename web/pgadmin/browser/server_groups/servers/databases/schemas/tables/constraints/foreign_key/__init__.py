@@ -111,7 +111,7 @@ class ForeignKeyConstraintModule(ConstraintTypeModule):
         """
         snippets = [
             render_template(
-                "browser/css/collection.css",
+                self._COLLECTION_CSS,
                 node_type=self.node_type,
             ),
             render_template(
@@ -184,6 +184,7 @@ class ForeignKeyConstraintView(PGChildNodeView):
     """
 
     node_type = 'foreign_key'
+    FOREIGN_KEY_PATH = 'foreign_key/sql/#{0}#'
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -232,7 +233,7 @@ class ForeignKeyConstraintView(PGChildNodeView):
                 self.manager.db_info[kwargs['did']]['datlastsysoid'] \
                 if self.manager.db_info is not None and \
                 kwargs['did'] in self.manager.db_info else 0
-            self.template_path = 'foreign_key/sql/#{0}#'.format(
+            self.template_path = self.FOREIGN_KEY_PATH.format(
                 self.manager.version)
 
             # We need parent's name eg table name and schema name
@@ -337,7 +338,7 @@ class ForeignKeyConstraintView(PGChildNodeView):
         """
         self.manager = get_driver(PG_DEFAULT_DRIVER).connection_manager(sid)
         self.conn = self.manager.connection(did=did)
-        self.template_path = 'foreign_key/sql/#{0}#'.format(
+        self.template_path = self.FOREIGN_KEY_PATH.format(
             self.manager.version)
 
         # We need parent's name eg table name and schema name
@@ -448,8 +449,7 @@ class ForeignKeyConstraintView(PGChildNodeView):
         """
         self.manager = get_driver(PG_DEFAULT_DRIVER).connection_manager(sid)
         self.conn = self.manager.connection(did=did)
-        self.template_path = 'foreign_key/sql/#{0}#'.format(
-            self.manager.version)
+        self.template_path = self.FOREIGN_KEY_PATH.format(self.manager.version)
 
         # We need parent's name eg table name and schema name
         schema, table = fkey_utils.get_parent(self.conn, tid)
@@ -731,11 +731,8 @@ class ForeignKeyConstraintView(PGChildNodeView):
             data = {'ids': [fkid]}
 
         # Below code will decide if it's simple drop or drop with cascade call
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+
+        cascade = self._check_cascade_operation()
         try:
             for fkid in data['ids']:
                 sql = render_template(
@@ -879,7 +876,7 @@ class ForeignKeyConstraintView(PGChildNodeView):
         SQL = render_template(
             "/".join([self.template_path, self._CREATE_SQL]), data=data)
 
-        sql_header = u"-- Constraint: {0}\n\n-- ".format(data['name'])
+        sql_header = "-- Constraint: {0}\n\n-- ".format(data['name'])
 
         sql_header += render_template(
             "/".join([self.template_path, self._DELETE_SQL]),

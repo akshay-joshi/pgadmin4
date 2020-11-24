@@ -310,7 +310,7 @@ define('pgadmin.node.function', [
         },{
           id: 'prorows', label: gettext('Estimated rows'), type: 'text',
           deps: ['proretset'], visible: 'isVisible', readonly: 'isReadonly',
-          group: gettext('Options'),
+          group: gettext('Options'),disabled: 'isDisabled',
         },{
           id: 'proleakproof', label: gettext('Leak proof?'),
           group: gettext('Options'), cell:'boolean', type: 'switch', min_version: 90200,
@@ -433,7 +433,11 @@ define('pgadmin.node.function', [
           if (this.name == 'sysproc') { return false; }
           return true;
         },
-        isDisabled: function() {
+        isDisabled: function(m) {
+          //Disable the returns a set and window in edit mode.
+          if((this.name == 'proretset' || this.name == 'proiswindow') && !m.isNew()){
+            return true;
+          }
           if(this.node_info && 'catalog' in this.node_info) {
             return true;
           }
@@ -458,6 +462,9 @@ define('pgadmin.node.function', [
             if(m.get('proretset') == true) {
               return false;
             }
+            setTimeout(function() {
+              m.set('prorows', 0);
+            }, 10);
             return true;
           default:
             return false;

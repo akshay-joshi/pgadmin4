@@ -120,6 +120,13 @@ class _Preference(object):
             if self.select2 and self.select2['tags']:
                 return res.value
             return self.default
+        if self._type == 'select2':
+            if res.value:
+                res.value = res.value.replace('[', '')
+                res.value = res.value.replace(']', '')
+                res.value = res.value.replace('\'', '')
+                return [val.strip() for val in res.value.split(',')]
+            return None
         if self._type == 'text' and res.value == '' and not self.allow_blanks:
             return self.default
 
@@ -163,24 +170,24 @@ class _Preference(object):
 
         try:
             if self._type in ('boolean', 'switch', 'node'):
-                assert type(value) != bool
+                assert isinstance(value, bool)
             elif self._type == 'options':
                 has_value = next((True for opt in self.options
                                   if 'value' in opt and opt['value'] == value),
                                  False)
-                assert not has_value
-                assert self.select2
-                assert not self.select2['tags']
+                assert (has_value or (self.select2 and self.select2['tags']))
             elif self._type == 'date':
                 value = parser_map[self._type](value).date()
             else:
                 value = parser_map.get(self._type, lambda v: v)(value)
-                if self._type in ('integer', 'numeric'):
+                if self._type == 'integer':
                     value = self.normalize_range(value)
-                    assert type(value) != int
+                    assert isinstance(value, int)
                 if self._type == 'numeric':
-                    assert type(value) != float
-                    assert type(value) != decimal.Decimal
+                    value = self.normalize_range(value)
+                    assert (
+                        isinstance(value, int) or isinstance(value, float) or
+                        isinstance(value, decimal.Decimal))
         except Exception as e:
             current_app.logger.exception(e)
             return False, gettext(
@@ -191,7 +198,7 @@ class _Preference(object):
             pid=self.pid
         ).filter_by(uid=current_user.id).first()
 
-        value = u"{}".format(value)
+        value = "{}".format(value)
         if pref is None:
             pref = UserPrefTable(
                 uid=current_user.id, pid=self.pid, value=value
@@ -413,7 +420,7 @@ class Preferences(object):
         assert _type in (
             'boolean', 'integer', 'numeric', 'date', 'datetime',
             'options', 'multiline', 'switch', 'node', 'text', 'radioModern',
-            'keyboardshortcut'
+            'keyboardshortcut', 'select2'
         ), "Type cannot be found in the defined list!"
 
         (cat['preferences'])[name] = res = _Preference(

@@ -81,6 +81,11 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
     * reset_statistics(self, scid, tid):
       - This function will reset statistics of table.
     """
+
+    node_label = "Table"
+    pattern = '\n{2,}'
+    double_newline = '\n\n'
+
     @staticmethod
     def check_precondition(f):
         """
@@ -464,7 +469,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         self._format_column_list(data)
 
         if json_resp:
-            sql_header = u"-- Table: {0}.{1}\n\n-- ".format(
+            sql_header = "-- Table: {0}.{1}\n\n-- ".format(
                 data['schema'], data['name'])
 
             sql_header += render_template("/".join([self.table_template_path,
@@ -492,7 +497,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                                         data=data, conn=self.conn, is_sql=True)
 
         # Add into main sql
-        table_sql = re.sub('\n{2,}', '\n\n', table_sql)
+        table_sql = re.sub(self.pattern, self.double_newline, table_sql)
         main_sql.append(table_sql.strip('\n'))
 
     def _get_resql_for_index(self, did, tid, main_sql, json_resp, schema,
@@ -517,10 +522,10 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 self.conn, schema=schema, table=table, did=did, tid=tid,
                 idx=row['oid'], datlastsysoid=self.datlastsysoid,
                 template_path=None, with_header=json_resp)
-            index_sql = u"\n" + index_sql
+            index_sql = "\n" + index_sql
 
             # Add into main sql
-            index_sql = re.sub('\n{2,}', '\n\n', index_sql)
+            index_sql = re.sub(self.pattern, self.double_newline, index_sql)
 
             main_sql.append(index_sql.strip('\n'))
 
@@ -544,12 +549,14 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 policy_sql = row_security_policies_utils. \
                     get_reverse_engineered_sql(
                         self.conn, schema=schema, table=table, scid=scid,
-                        plid=row['oid'], datlastsysoid=self.datlastsysoid,
+                        plid=row['oid'], policy_table_id=tid,
+                        datlastsysoid=self.datlastsysoid,
                         template_path=None, with_header=json_resp)
-                policy_sql = u"\n" + policy_sql
+                policy_sql = "\n" + policy_sql
 
                 # Add into main sql
-                policy_sql = re.sub('\n{2,}', '\n\n', policy_sql)
+                policy_sql = re.sub(self.pattern, self.double_newline,
+                                    policy_sql)
 
                 main_sql.append(policy_sql.strip('\n'))
 
@@ -572,10 +579,11 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 trid=row['oid'], datlastsysoid=self.datlastsysoid,
                 show_system_objects=self.blueprint.show_system_objects,
                 template_path=None, with_header=json_resp)
-            trigger_sql = u"\n" + trigger_sql
+            trigger_sql = "\n" + trigger_sql
 
             # Add into main sql
-            trigger_sql = re.sub('\n{2,}', '\n\n', trigger_sql)
+            trigger_sql = re.sub(self.pattern, self.double_newline,
+                                 trigger_sql)
             main_sql.append(trigger_sql)
 
     def _get_resql_for_compound_triggers(self, tid, main_sql, schema, table):
@@ -600,11 +608,12 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     compound_trigger_utils.get_reverse_engineered_sql(
                         self.conn, schema=schema, table=table, tid=tid,
                         trid=row['oid'], datlastsysoid=self.datlastsysoid)
-                compound_trigger_sql = u"\n" + compound_trigger_sql
+                compound_trigger_sql = "\n" + compound_trigger_sql
 
                 # Add into main sql
                 compound_trigger_sql = \
-                    re.sub('\n{2,}', '\n\n', compound_trigger_sql)
+                    re.sub(self.pattern, self.double_newline,
+                           compound_trigger_sql)
                 main_sql.append(compound_trigger_sql)
 
     def _get_resql_for_rules(self, tid, main_sql, table, json_resp):
@@ -644,7 +653,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 data=res_data, display_comments=display_comments)
 
             # Add into main sql
-            rules_sql = re.sub('\n{2,}', '\n\n', rules_sql)
+            rules_sql = re.sub(self.pattern, self.double_newline, rules_sql)
             main_sql.append(rules_sql)
 
     def _get_resql_for_partitions(self, data, rset, json_resp,
@@ -658,7 +667,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         sql_header = ''
         if len(rset['rows']):
             if json_resp:
-                sql_header = u"\n-- Partitions SQL"
+                sql_header = "\n-- Partitions SQL"
             partition_sql = ''
             for row in rset['rows']:
                 part_data = dict()
@@ -733,12 +742,12 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     data=part_data, conn=self.conn) + '\n'
 
             # Add into main sql
-            partition_sql = re.sub('\n{2,}', '\n\n', partition_sql
-                                   ).strip('\n')
+            partition_sql = re.sub(self.pattern, self.double_newline,
+                                   partition_sql).strip('\n')
             partition_main_sql = partition_sql.strip('\n')
             if not diff_partition_sql:
                 main_sql.append(
-                    sql_header + '\n\n' + partition_main_sql
+                    sql_header + self.double_newline + partition_main_sql
                 )
 
     def get_reverse_engineered_sql(self, **kwargs):
@@ -812,7 +821,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         schema_name, table_name = self.get_schema_and_table_name(tid)
 
         if table_name is None:
-            return gone(gettext("The specified table could not be found."))
+            return gone(gettext(self.not_found_error_msg()))
 
         # table exist
         try:
@@ -976,7 +985,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 if 'inheritedfrom' not in c:
                     column_sql += render_template("/".join(
                         [self.column_template_path, self._DELETE_SQL]),
-                        data=c, conn=self.conn).strip('\n') + '\n\n'
+                        data=c, conn=self.conn).strip('\n') + \
+                        self.double_newline
         return column_sql
 
     def _check_for_column_update(self, columns, data, column_sql, tid):
@@ -1019,7 +1029,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                     column_sql += render_template("/".join(
                         [self.column_template_path, self._UPDATE_SQL]),
                         data=c, o_data=old_col_data, conn=self.conn
-                    ).strip('\n') + '\n\n'
+                    ).strip('\n') + self.double_newline
         return column_sql
 
     def _check_for_column_add(self, columns, data, column_sql):
@@ -1035,7 +1045,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                         'inheritedfromtable' not in c:
                     column_sql += render_template("/".join(
                         [self.column_template_path, self._CREATE_SQL]),
-                        data=c, conn=self.conn).strip('\n') + '\n\n'
+                        data=c, conn=self.conn).strip('\n') + \
+                        self.double_newline
         return column_sql
 
     def _check_for_partitions_in_sql(self, data, old_data, sql):
@@ -1065,7 +1076,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                             ]
                         ),
                         data=temp_data,
-                        conn=self.conn).strip('\n') + '\n\n'
+                        conn=self.conn).strip('\n') + self.double_newline
 
             # If partition(s) is/are added
             if 'added' in partitions and 'partition_scheme' in old_data \
@@ -1079,7 +1090,8 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 temp_data['partitions'] = partitions['added']
 
                 partitions_sql += \
-                    self.get_partitions_sql(temp_data).strip('\n') + '\n\n'
+                    self.get_partitions_sql(temp_data).strip('\n') + \
+                    self.double_newline
 
             # Combine all the SQL together
             sql += '\n' + partitions_sql.strip('\n')
@@ -1114,7 +1126,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             sql += '\n' + exclusion_constraint_sql
         return sql
 
-    def _check_for_foreign_key(self, data):
+    def _check_fk_constraint(self, data):
         if 'foreign_key' in data:
             for c in data['foreign_key']:
                 schema, table = fkey_utils.get_parent(
@@ -1192,7 +1204,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
                 o_data=old_data, data=data, conn=self.conn
             )
             # Removes training new lines
-            sql = sql.strip('\n') + '\n\n'
+            sql = sql.strip('\n') + self.double_newline
 
             # Parse/Format columns & create sql
             if 'columns' in data:
@@ -1247,7 +1259,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             data = column_utils.parse_format_columns(data)
             data = BaseTableView.check_and_convert_name_to_string(data)
 
-            self._check_foreign_key(data)
+            self._check_fk_constraint(data)
 
             partitions_sql = self._check_for_partitioned(data)
 
@@ -1263,7 +1275,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
             # Append SQL for partitions
             sql += '\n' + partitions_sql
 
-        sql = re.sub('\n{2,}', '\n\n', sql)
+        sql = re.sub(self.pattern, self.double_newline, sql)
         sql = sql.strip('\n')
 
         return sql, data['name'] if 'name' in data else old_data['name']
@@ -1291,7 +1303,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
         schema_name, table_name = self.get_schema_and_table_name(tid)
 
         if table_name is None:
-            return gone(gettext("The specified table could not be found."))
+            return gone(gettext(self.not_found_error_msg()))
 
         # table exists
         try:
@@ -1681,11 +1693,7 @@ class BaseTableView(PGChildNodeView, BasePartitionTable):
 
     def get_delete_sql(self, res):
         # Below will decide if it's simple drop or drop with cascade call
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+        cascade = self._check_cascade_operation()
 
         data = res['rows'][0]
 

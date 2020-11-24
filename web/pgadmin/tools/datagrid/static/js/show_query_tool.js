@@ -12,6 +12,7 @@ import url_for from '../../../../static/js/url_for';
 import {getTreeNodeHierarchyFromIdentifier} from '../../../../static/js/tree/pgadmin_tree_node';
 import {getPanelTitle} from './datagrid_panel_title';
 import {getRandomInt} from 'sources/utils';
+import $ from 'jquery';
 
 function hasDatabaseInformation(parentData) {
   return parentData.database;
@@ -64,11 +65,10 @@ export function showQueryTool(datagrid, pgBrowser, alertify, url, aciTreeIdentif
   }
 
   const gridUrl = generateUrl(transId, queryToolTitle, parentData);
-
-  datagrid.launch_grid(transId, gridUrl, true, queryToolTitle, sURL);
+  launchDataGrid(datagrid, transId, gridUrl, queryToolTitle, sURL, alertify);
 }
 
-export function generateScript(parentData, datagrid) {
+export function generateScript(parentData, datagrid, alertify) {
   const queryToolTitle = `${parentData.database}/${parentData.user}@${parentData.server}`;
   const transId = getRandomInt(1, 9999999);
 
@@ -82,6 +82,39 @@ export function generateScript(parentData, datagrid) {
     +`&server_type=${parentData.stype}`
     +`&did=${parentData.did}`;
 
-  datagrid.launch_grid(transId, url_endpoint, true, queryToolTitle, '');
+  launchDataGrid(datagrid, transId, url_endpoint, queryToolTitle, '', alertify);
+}
+
+export function launchDataGrid(datagrid, transId, gridUrl, queryToolTitle, sURL, alertify) {
+  let retVal = datagrid.launch_grid(transId, gridUrl, true, queryToolTitle, sURL);
+
+  if(!retVal) {
+    alertify.alert(
+      gettext('Query tool launch error'),
+      gettext(
+        'Please allow the pop-ups for this site to perform the desired action. If the main window of pgAdmin is closed then close this window and open a new pgAdmin session.'
+      )
+    );
+  }
+}
+
+export function _set_dynamic_tab(pgBrowser, value){
+  var datagrid_panels = pgBrowser.docker.findPanels('frm_datagrid');
+  datagrid_panels.forEach(panel => {
+    if(value) {
+      $('#' + panel.$title.index() + ' div:first').addClass('wcPanelTab-dynamic');
+    } else {
+      $('#' + panel.$title.index() + ' div:first').removeClass('wcPanelTab-dynamic');
+    }
+  });
+
+  var debugger_panels = pgBrowser.docker.findPanels('frm_debugger');
+  debugger_panels.forEach(panel => {
+    if(value) {
+      $('#' + panel.$title.index() + ' div:first').addClass('wcPanelTab-dynamic');
+    } else {
+      $('#' + panel.$title.index() + ' div:first').removeClass('wcPanelTab-dynamic');
+    }
+  });
 
 }

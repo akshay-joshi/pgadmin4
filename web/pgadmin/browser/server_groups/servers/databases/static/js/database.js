@@ -81,7 +81,7 @@ define('pgadmin.node.database', [
           name: 'disconnect_database', node: 'database', module: this,
           applies: ['object', 'context'], callback: 'disconnect_database',
           category: 'drop', priority: 5, label: gettext('Disconnect Database...'),
-          icon: 'fa fa-chain-broken', enable : 'is_connected',
+          icon: 'fa fa-unlink', enable : 'is_connected',
         }]);
 
         _.bindAll(this, 'connection_lost');
@@ -461,6 +461,7 @@ define('pgadmin.node.database', [
             id: 'schema_res', label: gettext('Schema restriction'),
             type: 'select2', group: gettext('Advanced'),
             mode: ['properties', 'edit', 'create'],
+            helpMessage: gettext('Note: Changes to the schema restriction will require the Schemas node in the browser to be refreshed before they will be shown.'),
             select2: {
               multiple: true, allowClear: false, tags: true,
               tokenSeparators: [','], first_empty: false,
@@ -487,11 +488,6 @@ define('pgadmin.node.database', [
                 }
               },
             }),
-          },
-          {
-            id: 'note', label: gettext('Note: Changes to the schema restriction will require the Schemas node in the browser to be refreshed before they will be shown.'),
-            group: gettext('Advanced'), type: 'help',
-            mode: ['edit', 'create'],
           },
         ],
         validate: function() {

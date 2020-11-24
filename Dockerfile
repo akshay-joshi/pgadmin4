@@ -177,6 +177,7 @@ RUN ln -sf /usr/lib/libpq.so.5.12 /usr/lib/libpq.so.5
 
 # Copy the runner script
 COPY pkg/docker/run_pgadmin.py /pgadmin4
+COPY pkg/docker/gunicorn_config.py /pgadmin4
 COPY pkg/docker/entrypoint.sh /entrypoint.sh
 
 # Precompile and optimize python code to save time and space on startup

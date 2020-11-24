@@ -89,25 +89,25 @@ class TableModule(SchemaChildModule):
         """
         snippets = [
             render_template(
-                "browser/css/collection.css",
+                self._COLLECTION_CSS,
                 node_type=self.node_type,
             ),
             render_template(
-                "browser/css/node.css",
+                self._NODE_CSS,
                 node_type=self.node_type,
             ),
             render_template(
-                "browser/css/node.css",
+                self._NODE_CSS,
                 node_type='table',
                 file_name='table-inherited',
             ),
             render_template(
-                "browser/css/node.css",
+                self._NODE_CSS,
                 node_type='table',
                 file_name='table-inherits',
             ),
             render_template(
-                "browser/css/node.css",
+                self._NODE_CSS,
                 node_type='table',
                 file_name='table-multi-inherit',
             ),
@@ -594,7 +594,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         if not status:
             return res
         if not res['rows']:
-            return gone(gettext("The specified table could not be found."))
+            return gone(gettext(self.not_found_error_msg()))
 
         return super(TableView, self).properties(
             gid, sid, did, scid, tid, res=res
@@ -636,7 +636,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
 
         elif len(res['rows']) == 0:
             return False, gone(
-                gettext("The specified table could not be found."))
+                gettext(self.not_found_error_msg()))
 
         # Update autovacuum properties
         self.update_autovacuum_properties(res['rows'][0])
@@ -729,14 +729,16 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
             if data and 'tid' in data:
                 SQL = render_template(
                     "/".join([
-                        self.table_template_path, 'get_columns_for_table.sql'
+                        self.table_template_path,
+                        self._GET_COLUMNS_FOR_TABLE_SQL
                     ]),
                     tid=data['tid']
                 )
             elif data and 'tname' in data:
                 SQL = render_template(
                     "/".join([
-                        self.table_template_path, 'get_columns_for_table.sql'
+                        self.table_template_path,
+                        self._GET_COLUMNS_FOR_TABLE_SQL
                     ]),
                     tname=data['tname']
                 )
@@ -778,7 +780,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
                 SQL = render_template(
                     "/".join(
                         [self.table_template_path,
-                         'get_columns_for_table.sql']
+                         self._GET_COLUMNS_FOR_TABLE_SQL]
                     ), tid=row['oid']
                 )
 
@@ -1118,7 +1120,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
                             'Error: Object not found.'
                         ),
                         info=gettext(
-                            'The specified table could not be found.\n'
+                            self.not_found_error_msg() + '\n'
                         )
                     )
 
@@ -1160,7 +1162,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
                 return internal_server_error(errormsg=res)
 
             if len(res['rows']) == 0:
-                return gone(gettext("The specified table could not be found."))
+                return gone(gettext(self.not_found_error_msg()))
 
             return super(TableView, self).truncate(
                 gid, sid, did, scid, tid, res
@@ -1243,12 +1245,13 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         This function will create sql on the basis the difference of 2 tables
         """
         data = dict()
-        res = None
         did = kwargs['did']
         scid = kwargs['scid']
         tid = kwargs['tid']
         diff_data = kwargs['diff_data'] if 'diff_data' in kwargs else None
         json_resp = kwargs['json_resp'] if 'json_resp' in kwargs else True
+        target_schema = kwargs['target_schema'] \
+            if 'target_schema' in kwargs else None
 
         if diff_data:
             return self._fetch_sql(did, scid, tid, diff_data, json_resp)
@@ -1265,11 +1268,16 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
                 return internal_server_error(errormsg=res)
 
             if len(res['rows']) == 0:
-                return gone(gettext("The specified table could not be found."
-                                    ))
+                return gone(gettext(self.not_found_error_msg()))
 
             if status:
                 data = res['rows'][0]
+
+            # Update autovacuum properties
+            self.update_autovacuum_properties(data)
+
+            if target_schema:
+                data['schema'] = target_schema
 
             sql, partition_sql = BaseTableView.get_reverse_engineered_sql(
                 self, did=did, scid=scid, tid=tid, main_sql=main_sql,
@@ -1376,7 +1384,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
             return res
 
         if len(res['rows']) == 0:
-            return gone(gettext("The specified table could not be found."))
+            return gone(gettext(self.not_found_error_msg()))
 
         data = res['rows'][0]
 
@@ -1408,7 +1416,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
             return internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(gettext("The specified table could not be found."))
+            return gone(gettext(self.not_found_error_msg()))
 
         data = res['rows'][0]
         data = self._formatter(did, scid, tid, data)
@@ -1425,7 +1433,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         else:
             columns = '*'
 
-        sql = u"SELECT {0}\n\tFROM {1};".format(
+        sql = "SELECT {0}\n\tFROM {1};".format(
             columns,
             self.qtIdent(self.conn, data['schema'], data['name'])
         )
@@ -1456,7 +1464,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
             return internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(gettext("The specified table could not be found."))
+            return gone(gettext(self.not_found_error_msg()))
 
         data = res['rows'][0]
         data = self._formatter(did, scid, tid, data)
@@ -1473,7 +1481,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
         if len(columns) > 0:
             columns = ", ".join(columns)
             values = ", ".join(values)
-            sql = u"INSERT INTO {0}(\n\t{1})\n\tVALUES ({2});".format(
+            sql = "INSERT INTO {0}(\n\t{1})\n\tVALUES ({2});".format(
                 self.qtIdent(self.conn, data['schema'], data['name']),
                 columns, values
             )
@@ -1507,7 +1515,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
             return internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(gettext("The specified table could not be found."))
+            return gone(gettext(self.not_found_error_msg()))
 
         data = res['rows'][0]
         data = self._formatter(did, scid, tid, data)
@@ -1526,7 +1534,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
                 columns = "=?, ".join(columns)
             columns += "=?"
 
-            sql = u"UPDATE {0}\n\tSET {1}\n\tWHERE <condition>;".format(
+            sql = "UPDATE {0}\n\tSET {1}\n\tWHERE <condition>;".format(
                 self.qtIdent(self.conn, data['schema'], data['name']),
                 columns
             )
@@ -1560,11 +1568,11 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
             return internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(gettext("The specified table could not be found."))
+            return gone(gettext(self.not_found_error_msg()))
 
         data = res['rows'][0]
 
-        sql = u"DELETE FROM {0}\n\tWHERE <condition>;".format(
+        sql = "DELETE FROM {0}\n\tWHERE <condition>;".format(
             self.qtIdent(self.conn, data['schema'], data['name'])
         )
 
@@ -1609,7 +1617,7 @@ class TableView(BaseTableView, DataTypeReader, VacuumSettings,
             super(TableView, self).get_schema_and_table_name(tid)
 
         if data['name'] is None:
-            return gone(gettext("The specified table could not be found."))
+            return gone(gettext(self.not_found_error_msg()))
 
         SQL = render_template(
             "/".join(

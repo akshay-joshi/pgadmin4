@@ -17,7 +17,8 @@ const PERIOD_KEY = 190,
   LEFT_KEY = 37,
   UP_KEY = 38,
   RIGHT_KEY = 39,
-  DOWN_KEY = 40;
+  DOWN_KEY = 40,
+  K_KEY = 75;
 
 function isMac() {
   return window.navigator.platform.search('Mac') != -1;
@@ -198,6 +199,7 @@ function keyboardShortcutsQueryTool(
   let commitKeys = sqlEditorController.preferences.commit_transaction;
   let rollbackKeys = sqlEditorController.preferences.rollback_transaction;
   let saveDataKeys = sqlEditorController.preferences.save_data;
+  let queryToolKeys = sqlEditorController.preferences.show_query_tool;
 
   if (this.validateShortcutKeys(executeKeys, event)) {
     this._stopEventPropagation(event);
@@ -229,6 +231,9 @@ function keyboardShortcutsQueryTool(
   } else if (this.validateShortcutKeys(saveDataKeys, event)) {
     this._stopEventPropagation(event);
     queryToolActions.saveDataChanges(sqlEditorController);
+  } else if (this.validateShortcutKeys(queryToolKeys, event)) {
+    this._stopEventPropagation(event);
+    queryToolActions.openQueryTool(sqlEditorController);
   } else if ((
     (this.isMac() && event.metaKey) ||
      (!this.isMac() && event.ctrlKey)
@@ -247,6 +252,12 @@ function keyboardShortcutsQueryTool(
   ) && keyCode === PERIOD_KEY) {
     this._stopEventPropagation(event);
     queryToolActions.uncommentLineCode(sqlEditorController);
+  } else if ((
+    (this.isMac() && event.metaKey) ||
+     (!this.isMac() && event.ctrlKey)
+  ) && !event.altKey && event.shiftKey && keyCode === K_KEY) {
+    this._stopEventPropagation(event);
+    queryToolActions.formatSql(sqlEditorController);
   }  else if (keyCode == ESC_KEY) {
     queryToolActions.focusOut(sqlEditorController);
     /*Apply only for sub-dropdown*/
@@ -313,15 +324,38 @@ function keyboardShortcutsQueryTool(
         }
       }
     }
+  } else {
+    // Macros
+    let macroId = this.validateMacros(sqlEditorController, event);
+
+    if  (macroId !== false) {
+      this._stopEventPropagation(event);
+      queryToolActions.executeMacro(sqlEditorController, macroId);
+    }
   }
 
   return panel_type;
 }
 
+function validateMacros(sqlEditorController, event) {
+  let keyCode = event.which || event.keyCode;
+
+  let macro = sqlEditorController.macros.filter(mc =>
+    mc.alt == event.altKey &&
+    mc.control  == event.ctrlKey &&
+    mc.key_code == keyCode);
+
+  if (macro.length == 1) {
+    return macro[0].id;
+  }
+
+  return false;
+}
+
 export {
   keyboardShortcutsDebugger as processEventDebugger,
   keyboardShortcutsQueryTool as processEventQueryTool,
-  focusDockerPanel, validateShortcutKeys,
+  focusDockerPanel, validateShortcutKeys, validateMacros,
   _stopEventPropagation, isMac, isKeyCtrlAlt, isKeyAltShift, isKeyCtrlShift,
   isKeyCtrlAltShift, isAltShiftBoth, isCtrlShiftBoth, isCtrlAltBoth,
   shortcut_key, shortcut_title, shortcut_accesskey_title,

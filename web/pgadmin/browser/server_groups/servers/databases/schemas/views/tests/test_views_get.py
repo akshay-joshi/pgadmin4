@@ -8,6 +8,8 @@
 ##########################################################################
 
 import uuid
+import json
+from unittest.mock import patch
 
 from pgadmin.browser.server_groups.servers.databases.schemas.tests import \
     utils as schema_utils
@@ -22,38 +24,25 @@ from . import utils as views_utils
 
 class ViewsGetTestCase(BaseTestGenerator):
     """This class will fetch the view under schema node."""
-    view_sql = "CREATE OR REPLACE VIEW %s.%s AS SELECT 'Hello World'; " \
-               "ALTER TABLE %s.%s OWNER TO %s"
-    m_view_sql = "CREATE MATERIALIZED VIEW %s.%s TABLESPACE pg_default AS " \
-                 "SELECT 'test_pgadmin' WITH NO DATA;ALTER TABLE %s.%s OWNER" \
-                 " TO %s"
-    scenarios = [
-        ('Get view under schema node', dict(
-            url='/browser/view/obj/',
-            view_name="test_view_get_%s" % (str(uuid.uuid4())[1:8]),
-            sql_query=view_sql)),
-        ('Get materialized view under schema node',
-         dict(url='/browser/mview/obj/',
-              view_name="test_mview_get_%s" % (str(uuid.uuid4())[1:8]),
-              sql_query=m_view_sql))
-    ]
+
+    # Generates scenarios
+    scenarios = utils.generate_scenarios("view_get", views_utils.test_cases)
 
     def setUp(self):
+        # Load test data
+        self.data = self.test_data
+
+        # Create db connection
         self.db_name = parent_node_dict["database"][-1]["db_name"]
         schema_info = parent_node_dict["schema"][-1]
         self.server_id = schema_info["server_id"]
         self.db_id = schema_info["db_id"]
-        server_response = server_utils.connect_server(self, self.server_id)
-
-        if server_response["data"]["version"] < 90300 and "mview" in self.url:
-            message = "Materialized Views are not supported by PG9.2 " \
-                      "and PPAS9.2 and below."
-            self.skipTest(message)
-
         db_con = database_utils.connect_database(self, utils.SERVER_GROUP,
                                                  self.server_id, self.db_id)
         if not db_con['data']["connected"]:
             raise Exception("Could not connect to database to fetch the view.")
+
+        # Create schema
         self.schema_id = schema_info["schema_id"]
         self.schema_name = schema_info["schema_name"]
         schema_response = schema_utils.verify_schemas(self.server,
@@ -61,22 +50,56 @@ class ViewsGetTestCase(BaseTestGenerator):
                                                       self.schema_name)
         if not schema_response:
             raise Exception("Could not find the schema to fetch the view.")
+
+        # Create view
+        query = self.inventory_data['query']
+
+        self.view_name = "test_view_get_%s" % (str(uuid.uuid4())[1:8])
+
         self.view_id = views_utils.create_view(self.server,
                                                self.db_name,
                                                self.schema_name,
-                                               self.sql_query,
-                                               self.view_name)
+                                               self.view_name,
+                                               query)
+        # In case of multiple views
+        if self.is_list:
+            self.view_name_2 = "test_view_get_%s" % (str(uuid.uuid4())[1:8])
+            self.view_id_2 = views_utils.create_view(self.server,
+                                                     self.db_name,
+                                                     self.schema_name,
+                                                     self.view_name_2,
+                                                     query)
 
     def runTest(self):
         """This function will fetch the view/mview under schema node."""
-        response = self.tester.get(
-            "{0}{1}/{2}/{3}/{4}/{5}".format(self.url, utils.SERVER_GROUP,
-                                            self.server_id, self.db_id,
-                                            self.schema_id, self.view_id
-                                            ),
-            follow_redirects=True
-        )
-        self.assertEquals(response.status_code, 200)
+        if self.is_positive_test:
+            if self.is_list:
+                response = views_utils.api_get(self, '')
+            else:
+                response = views_utils.api_get(self)
+
+            # Assert response
+            utils.assert_status_code(self, response)
+
+            # Check definition data
+            test_result_data = self.expected_data["test_result_data"]
+            if bool(test_result_data):
+                response_data = json.loads(response.data.decode('utf-8'))
+                self.assertIn(test_result_data["definition"],
+                              response_data['definition'])
+        else:
+            if self.mocking_required:
+                with patch(self.mock_data["function_name"],
+                           side_effect=[eval(self.mock_data["return_value"])]):
+                    response = views_utils.api_get(self)
+            elif 'view_id' in self.data:
+                # Non-existing view id
+                self.view_id = self.data["view_id"]
+                response = views_utils.api_get(self)
+
+            # Assert response
+            utils.assert_status_code(self, response)
+            utils.assert_error_message(self, response)
 
     def tearDown(self):
         # Disconnect the database

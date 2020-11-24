@@ -90,6 +90,8 @@ blueprint = SequenceModule(__name__)
 
 class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
     node_type = blueprint.node_type
+    node_label = "Sequence"
+    node_icon = "icon-%s" % node_type
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -208,14 +210,14 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
 
         if seid is not None:
             if len(rset['rows']) == 0:
-                return gone(errormsg=_("Could not find the sequence."))
+                return gone(errormsg=self.not_found_error_msg())
             row = rset['rows'][0]
             return make_json_response(
                 data=self.blueprint.generate_browser_node(
                     row['oid'],
                     scid,
                     row['name'],
-                    icon="icon-%s" % self.node_type
+                    icon=self.node_icon
                 ),
                 status=200
             )
@@ -227,7 +229,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
                     row['oid'],
                     scid,
                     row['name'],
-                    icon="icon-%s" % self.node_type
+                    icon=self.node_icon
                 ))
 
         return make_json_response(
@@ -250,10 +252,8 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
         for row in nodes:
             system_seq = self._get_dependency(row['oid'],
                                               show_system_objects=True)
-            seq = filter(lambda dep: dep['type'] == 'column' and
-                         dep['field'] == 'internal', system_seq)
-            if type(seq) is not list:
-                seq = list(seq)
+            seq = [dep for dep in system_seq
+                   if dep['type'] == 'column' and dep['field'] == 'internal']
             if len(seq) > 0:
                 continue
 
@@ -303,8 +303,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
         if not status:
             return False, internal_server_error(errormsg=res)
         elif len(res['rows']) == 0:
-            return False, gone(
-                _("Could not find the sequence in the database."))
+            return False, gone(self.not_found_error_msg())
 
         res['rows'][0]['is_sys_obj'] = (
             res['rows'][0]['oid'] <= self.datlastsysoid)
@@ -372,9 +371,9 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
 
         """
         required_args = [
-            u'name',
-            u'schema',
-            u'seqowner',
+            'name',
+            'schema',
+            'seqowner',
         ]
 
         data = request.form if request.form else json.loads(
@@ -437,7 +436,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
                 row['oid'],
                 row['relnamespace'],
                 data['name'],
-                icon="icon-%s" % self.node_type
+                icon=self.node_icon
             )
         )
 
@@ -465,11 +464,8 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
             data = {'ids': [seid]}
 
         # Below will decide if it's simple drop or drop with cascade call
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+
+        cascade = self._check_cascade_operation()
 
         try:
             for seid in data['ids']:
@@ -487,9 +483,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
                         errormsg=_(
                             'Error: Object not found.'
                         ),
-                        info=_(
-                            'The specified sequence could not be found.\n'
-                        )
+                        info=self.not_found_error_msg()
                     )
 
                 sql = render_template(
@@ -555,7 +549,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
                 seid,
                 row['schema'],
                 row['name'],
-                icon="icon-%s" % self.node_type
+                icon=self.node_icon
             )
         )
 
@@ -626,7 +620,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
         """
 
         required_args = [
-            u'name'
+            'name'
         ]
 
         if seid is not None:
@@ -638,7 +632,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
             if not status:
                 return internal_server_error(errormsg=res)
             elif len(res['rows']) == 0:
-                return gone(_("Could not find the sequence in the database."))
+                return gone(self.not_found_error_msg())
 
             # Making copy of output for further processing
             old_data = dict(res['rows'][0])
@@ -702,6 +696,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
             json_resp: json response or plain text response
         """
         json_resp = kwargs.get('json_resp', True)
+        target_schema = kwargs.get('target_schema', None)
 
         sql = render_template(
             "/".join([self.template_path, self._PROPERTIES_SQL]),
@@ -711,7 +706,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
         if not status:
             return internal_server_error(errormsg=res)
         if len(res['rows']) == 0:
-            return gone(_("Could not find the sequence in the database."))
+            return gone(self.not_found_error_msg())
 
         for row in res['rows']:
             sql = render_template(
@@ -731,6 +726,8 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
             row['cycled'] = rset1['rows'][0]['is_cycled']
 
         result = res['rows'][0]
+        if target_schema:
+            result['schema'] = target_schema
 
         result = self._formatter(result, scid, seid)
         sql, name = self.get_SQL(gid, sid, did, result, scid)
@@ -743,7 +740,7 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
         if not json_resp:
             return sql
 
-        sql_header = u"""-- SEQUENCE: {0}.{1}\n\n""".format(
+        sql_header = """-- SEQUENCE: {0}.{1}\n\n""".format(
             result['schema'], result['name'])
 
         sql_header += """-- DROP SEQUENCE {0};
@@ -948,13 +945,19 @@ class SequenceView(PGChildNodeView, SchemaDiffObjectCompare):
         oid = kwargs.get('oid')
         data = kwargs.get('data', None)
         drop_sql = kwargs.get('drop_sql', False)
+        target_schema = kwargs.get('target_schema', None)
 
         if data:
+            if target_schema:
+                data['schema'] = target_schema
             sql, name = self.get_SQL(gid, sid, did, data, scid, oid)
         else:
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, seid=oid, only_sql=True)
+            elif target_schema:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, seid=oid,
+                               target_schema=target_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, seid=oid,
                                json_resp=False)

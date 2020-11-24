@@ -208,6 +208,7 @@ class SchemaView(PGChildNodeView):
     """
     node_type = schema_blueprint.node_type
     _SQL_PREFIX = 'sql/'
+    node_icon = 'icon-%s' % node_type
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -413,7 +414,7 @@ class SchemaView(PGChildNodeView):
         )
 
     @check_precondition
-    def nodes(self, gid, sid, did, scid=None):
+    def nodes(self, gid, sid, did, scid=None, is_schema_diff=False):
         """
         This function will create all the child nodes within the collection
         Here it will create all the schema node.
@@ -422,6 +423,8 @@ class SchemaView(PGChildNodeView):
             gid: Server Group ID
             sid: Server ID
             did: Database ID
+            scid: Schema ID
+            is_schema_diff: True if called by schema diff tool
 
         Returns:
             JSON of available schema child nodes
@@ -437,9 +440,13 @@ class SchemaView(PGChildNodeView):
                     ["'%s'"] * len(schema_restrictions.split(',')))
                 param = schema_res % (tuple(schema_restrictions.split(',')))
 
+        show_system_objects = self.blueprint.show_system_objects
+        if is_schema_diff:
+            show_system_objects = False
+
         SQL = render_template(
             "/".join([self.template_path, self._SQL_PREFIX + self._NODES_SQL]),
-            show_sysobj=self.blueprint.show_system_objects,
+            show_sysobj=show_system_objects,
             _=gettext,
             scid=scid,
             schema_restrictions=param
@@ -448,8 +455,6 @@ class SchemaView(PGChildNodeView):
         status, rset = self.conn.execute_2darray(SQL)
         if not status:
             return internal_server_error(errormsg=rset)
-
-        icon = 'icon-{0}'.format(self.node_type)
 
         if scid is not None:
             if len(rset['rows']) == 0:
@@ -462,7 +467,7 @@ class SchemaView(PGChildNodeView):
                     row['oid'],
                     did,
                     row['name'],
-                    icon=icon,
+                    icon=self.node_icon,
                     can_create=row['can_create'],
                     has_usage=row['has_usage']
                 ),
@@ -475,7 +480,7 @@ class SchemaView(PGChildNodeView):
                     row['oid'],
                     did,
                     row['name'],
-                    icon=icon,
+                    icon=self.node_icon,
                     can_create=row['can_create'],
                     has_usage=row['has_usage']
                 )
@@ -517,15 +522,13 @@ Could not find the schema in the database.
 It may have been removed by another user.
 """))
 
-        icon = 'icon-{0}'.format(self.node_type)
-
         for row in rset['rows']:
             return make_json_response(
                 data=self.blueprint.generate_browser_node(
                     row['oid'],
                     did,
                     row['name'],
-                    icon=icon,
+                    icon=self.node_icon,
                     can_create=row['can_create'],
                     has_usage=row['has_usage']
                 ),
@@ -629,14 +632,12 @@ It may have been removed by another user.
             if not status:
                 return internal_server_error(errormsg=scid)
 
-            icon = 'icon-{0}'.format(self.node_type)
-
             return jsonify(
                 node=self.blueprint.generate_browser_node(
                     scid,
                     did,
                     data['name'],
-                    icon=icon
+                    icon=self.node_icon
                 )
             )
         except Exception as e:
@@ -670,7 +671,7 @@ It may have been removed by another user.
                     scid,
                     did,
                     name,
-                    icon="icon-%s" % self.node_type
+                    icon=self.node_icon
                 )
             )
         except Exception as e:
@@ -725,7 +726,7 @@ It may have been removed by another user.
                     "/".join([self.template_path,
                               self._SQL_PREFIX + self._DELETE_SQL]),
                     _=gettext, name=name, conn=self.conn,
-                    cascade=True if self.cmd == 'delete' else False
+                    cascade=self._check_cascade_operation()
                 )
                 status, res = self.conn.execute_scalar(SQL)
                 if not status:
@@ -866,7 +867,7 @@ It may have been removed by another user.
             _=gettext, data=data, conn=self.conn
         )
 
-        sql_header = u"-- SCHEMA: {0}\n\n-- ".format(data['name'])
+        sql_header = "-- SCHEMA: {0}\n\n-- ".format(data['name'])
 
         # drop schema
         sql_header += render_template(
@@ -1050,7 +1051,7 @@ It may have been removed by another user.
             _=gettext, data=old_data, conn=self.conn
         )
 
-        sql_header = u"""
+        sql_header = """
 -- CATALOG: {0}
 
 -- DROP SCHEMA {0};

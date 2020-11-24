@@ -111,7 +111,7 @@ define([
           <div class="custom-control custom-checkbox custom-checkbox-no-label">
             <input tabindex="-1" type="checkbox" class="custom-control-input" id="${id}" />
             <label class="custom-control-label" for="${id}">
-              <span class="sr-only">Select All<span>
+              <span class="sr-only">` + gettext('Select All') + `<span>
             </label>
           </div>
         `);
@@ -173,7 +173,7 @@ define([
         callback: 'start_grant_wizard',
         priority: 14,
         label: gettext('Grant Wizard...'),
-        icon: 'fa fa-unlock-alt',
+        icon: 'fa fa-unlock',
         enable: supportedNodes.enabled.bind(
           null, pgBrowser.treeMenu, menuUtils.supportedNodes
         ),
@@ -189,7 +189,7 @@ define([
           callback: 'start_grant_wizard',
           priority: 14,
           label: gettext('Grant Wizard...'),
-          icon: 'fa fa-unlock-alt',
+          icon: 'fa fa-unlock',
           enable: supportedNodes.enabled.bind(
             null, pgBrowser.treeMenu, menuUtils.supportedNodes
           ),
@@ -538,6 +538,9 @@ define([
                   break;
                 case 'Materialized View':
                   object_type = 'table';
+                  break;
+                case 'Foreign Table':
+                  object_type = 'foreign_table';
                   break;
                 default:
                   break;

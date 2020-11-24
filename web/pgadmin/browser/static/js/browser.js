@@ -19,7 +19,7 @@ define('pgadmin.browser', [
   'pgadmin.browser.error', 'pgadmin.browser.frame',
   'pgadmin.browser.node', 'pgadmin.browser.collection', 'pgadmin.browser.activity',
   'sources/codemirror/addon/fold/pgadmin-sqlfoldcode',
-  'pgadmin.browser.keyboard', 'sources/tree/pgadmin_tree_save_state',
+  'pgadmin.browser.keyboard', 'sources/tree/pgadmin_tree_save_state','jquery.acisortable', 'jquery.acifragment',
 ], function(
   tree,
   gettext, url_for, require, $, _,
@@ -404,7 +404,7 @@ define('pgadmin.browser', [
       // Create the object menu dynamically
       if (item && obj.menus['object'] && obj.menus['object'][d._type]) {
         pgAdmin.Browser.MenuCreator(
-          $obj_mnu, obj.menus['object'][d._type], obj.menu_categories, d, item
+          obj.Nodes, $obj_mnu, obj.menus['object'][d._type], obj.menu_categories, d, item
         );
       } else {
         // Create a dummy 'no object seleted' menu
@@ -503,7 +503,7 @@ define('pgadmin.browser', [
             context_menu = {};
 
           pgAdmin.Browser.MenuCreator(
-            $div, menus, obj.menu_categories, d, item, context_menu
+            obj.Nodes, $div, menus, obj.menu_categories, d, item, context_menu
           );
 
           return {
@@ -621,7 +621,7 @@ define('pgadmin.browser', [
                     }),
                   },
                 },{
-                  text: gettext('Reset Master Password'), className: 'btn btn-secondary fa fa-trash-o pg-alertify-button pull-left',
+                  text: gettext('Reset Master Password'), className: 'btn btn-secondary fa fa-trash-alt pg-alertify-button pull-left',
                 },{
                   text: gettext('Cancel'), className: 'btn btn-secondary fa fa-times pg-alertify-button',
                   key: 27,
@@ -877,7 +877,7 @@ define('pgadmin.browser', [
         $dropdown.empty();
 
         if (pgAdmin.Browser.MenuCreator(
-          $dropdown, obj.menus[o.menu], obj.menu_categories
+          obj.Nodes, $dropdown, obj.menus[o.menu], obj.menu_categories
         )) {
           $mnu.removeClass('d-none');
         }
@@ -2170,22 +2170,6 @@ define('pgadmin.browser', [
       // Autocomplete sql command
       'Ctrl-Space': 'autocomplete',
       'Cmd-Space': 'autocomplete',
-
-      // Select All text
-      'Ctrl-A': 'selectAll',
-      'Cmd-A': 'selectAll',
-
-      // Redo text
-      'Ctrl-Y': 'redo',
-      'Cmd-Y': 'redo',
-
-      // Undo text
-      'Ctrl-Z': 'undo',
-      'Cmd-Z': 'undo',
-
-      // Delete Line
-      'Ctrl-D': 'deleteLine',
-      'Cmd-D': 'deleteLine',
 
       'Alt-Up': 'goLineUp',
       'Alt-Down': 'goLineDown',

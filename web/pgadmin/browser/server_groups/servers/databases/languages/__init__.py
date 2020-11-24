@@ -172,6 +172,8 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
       language node.
     """
 
+    _NOT_FOUND_LANG_INFORMATION = \
+        gettext("Could not find the language information.")
     node_type = blueprint.node_type
 
     parent_ids = [
@@ -366,9 +368,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return False, gone(
-                gettext("Could not find the language information.")
-            )
+            return False, gone(self._NOT_FOUND_LANG_INFORMATION)
 
         res['rows'][0]['is_sys_obj'] = (
             res['rows'][0]['oid'] <= self.datlastsysoid)
@@ -381,25 +381,12 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
         if not status:
             return False, internal_server_error(errormsg=result)
 
-        # if no acl found then by default add public
-        if res['rows'][0]['acl'] is None:
-            res['rows'][0]['lanacl'] = dict()
-            res['rows'][0]['lanacl']['grantee'] = 'PUBLIC'
-            res['rows'][0]['lanacl']['grantor'] = res['rows'][0]['lanowner']
-            res['rows'][0]['lanacl']['privileges'] = [
-                {
-                    'privilege_type': 'U',
-                    'privilege': True,
-                    'with_grant': False
-                }
-            ]
-        else:
-            for row in result['rows']:
-                priv = parse_priv_from_db(row)
-                if row['deftype'] in res['rows'][0]:
-                    res['rows'][0][row['deftype']].append(priv)
-                else:
-                    res['rows'][0][row['deftype']] = [priv]
+        for row in result['rows']:
+            priv = parse_priv_from_db(row)
+            if row['deftype'] in res['rows'][0]:
+                res['rows'][0][row['deftype']].append(priv)
+            else:
+                res['rows'][0][row['deftype']] = [priv]
 
         seclabels = []
         if 'seclabels' in res['rows'][0] and \
@@ -531,11 +518,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
         else:
             data = {'ids': [lid]}
 
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+        cascade = self._check_cascade_operation()
 
         try:
             for lid in data['ids']:
@@ -609,6 +592,28 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
+    @staticmethod
+    def _parse_privileges(data):
+        """
+        CHeck key in data adn parse privilege according.
+        :param data: Data.
+        :return:
+        """
+        for key in ['lanacl']:
+            if key in data and data[key] is not None:
+                if 'added' in data[key]:
+                    data[key]['added'] = parse_priv_to_db(
+                        data[key]['added'], ["U"]
+                    )
+                if 'changed' in data[key]:
+                    data[key]['changed'] = parse_priv_to_db(
+                        data[key]['changed'], ["U"]
+                    )
+                if 'deleted' in data[key]:
+                    data[key]['deleted'] = parse_priv_to_db(
+                        data[key]['deleted'], ["U"]
+                    )
+
     def get_sql(self, data, lid=None):
         """
         This function will generate sql from model data.
@@ -630,24 +635,9 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
                 return internal_server_error(errormsg=res)
 
             if len(res['rows']) == 0:
-                return gone(
-                    gettext("Could not find the language information.")
-                )
+                return gone(self._NOT_FOUND_LANG_INFORMATION)
 
-            for key in ['lanacl']:
-                if key in data and data[key] is not None:
-                    if 'added' in data[key]:
-                        data[key]['added'] = parse_priv_to_db(
-                            data[key]['added'], ["U"]
-                        )
-                    if 'changed' in data[key]:
-                        data[key]['changed'] = parse_priv_to_db(
-                            data[key]['changed'], ["U"]
-                        )
-                    if 'deleted' in data[key]:
-                        data[key]['deleted'] = parse_priv_to_db(
-                            data[key]['deleted'], ["U"]
-                        )
+            LanguageView._parse_privileges(data)
 
             old_data = res['rows'][0]
             for arg in required_args:
@@ -700,12 +690,17 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             sid: Server ID
             did: Database ID
         """
-        sql = render_template("/".join([self.template_path, 'templates.sql']))
-        status, result = self.conn.execute_dict(sql)
-        if not status:
-            return internal_server_error(errormsg=result)
+        data = []
+        if self.manager.version < 130000:
+            sql = render_template("/".join(
+                [self.template_path, 'templates.sql']))
+            status, result = self.conn.execute_dict(sql)
+            if not status:
+                return internal_server_error(errormsg=result)
+            data = result['rows']
+
         return make_json_response(
-            data=result['rows'],
+            data=data,
             status=200
         )
 
@@ -731,9 +726,7 @@ class LanguageView(PGChildNodeView, SchemaDiffObjectCompare):
             return internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return gone(
-                gettext("Could not find the language information.")
-            )
+            return gone(self._NOT_FOUND_LANG_INFORMATION)
 
         # Making copy of output for future use
         old_data = dict(res['rows'][0])

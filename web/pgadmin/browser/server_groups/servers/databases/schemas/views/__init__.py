@@ -109,7 +109,7 @@ class ViewModule(SchemaChildModule):
         """
         snippets = [
             render_template(
-                "browser/css/collection.css",
+                self._COLLECTION_CSS,
                 node_type=self.node_type,
                 _=gettext
             ),
@@ -313,6 +313,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
     node_type = view_blueprint.node_type
     _SQL_PREFIX = 'sql/'
     _ALLOWED_PRIVS_JSON = 'sql/allowed_privs.json'
+    PROPERTIES_PATH = 'sql/{0}/#{1}#/properties.sql'
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -351,7 +352,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
             {'get': 'get_toast_table_vacuum'}]
     })
 
-    keys_to_ignore = ['oid', 'schema', 'xmin', 'oid-2']
+    keys_to_ignore = ['oid', 'schema', 'xmin', 'oid-2', 'setting']
 
     def __init__(self, *args, **kwargs):
         """
@@ -416,7 +417,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
             return internal_server_error(errormsg=rset)
 
         if len(rset['rows']) == 0:
-            return gone(gettext("""Could not find the view."""))
+            return gone(self.not_found_error_msg())
 
         res = self.blueprint.generate_browser_node(
             rset['rows'][0]['oid'],
@@ -489,7 +490,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
             return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return False, gone(gettext("""Could not find the view."""))
+            return False, gone(self.not_found_error_msg())
 
         SQL = render_template("/".join(
             [self.template_path, self._SQL_PREFIX + self._ACL_SQL]), vid=vid)
@@ -647,7 +648,8 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
             data = {'ids': [vid]}
 
         # Below will decide if it's simple drop or drop with cascade call
-        cascade = True if self.cmd == 'delete' else False
+
+        cascade = self._check_cascade_operation()
 
         try:
             for vid in data['ids']:
@@ -669,9 +671,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
                         errormsg=gettext(
                             'Error: Object not found.'
                         ),
-                        info=gettext(
-                            'The specified view could not be found.\n'
-                        )
+                        info=self.not_found_error_msg()
                     )
 
                 # drop view
@@ -789,10 +789,8 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
             status, res = self.conn.execute_dict(sql)
             if not status:
                 return None, internal_server_error(errormsg=res)
-            if len(res['rows']) == 0:
-                return None, gone(
-                    gettext("Could not find the view on the server.")
-                )
+            elif len(res['rows']) == 0:
+                return None, gone(self.not_found_error_msg())
             old_data = res['rows'][0]
 
             ViewNode._get_info_from_data(data, res)
@@ -819,14 +817,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
             self.view_schema = old_data['schema']
 
             try:
-                sql = render_template("/".join(
-                    [self.template_path,
-                     self._SQL_PREFIX + self._UPDATE_SQL]), data=data,
-                    o_data=old_data, conn=self.conn)
-
-                if 'definition' in data and data['definition']:
-                    sql += self.get_columns_sql(did, vid)
-
+                sql = self._get_update_sql(did, vid, data, old_data)
             except Exception as e:
                 current_app.logger.exception(e)
                 return None, internal_server_error(errormsg=str(e))
@@ -836,6 +827,24 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
                 return None, errmsg
 
         return sql, data['name'] if 'name' in data else old_data['name']
+
+    def _get_update_sql(self, did, vid, data, old_data):
+        """
+        Get sql for update view.
+        :param did: Database Id.
+        :param vid: View Id.
+        :param data: data for get sql.
+        :param old_data: old view data for get sql.
+        :return: sql for update view.
+        """
+        sql = render_template("/".join(
+            [self.template_path,
+             self._SQL_PREFIX + self._UPDATE_SQL]), data=data,
+            o_data=old_data, conn=self.conn)
+
+        if 'definition' in data and data['definition']:
+            sql += self.get_columns_sql(did, vid)
+        return sql
 
     def _get_create_view_sql(self, data):
         """
@@ -1090,7 +1099,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         for trigger in data['rows']:
             SQL = render_template("/".join(
                 [self.ct_trigger_temp_path,
-                 'sql/{0}/#{1}#/properties.sql'.format(
+                 self.PROPERTIES_PATH.format(
                      self.manager.server_type, self.manager.version)]),
                 tid=vid,
                 trid=trigger['oid']
@@ -1186,7 +1195,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         sql_data = ''
         SQL = render_template("/".join(
             [self.trigger_temp_path,
-             'sql/{0}/#{1}#/properties.sql'.format(
+             self.PROPERTIES_PATH.format(
                  self.manager.server_type, self.manager.version)]),
             tid=vid)
 
@@ -1197,7 +1206,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         for trigger in data['rows']:
             SQL = render_template("/".join(
                 [self.trigger_temp_path,
-                 'sql/{0}/#{1}#/properties.sql'.format(
+                 self.PROPERTIES_PATH.format(
                      self.manager.server_type, self.manager.version)]),
                 tid=vid,
                 trid=trigger['oid']
@@ -1362,6 +1371,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         This function will generate sql to render into the sql panel
         """
         json_resp = kwargs.get('json_resp', True)
+        target_schema = kwargs.get('target_schema', None)
         display_comments = True
 
         if not json_resp:
@@ -1378,11 +1388,13 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         if not status:
             return internal_server_error(errormsg=res)
         if len(res['rows']) == 0:
-            return gone(
-                gettext("Could not find the view on the server.")
-            )
+            return gone(self.not_found_error_msg())
 
         result = res['rows'][0]
+        if target_schema:
+            result['definition'] = result['definition'].replace(
+                result['schema'], target_schema)
+            result['schema'] = target_schema
 
         # sending result to formtter
         frmtd_reslt = self.formatter(result)
@@ -1537,9 +1549,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         if not status:
             return internal_server_error(errormsg=res)
         if len(res['rows']) == 0:
-            return gone(
-                gettext("Could not find the view on the server.")
-            )
+            return gone(self.not_found_error_msg())
         data_view = res['rows'][0]
 
         SQL = render_template(
@@ -1565,7 +1575,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         else:
             columns = '*'
 
-        sql = u"SELECT {0}\n\tFROM {1};".format(
+        sql = "SELECT {0}\n\tFROM {1};".format(
             columns,
             self.qtIdent(self.conn, data_view['schema'], data_view['name'])
         )
@@ -1598,9 +1608,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         if not status:
             return internal_server_error(errormsg=res)
         if len(res['rows']) == 0:
-            return gone(
-                gettext("Could not find the view on the server.")
-            )
+            return gone(self.not_found_error_msg())
 
         data_view = res['rows'][0]
 
@@ -1627,7 +1635,7 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         if len(columns) > 0:
             columns = ", ".join(columns)
             values = ", ".join(values)
-            sql = u"INSERT INTO {0}(\n\t{1})\n\tVALUES ({2});".format(
+            sql = "INSERT INTO {0}(\n\t{1})\n\tVALUES ({2});".format(
                 self.qtIdent(
                     self.conn, data_view['schema'], data_view['name']
                 ),
@@ -1686,8 +1694,11 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
         oid = kwargs.get('oid')
         data = kwargs.get('data', None)
         drop_sql = kwargs.get('drop_sql', False)
+        target_schema = kwargs.get('target_schema', None)
 
         if data:
+            if target_schema:
+                data['schema'] = target_schema
             sql, name_or_error = self.getSQL(gid, sid, did, data, oid)
             if sql.find('DROP VIEW') != -1:
                 sql = gettext("""
@@ -1700,6 +1711,9 @@ class ViewNode(PGChildNodeView, VacuumSettings, SchemaDiffObjectCompare):
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, vid=oid, only_sql=True)
+            elif target_schema:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, vid=oid,
+                               target_schema=target_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, vid=oid,
                                json_resp=False)
@@ -1741,6 +1755,7 @@ class MViewNode(ViewNode, VacuumSettings):
     """
     node_type = mview_blueprint.node_type
     operations = mview_operations
+    TOAST_STR = 'toast.'
 
     def __init__(self, *args, **kwargs):
         """
@@ -1877,7 +1892,7 @@ class MViewNode(ViewNode, VacuumSettings):
                         if 'value' in item.keys() and
                         item['value'] is not None]
         vacuum_toast = [
-            {'name': 'toast.' + item['name'], 'value': item['value']}
+            {'name': self.TOAST_STR + item['name'], 'value': item['value']}
             for item in data.get('vacuum_toast', [])
             if 'value' in item.keys() and item['value'] is not None]
 
@@ -1951,7 +1966,7 @@ class MViewNode(ViewNode, VacuumSettings):
                         if
                         'value' in item.keys() and item['value'] is not None]
         vacuum_toast = [
-            {'name': 'toast.' + item['name'], 'value': item['value']}
+            {'name': self.TOAST_STR + item['name'], 'value': item['value']}
             for item in result['vacuum_toast'] if
             'value' in item.keys() and item['value'] is not None]
 
@@ -2061,8 +2076,7 @@ class MViewNode(ViewNode, VacuumSettings):
             return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return False, gone(
-                gettext("""Could not find the materialized view."""))
+            return False, gone(self.not_found_error_msg())
 
         # Set value based on
         # x: No set, t: true, f: false
@@ -2110,7 +2124,7 @@ class MViewNode(ViewNode, VacuumSettings):
             res['rows'][0]['vacuum_settings_str'] += '\n' \
                 if res['rows'][0]['vacuum_settings_str'] != "" else ""
             res['rows'][0]['vacuum_settings_str'] += '\n'.\
-                join(map(lambda o: 'toast.' + o,
+                join(map(lambda o: self.TOAST_STR + o,
                          res['rows'][0]['toast_reloptions']))
 
         res['rows'][0]['vacuum_settings_str'] = res['rows'][0][
@@ -2167,9 +2181,7 @@ class MViewNode(ViewNode, VacuumSettings):
             if not status:
                 return internal_server_error(errormsg=res)
             if len(res['rows']) == 0:
-                return gone(
-                    gettext("""Could not find the materialized view.""")
-                )
+                return gone(self.not_found_error_msg())
 
             # Refresh view
             SQL = render_template(

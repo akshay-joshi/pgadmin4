@@ -45,7 +45,7 @@
       z-index: 5;
     }
   }
-  &.ajs-frameless,
+
   &.ajs-frameless {
     & .ajs-body {
       & .ajs-content {
@@ -194,14 +194,15 @@
   @at-root .ajs-button#{&} {
     font-family: $font-family-icon;
     margin-right: 5px;
+    font-weight: 900;
   }
 }
 
 .pg-alertify-icon-button {
   &:before {
-    font-size: 1.1em !important;
     line-height: 1.2;
     font-family: $font-family-icon;
+    font-weight: 900;
   }
 }
 
@@ -221,6 +222,13 @@
   background: $alert-success-bg;
   border: $border-width solid $alert-success-color;
   color: $alert-success-color;
+  @extend .ajs-text-smoothing;
+}
+
+.ajs-message.ajs-warning.ajs-visible {
+  background: $alert-warning-bg;
+  border: $border-width solid $alert-warning-color;
+  color: $alert-warning-color;
   @extend .ajs-text-smoothing;
 }
 

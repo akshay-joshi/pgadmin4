@@ -28,6 +28,7 @@ from werkzeug.exceptions import InternalServerError
 
 from pgadmin.tools.sqleditor.utils.get_column_types import get_columns_types
 from pgadmin.utils.exception import ExecuteError
+from pgadmin.utils.constants import SERVER_CONNECTION_CLOSED
 
 
 def is_query_resultset_updatable(conn, sql_path):
@@ -74,22 +75,18 @@ def is_query_resultset_updatable(conn, sql_path):
         is_resultset_updatable = has_oids or (primary_keys is not None and
                                               len(primary_keys) != 0)
 
-        if is_resultset_updatable:
-            column_types = get_columns_types(columns_info=columns_info,
-                                             table_oid=table_oid,
-                                             conn=conn,
-                                             has_oids=has_oids,
-                                             is_query_tool=True)
-            return True, has_oids, primary_keys, \
-                pk_names, table_oid, column_types
-        else:
+        if not is_resultset_updatable:
             _set_all_columns_not_editable(columns_info=columns_info)
-            return return_not_updatable()
+
+        column_types = get_columns_types(columns_info=columns_info,
+                                         table_oid=table_oid,
+                                         conn=conn,
+                                         has_oids=has_oids,
+                                         is_query_tool=True)
+        return is_resultset_updatable, has_oids, primary_keys, \
+            pk_names, table_oid, column_types
     else:
-        raise InternalServerError(
-            gettext('Not connected to server or connection with the '
-                    'server has been closed.')
-        )
+        raise InternalServerError(SERVER_CONNECTION_CLOSED)
 
 
 def _check_single_table(columns_info):

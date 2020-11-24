@@ -142,6 +142,7 @@ class DomainView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
     """
 
     node_type = blueprint.node_type
+    node_label = "Domain"
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -384,7 +385,7 @@ class DomainView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                 status=200
             )
 
-        return gone(gettext("Could not find the specified domain."))
+        return gone(self.not_found_error_msg())
 
     @check_precondition
     def properties(self, gid, sid, did, scid, doid):
@@ -626,11 +627,7 @@ AND relkind != 'c'))"""
         else:
             data = {'ids': [doid]}
 
-        if self.cmd == 'delete' or only_sql:
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+        cascade = self._check_cascade_operation(only_sql)
 
         for doid in data['ids']:
             SQL = render_template("/".join([self.template_path,
@@ -647,9 +644,7 @@ AND relkind != 'c'))"""
                     errormsg=gettext(
                         'Error: Object not found.'
                     ),
-                    info=gettext(
-                        'The specified domain could not be found.\n'
-                    )
+                    info=self.not_found_error_msg()
                 )
 
             name = res['rows'][0]['name']
@@ -726,6 +721,7 @@ AND relkind != 'c'))"""
             json_resp: True then return json response
         """
         json_resp = kwargs.get('json_resp', True)
+        target_schema = kwargs.get('target_schema', None)
 
         SQL = render_template("/".join([self.template_path,
                                         self._PROPERTIES_SQL]),
@@ -734,11 +730,11 @@ AND relkind != 'c'))"""
         if not status:
             return internal_server_error(errormsg=res)
         if len(res['rows']) == 0:
-            return gone(
-                gettext("Could not find the specified domain.")
-            )
+            return gone(self.not_found_error_msg())
 
         data = res['rows'][0]
+        if target_schema:
+            data['basensp'] = target_schema
 
         # Get Type Length and Precision
         data.update(self._parse_type(data['fulltype']))
@@ -760,7 +756,7 @@ AND relkind != 'c'))"""
         SQL = render_template("/".join([self.template_path,
                                         self._CREATE_SQL]), data=data)
 
-        sql_header = u"""-- DOMAIN: {0}.{1}\n\n""".format(
+        sql_header = """-- DOMAIN: {0}.{1}\n\n""".format(
             data['basensp'], data['name'])
 
         sql_header += """-- DROP DOMAIN {0};\n
@@ -810,6 +806,26 @@ AND relkind != 'c'))"""
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
+    def check_domain_type(self, data, old_data, is_schema_diff):
+        """
+        Check domain type
+        :return:
+        """
+        # If fulltype or basetype or collname is changed while comparing
+        # two schemas then we need to drop domain and recreate it
+        if 'fulltype' in data or 'basetype' in data or 'collname' in data:
+            SQL = render_template(
+                "/".join([self.template_path, 'domain_schema_diff.sql']),
+                data=data, o_data=old_data)
+        else:
+            if is_schema_diff:
+                data['is_schema_diff'] = True
+
+            SQL = render_template(
+                "/".join([self.template_path, 'update.sql']),
+                data=data, o_data=old_data)
+        return SQL, data
+
     def get_sql(self, gid, sid, data, scid, doid=None, is_schema_diff=False):
         """
         Generates the SQL statements to create/update the Domain.
@@ -832,9 +848,7 @@ AND relkind != 'c'))"""
             if not status:
                 return False, internal_server_error(errormsg=res)
             if len(res['rows']) == 0:
-                return gone(
-                    gettext("Could not find the specified domain.")
-                )
+                return gone(self.not_found_error_msg())
 
             old_data = res['rows'][0]
 
@@ -852,19 +866,7 @@ AND relkind != 'c'))"""
 
             old_data['constraints'] = con_data
 
-            # If fulltype or basetype or collname is changed while comparing
-            # two schemas then we need to drop domain and recreate it
-            if 'fulltype' in data or 'basetype' in data or 'collname' in data:
-                SQL = render_template(
-                    "/".join([self.template_path, 'domain_schema_diff.sql']),
-                    data=data, o_data=old_data)
-            else:
-                if is_schema_diff:
-                    data['is_schema_diff'] = True
-
-                SQL = render_template(
-                    "/".join([self.template_path, self._UPDATE_SQL]),
-                    data=data, o_data=old_data)
+            SQL, data = self.check_domain_type(data, old_data, is_schema_diff)
             return SQL.strip('\n'), data['name'] if 'name' in data else \
                 old_data['name']
         else:
@@ -950,8 +952,11 @@ AND relkind != 'c'))"""
         oid = kwargs.get('oid')
         data = kwargs.get('data', None)
         drop_sql = kwargs.get('drop_sql', False)
+        target_schema = kwargs.get('target_schema', None)
 
         if data:
+            if target_schema:
+                data['schema'] = target_schema
             sql, name = self.get_sql(gid=gid, sid=sid, scid=scid,
                                      data=data, doid=oid,
                                      is_schema_diff=True)
@@ -959,6 +964,9 @@ AND relkind != 'c'))"""
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, doid=oid, only_sql=True)
+            elif target_schema:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, doid=oid,
+                               target_schema=target_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, doid=oid,
                                json_resp=False)

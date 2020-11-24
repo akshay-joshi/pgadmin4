@@ -157,6 +157,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
     """
 
     node_type = blueprint.node_type
+    node_label = "FTS Template"
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -281,9 +282,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
                 ),
                 status=200
             )
-        return gone(
-            gettext("Could not find the requested FTS template.")
-        )
+        return gone(self.not_found_error_msg())
 
     @check_precondition
     def properties(self, gid, sid, did, scid, tid):
@@ -323,9 +322,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
             return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return False, gone(
-                gettext("Could not find the requested FTS template.")
-            )
+            return False, gone(self.not_found_error_msg())
         res['rows'][0]['is_sys_obj'] = (
             res['rows'][0]['oid'] <= self.datlastsysoid)
         return True, res['rows'][0]
@@ -465,11 +462,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
             data = {'ids': [tid]}
 
         # Below will decide if it's simple drop or drop with cascade call
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+        cascade = self._check_cascade_operation()
 
         for tid in data['ids']:
             # Get name for template from tid
@@ -486,9 +479,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
                     errormsg=gettext(
                         'Error: Object not found.'
                     ),
-                    info=gettext(
-                        'The specified FTS template could not be found.\n'
-                    )
+                    info=self.not_found_error_msg()
                 )
 
             # Drop fts template
@@ -595,7 +586,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
                                   conn=self.conn
                                   )
         else:
-            sql = u"-- definition incomplete"
+            sql = "-- definition incomplete"
         return sql
 
     def get_sql(self, gid, sid, did, scid, data, tid=None):
@@ -621,9 +612,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
             if not status:
                 return internal_server_error(errormsg=res)
             elif len(res['rows']) == 0:
-                return gone(
-                    gettext("Could not find the requested FTS template.")
-                )
+                return gone(self.not_found_error_msg())
 
             old_data = res['rows'][0]
             if 'schema' not in data:
@@ -740,6 +729,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         :param json_resp: True then return json response
         """
         json_resp = kwargs.get('json_resp', True)
+        target_schema = kwargs.get('target_schema', None)
 
         sql = render_template(
             "/".join([self.template_path, 'sql.sql']),
@@ -761,6 +751,22 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
                     "Could not generate reversed engineered query for "
                     "FTS Template node.")
             )
+
+        # Used for schema diff tool
+        if target_schema:
+            data = {'schema': scid}
+            # Fetch schema name from schema oid
+            sql = render_template("/".join([self.template_path,
+                                            'schema.sql']),
+                                  data=data,
+                                  conn=self.conn,
+                                  )
+
+            status, schema = self.conn.execute_scalar(sql)
+            if not status:
+                return internal_server_error(errormsg=schema)
+
+            res = res.replace(schema, target_schema)
 
         if not json_resp:
             return res
@@ -843,6 +849,7 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
         oid = kwargs.get('oid')
         data = kwargs.get('data', None)
         drop_sql = kwargs.get('drop_sql', False)
+        target_schema = kwargs.get('target_schema', None)
 
         if data:
             sql, name = self.get_sql(gid=gid, sid=sid, did=did, scid=scid,
@@ -851,6 +858,9 @@ class FtsTemplateView(PGChildNodeView, SchemaDiffObjectCompare):
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, tid=oid, only_sql=True)
+            elif target_schema:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, tid=oid,
+                               target_schema=target_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, tid=oid,
                                json_resp=False)

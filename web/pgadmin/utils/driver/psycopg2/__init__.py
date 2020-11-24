@@ -14,6 +14,7 @@ object.
 
 """
 import datetime
+import re
 from flask import session
 from flask_login import current_user
 from werkzeug.exceptions import InternalServerError
@@ -64,6 +65,28 @@ class Driver(BaseDriver):
 
         super(Driver, self).__init__()
 
+    def _restore_connections_from_session(self):
+        """
+        Used internally by connection_manager to restore connections
+        from sessions.
+        """
+        if session.sid not in self.managers:
+            self.managers[session.sid] = managers = dict()
+            if '__pgsql_server_managers' in session:
+                session_managers = \
+                    session['__pgsql_server_managers'].copy()
+                for server in \
+                    Server.query.filter_by(
+                        user_id=current_user.id):
+                    manager = managers[str(server.id)] = \
+                        ServerManager(server)
+                    if server.id in session_managers:
+                        manager._restore(session_managers[server.id])
+                        manager.update_session()
+            return managers
+
+        return {}
+
     def connection_manager(self, sid=None):
         """
         connection_manager(...)
@@ -86,20 +109,7 @@ class Driver(BaseDriver):
             with connection_restore_lock:
                 # The wait is over but the object might have been loaded
                 # by some other thread check again
-                if session.sid not in self.managers:
-                    self.managers[session.sid] = managers = dict()
-                    if '__pgsql_server_managers' in session:
-                        session_managers =\
-                            session['__pgsql_server_managers'].copy()
-                        for server in \
-                                Server.query.filter_by(
-                                    user_id=current_user.id):
-                            manager = managers[str(server.id)] =\
-                                ServerManager(server)
-                            if server.id in session_managers:
-                                manager._restore(session_managers[server.id])
-                                manager.update_session()
-
+                managers = self._restore_connections_from_session()
         else:
             managers = self.managers[session.sid]
             if str(sid) in managers:
@@ -306,20 +316,20 @@ class Driver(BaseDriver):
             return True
         # certain types should not be quoted even though it contains a space.
         # Evilness.
-        elif for_types and value[-2:] == u"[]":
+        elif for_types and value[-2:] == "[]":
             val_noarray = value[:-2]
 
         if for_types and val_noarray.lower() in [
-            u'bit varying',
-            u'"char"',
-            u'character varying',
-            u'double precision',
-            u'timestamp without time zone',
-            u'timestamp with time zone',
-            u'time without time zone',
-            u'time with time zone',
-            u'"trigger"',
-            u'"unknown"'
+            'bit varying',
+            '"char"',
+            'character varying',
+            'double precision',
+            'timestamp without time zone',
+            'timestamp with time zone',
+            'time without time zone',
+            'time with time zone',
+            '"trigger"',
+            '"unknown"'
         ]:
             return False
 
@@ -328,13 +338,11 @@ class Driver(BaseDriver):
                 (val_noarray.startswith('"') or val_noarray.endswith('"')):
             return False
 
-        if u'0' <= val_noarray[0] <= u'9':
+        if '0' <= val_noarray[0] <= '9':
             return True
 
-        for c in val_noarray:
-            if (not (u'a' <= c <= u'z') and c != u'_' and
-                    not (u'0' <= c <= u'9')):
-                return True
+        if re.search('[^a-z_0-9]+', val_noarray):
+            return True
 
         # check string is keywaord or not
         category = Driver.ScanKeywordExtraLookup(value)
@@ -385,7 +393,7 @@ class Driver(BaseDriver):
         value = None
 
         for val in args:
-            if type(val) == list:
+            if isinstance(val, list):
                 return map(lambda w: Driver.qtIdent(conn, w), val)
 
             # DataType doesn't have len function then convert it to string

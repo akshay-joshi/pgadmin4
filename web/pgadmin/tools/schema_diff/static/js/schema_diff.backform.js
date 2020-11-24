@@ -105,7 +105,7 @@ let SchemaDiffSelect2Control =
       controlsClassName: 'pgadmin-controls pg-el-sm-11 pg-el-12',
     }),
     className: function() {
-      return 'pgadmin-controls pg-el-sm-6';
+      return 'pgadmin-controls pg-el-sm-4';
     },
     events: {
       'focus select': 'clearInvalid',
@@ -175,7 +175,7 @@ let SchemaDiffSelect2Control =
       let span = this.$el.find('.select2-selection .select2-selection__rendered span.wcTabIcon'),
         selSpan = this.$el.find('option:selected');
 
-      if (span.hasClass('icon-server-not-connected')) {
+      if (span.hasClass('icon-server-not-connected') || span.hasClass('icon-shared-server-not-connected')) {
         let icon = (data.icon) ? data.icon : 'icon-pg';
         span.removeClass('icon-server-not-connected');
         span.addClass(icon);
@@ -317,8 +317,8 @@ let SchemaDiffHeaderView = Backform.Form.extend({
       <div class="col-6 target row"></div>
       <div class="col-5 target-buttons">
           <div class="action-btns d-flex">
-              <button class="btn btn-primary mr-auto"><span class="icon-schema-diff icon-schema-diff-white"></span>&nbsp;` + gettext('Compare') + `</button>
-              <button id="generate-script" class="btn btn-primary-icon mr-1" disabled><i class="fa fa-file-code-o sql-icon-lg"></i>&nbsp;` + gettext('Generate Script') + `</button>
+              <button class="btn btn-primary mr-auto"><span class="pg-font-icon icon-schema-diff sql-icon-lg"></span>&nbsp;` + gettext('Compare') + `</button>
+              <button id="generate-script" class="btn btn-primary-icon mr-1" disabled><i class="fa fa-file-code sql-icon-lg"></i>&nbsp;` + gettext('Generate Script') + `</button>
               <div class="btn-group mr-1" role="group" aria-label="">
                 <button id="btn-filter" type="button" class="btn btn-primary-icon"
                         title=""

@@ -47,6 +47,7 @@ from pgadmin.utils.master_password import validate_master_password, \
     set_masterpass_check_text, cleanup_master_password, get_crypt_key, \
     set_crypt_key, process_masterpass_disabled
 from pgadmin.model import User
+from pgadmin.utils.constants import MIMETYPE_APP_JS, PGADMIN_NODE
 
 try:
     from flask_security.views import default_render_json
@@ -57,6 +58,18 @@ except ImportError as e:
         from flask_security.views import _render_json as default_render_json
 
 MODULE_NAME = 'browser'
+BROWSER_STATIC = 'browser.static'
+JQUERY_ACIPLUGIN = 'jquery.aciplugin'
+BROWSER_INDEX = 'browser.index'
+PGADMIN_BROWSER = 'pgAdmin.Browser'
+PASS_ERROR_MSG = gettext('Your password has not been changed.')
+SMTP_SOCKET_ERROR = gettext(
+    'SMTP Socket error: {error}\n {pass_error}').format(
+        error={}, pass_error=PASS_ERROR_MSG)
+SMTP_ERROR = gettext('SMTP error: {error}\n {pass_error}').format(
+    error={}, pass_error=PASS_ERROR_MSG)
+PASS_ERROR = gettext('Error: {error}\n {pass_error}').format(
+    error={}, pass_error=PASS_ERROR_MSG)
 
 
 class BrowserModule(PgAdminModule):
@@ -77,7 +90,7 @@ class BrowserModule(PgAdminModule):
             ('static', 'vendor/codemirror/addon/dialog/dialog.css'),
             ('static', context_menu_file),
             ('static', wcdocker_file),
-            ('browser.static', 'vendor/aciTree/css/aciTree.css')
+            (BROWSER_STATIC, 'vendor/aciTree/css/aciTree.css')
         ]:
             stylesheets.append(url_for(endpoint, filename=filename))
         return stylesheets
@@ -119,9 +132,9 @@ class BrowserModule(PgAdminModule):
             'preloaded': True
         })
         scripts.append({
-            'name': 'jquery.aciplugin',
+            'name': JQUERY_ACIPLUGIN,
             'path': url_for(
-                'browser.static',
+                BROWSER_STATIC,
                 filename='vendor/aciTree/jquery.aciPlugin.min'
             ),
             'deps': ['jquery'],
@@ -131,21 +144,21 @@ class BrowserModule(PgAdminModule):
         scripts.append({
             'name': 'jquery.acitree',
             'path': url_for(
-                'browser.static',
+                BROWSER_STATIC,
                 filename='vendor/aciTree/jquery.aciTree' if
                 current_app.debug else 'vendor/aciTree/jquery.aciTree.min'
             ),
-            'deps': ['jquery', 'jquery.aciplugin'],
+            'deps': ['jquery', JQUERY_ACIPLUGIN],
             'exports': 'aciPluginClass.plugins.aciTree',
             'preloaded': True
         })
         scripts.append({
             'name': 'jquery.acisortable',
             'path': url_for(
-                'browser.static',
+                BROWSER_STATIC,
                 filename='vendor/aciTree/jquery.aciSortable.min'
             ),
-            'deps': ['jquery', 'jquery.aciplugin'],
+            'deps': ['jquery', JQUERY_ACIPLUGIN],
             'exports': 'aciPluginClass.plugins.aciSortable',
             'when': None,
             'preloaded': True
@@ -153,10 +166,10 @@ class BrowserModule(PgAdminModule):
         scripts.append({
             'name': 'jquery.acifragment',
             'path': url_for(
-                'browser.static',
+                BROWSER_STATIC,
                 filename='vendor/aciTree/jquery.aciFragment.min'
             ),
-            'deps': ['jquery', 'jquery.aciplugin'],
+            'deps': ['jquery', JQUERY_ACIPLUGIN],
             'exports': 'aciPluginClass.plugins.aciFragment',
             'when': None,
             'preloaded': True
@@ -175,18 +188,18 @@ class BrowserModule(PgAdminModule):
 
         scripts.append({
             'name': 'pgadmin.browser.datamodel',
-            'path': url_for('browser.static', filename='js/datamodel'),
+            'path': url_for(BROWSER_STATIC, filename='js/datamodel'),
             'preloaded': True
         })
 
         for name, script in [
-            ['pgadmin.browser', 'js/browser'],
+            [PGADMIN_BROWSER, 'js/browser'],
             ['pgadmin.browser.endpoints', 'js/endpoints'],
             ['pgadmin.browser.error', 'js/error']
         ]:
             scripts.append({
                 'name': name,
-                'path': url_for('browser.index') + script,
+                'path': url_for(BROWSER_INDEX) + script,
                 'preloaded': True
             })
 
@@ -197,7 +210,7 @@ class BrowserModule(PgAdminModule):
         ]:
             scripts.append({
                 'name': name,
-                'path': url_for('browser.index') + script,
+                'path': url_for(BROWSER_INDEX) + script,
                 'preloaded': True,
                 'deps': ['pgadmin.browser.datamodel']
             })
@@ -208,12 +221,12 @@ class BrowserModule(PgAdminModule):
             ['pgadmin.browser.frame', 'js/frame']
         ]:
             scripts.append({
-                'name': name, 'path': url_for('browser.static', filename=end),
+                'name': name, 'path': url_for(BROWSER_STATIC, filename=end),
                 'preloaded': True})
 
         scripts.append({
             'name': 'pgadmin.browser.node.ui',
-            'path': url_for('browser.static', filename='js/node.ui'),
+            'path': url_for(BROWSER_STATIC, filename='js/node.ui'),
             'when': 'server_group'
         })
 
@@ -226,26 +239,26 @@ class BrowserModule(PgAdminModule):
             'file_items': [
                 MenuItem(
                     name='mnu_locklayout',
-                    module='pgAdmin.Browser',
+                    module=PGADMIN_BROWSER,
                     label=gettext('Lock Layout'),
                     priority=999,
                     menu_items=[MenuItem(
                         name='mnu_lock_none',
-                        module='pgAdmin.Browser',
+                        module=PGADMIN_BROWSER,
                         callback='mnu_lock_none',
                         priority=0,
                         label=gettext('None'),
                         checked=True
                     ), MenuItem(
                         name='mnu_lock_docking',
-                        module='pgAdmin.Browser',
+                        module=PGADMIN_BROWSER,
                         callback='mnu_lock_docking',
                         priority=1,
                         label=gettext('Prevent Docking'),
                         checked=False
                     ), MenuItem(
                         name='mnu_lock_full',
-                        module='pgAdmin.Browser',
+                        module=PGADMIN_BROWSER,
                         callback='mnu_lock_full',
                         priority=2,
                         label=gettext('Full Lock'),
@@ -263,7 +276,7 @@ class BrowserModule(PgAdminModule):
         Returns:
             list: a list of url endpoints exposed to the client.
         """
-        return ['browser.index', 'browser.nodes',
+        return [BROWSER_INDEX, 'browser.nodes',
                 'browser.check_master_password',
                 'browser.set_master_password',
                 'browser.reset_master_password',
@@ -358,15 +371,15 @@ class BrowserPluginModule(PgAdminModule):
 
         if self.module_use_template_javascript:
             scripts.extend([{
-                'name': 'pgadmin.node.%s' % self.node_type,
-                'path': url_for('browser.index') +
-                        '%s/module' % self.node_type,
+                'name': PGADMIN_NODE % self.node_type,
+                'path': url_for(BROWSER_INDEX
+                                ) + '%s/module' % self.node_type,
                 'when': self.script_load,
                 'is_template': True
             }])
         else:
             scripts.extend([{
-                'name': 'pgadmin.node.%s' % self.node_type,
+                'name': PGADMIN_NODE % self.node_type,
                 'path': url_for(
                     '%s.static' % self.name,
                     filename=('js/%s' % self.node_type)
@@ -412,7 +425,7 @@ class BrowserPluginModule(PgAdminModule):
             "_type": node_type,
             "_id": node_id,
             "_pid": parent_id,
-            "module": 'pgadmin.node.%s' % node_type
+            "module": PGADMIN_NODE % node_type
         }
         for key in kwargs:
             obj.setdefault(key, kwargs[key])
@@ -527,7 +540,87 @@ class BrowserPluginModule(PgAdminModule):
 
 def _get_logout_url():
     return '{0}?next={1}'.format(
-        url_for('security.logout'), url_for('browser.index'))
+        url_for('security.logout'), url_for(BROWSER_INDEX))
+
+
+def _get_supported_browser():
+    """
+    This function return supported browser.
+    :return: browser name, browser known, browser version
+    """
+    browser = request.user_agent.browser
+    version = request.user_agent.version and int(
+        request.user_agent.version.split('.')[0])
+
+    browser_name = None
+    browser_known = True
+    if browser == 'chrome' and version < 72:
+        browser_name = 'Chrome'
+    elif browser == 'firefox' and version < 65:
+        browser_name = 'Firefox'
+    # comparing EdgeHTML engine version
+    elif browser == 'edge' and version < 18:
+        browser_name = 'Edge'
+        # browser version returned by edge browser is actual EdgeHTML
+        # engine version. Below code gets actual browser version using
+        # EdgeHTML version
+        engine_to_actual_browser_version = {
+            16: 41,
+            17: 42,
+            18: 44
+        }
+        version = engine_to_actual_browser_version.get(version, '< 44')
+    elif browser == 'safari' and version < 12:
+        browser_name = 'Safari'
+    elif browser == 'msie':
+        browser_name = 'Internet Explorer'
+    elif browser != 'chrome' and browser != 'firefox' and \
+            browser != 'edge' and browser != 'safari':
+        browser_name = browser
+        browser_known = False
+
+    return browser_name, browser_known, version
+
+
+def check_browser_upgrade():
+    """
+    This function is used to check the browser version.
+    :return:
+    """
+    data = None
+    url = '%s?version=%s' % (config.UPGRADE_CHECK_URL, config.APP_VERSION)
+    current_app.logger.debug('Checking version data at: %s' % url)
+
+    try:
+        # Do not wait for more than 5 seconds.
+        # It stuck on rendering the browser.html, while working in the
+        # broken network.
+        if os.path.exists(config.CA_FILE):
+            response = urlopen(url, data, 5, cafile=config.CA_FILE)
+        else:
+            response = urlopen(url, data, 5)
+        current_app.logger.debug(
+            'Version check HTTP response code: %d' % response.getcode()
+        )
+
+        if response.getcode() == 200:
+            data = json.loads(response.read().decode('utf-8'))
+            current_app.logger.debug('Response data: %s' % data)
+    except Exception:
+        current_app.logger.exception('Exception when checking for update')
+
+    if data is not None and \
+        data[config.UPGRADE_CHECK_KEY]['version_int'] > \
+            config.APP_VERSION_INT:
+        msg = render_template(
+            MODULE_NAME + "/upgrade.html",
+            current_version=config.APP_VERSION,
+            upgrade_version=data[config.UPGRADE_CHECK_KEY]['version'],
+            product_name=config.APP_NAME,
+            download_url=data[config.UPGRADE_CHECK_KEY]['download_url']
+        )
+
+        flash(msg, 'warning')
 
 
 @blueprint.route("/")
@@ -551,36 +644,7 @@ def index():
     # NOTE: If the checks here are updated, make sure the supported versions
     # at https://www.pgadmin.org/faq/#11 are updated to match!
     if config.CHECK_SUPPORTED_BROWSER:
-        browser = request.user_agent.browser
-        version = request.user_agent.version and int(
-            request.user_agent.version.split('.')[0])
-
-        browser_name = None
-        browser_known = True
-        if browser == 'chrome' and version < 72:
-            browser_name = 'Chrome'
-        elif browser == 'firefox' and version < 65:
-            browser_name = 'Firefox'
-        # comparing EdgeHTML engine version
-        elif browser == 'edge' and version < 18:
-            browser_name = 'Edge'
-            # browser version returned by edge browser is actual EdgeHTML
-            # engine version. Below code gets actual browser version using
-            # EdgeHTML version
-            engine_to_actual_browser_version = {
-                16: 41,
-                17: 42,
-                18: 44
-            }
-            version = engine_to_actual_browser_version.get(version, '< 44')
-        elif browser == 'safari' and version < 12:
-            browser_name = 'Safari'
-        elif browser == 'msie':
-            browser_name = 'Internet Explorer'
-        elif browser != 'chrome' and browser != 'firefox' and \
-                browser != 'edge' and browser != 'safari':
-            browser_name = browser
-            browser_known = False
+        browser_name, browser_known, version = _get_supported_browser()
 
         if browser_name is not None:
             msg = render_template(
@@ -595,40 +659,7 @@ def index():
     # Get the current version info from the website, and flash a message if
     # the user is out of date, and the check is enabled.
     if config.UPGRADE_CHECK_ENABLED:
-        data = None
-        url = '%s?version=%s' % (config.UPGRADE_CHECK_URL, config.APP_VERSION)
-        current_app.logger.debug('Checking version data at: %s' % url)
-
-        try:
-            # Do not wait for more than 5 seconds.
-            # It stuck on rendering the browser.html, while working in the
-            # broken network.
-            if os.path.exists(config.CA_FILE):
-                response = urlopen(url, data, 5, cafile=config.CA_FILE)
-            else:
-                response = urlopen(url, data, 5)
-            current_app.logger.debug(
-                'Version check HTTP response code: %d' % response.getcode()
-            )
-
-            if response.getcode() == 200:
-                data = json.loads(response.read().decode('utf-8'))
-                current_app.logger.debug('Response data: %s' % data)
-        except Exception:
-            current_app.logger.exception('Exception when checking for update')
-
-        if data is not None and \
-            data[config.UPGRADE_CHECK_KEY]['version_int'] > \
-                config.APP_VERSION_INT:
-            msg = render_template(
-                MODULE_NAME + "/upgrade.html",
-                current_version=config.APP_VERSION,
-                upgrade_version=data[config.UPGRADE_CHECK_KEY]['version'],
-                product_name=config.APP_NAME,
-                download_url=data[config.UPGRADE_CHECK_KEY]['download_url']
-            )
-
-            flash(msg, 'warning')
+        check_browser_upgrade()
 
     auth_only_internal = False
     auth_source = []
@@ -667,6 +698,9 @@ def index():
 
     response.set_cookie("PGADMIN_LANGUAGE", value=language,
                         path=config.COOKIE_DEFAULT_PATH,
+                        secure=config.SESSION_COOKIE_SECURE,
+                        httponly=config.SESSION_COOKIE_HTTPONLY,
+                        samesite=config.SESSION_COOKIE_SAMESITE,
                         **domain)
 
     return response
@@ -737,7 +771,7 @@ def utils():
             support_ssh_tunnel=config.SUPPORT_SSH_TUNNEL,
             logout_url=_get_logout_url()
         ),
-        200, {'Content-Type': 'application/javascript'})
+        200, {'Content-Type': MIMETYPE_APP_JS})
 
 
 @blueprint.route("/js/endpoints.js")
@@ -745,7 +779,7 @@ def utils():
 def exposed_urls():
     return make_response(
         render_template('browser/js/endpoints.js'),
-        200, {'Content-Type': 'application/javascript'}
+        200, {'Content-Type': MIMETYPE_APP_JS}
     )
 
 
@@ -755,7 +789,7 @@ def exposed_urls():
 def error_js():
     return make_response(
         render_template('browser/js/error.js', _=gettext),
-        200, {'Content-Type': 'application/javascript'})
+        200, {'Content-Type': MIMETYPE_APP_JS})
 
 
 @blueprint.route("/js/messages.js")
@@ -763,7 +797,7 @@ def error_js():
 def messages_js():
     return make_response(
         render_template('browser/js/messages.js', _=gettext),
-        200, {'Content-Type': 'application/javascript'})
+        200, {'Content-Type': MIMETYPE_APP_JS})
 
 
 @blueprint.route("/browser.css")
@@ -969,9 +1003,7 @@ if hasattr(config, 'SECURITY_CHANGEABLE') and config.SECURITY_CHANGEABLE:
             except SOCKETErrorException as e:
                 # Handle socket errors which are not covered by SMTPExceptions.
                 logging.exception(str(e), exc_info=True)
-                flash(gettext(u'SMTP Socket error: {}\n'
-                              u'Your password has not been changed.'
-                              ).format(e),
+                flash(gettext(SMTP_SOCKET_ERROR).format(e),
                       'danger')
                 has_error = True
             except (SMTPConnectError, SMTPResponseException,
@@ -980,19 +1012,14 @@ if hasattr(config, 'SECURITY_CHANGEABLE') and config.SECURITY_CHANGEABLE:
                     SMTPRecipientsRefused) as e:
                 # Handle smtp specific exceptions.
                 logging.exception(str(e), exc_info=True)
-                flash(gettext(u'SMTP error: {}\n'
-                              u'Your password has not been changed.'
-                              ).format(e),
+                flash(gettext(SMTP_ERROR).format(e),
                       'danger')
                 has_error = True
             except Exception as e:
                 # Handle other exceptions.
                 logging.exception(str(e), exc_info=True)
                 flash(
-                    gettext(
-                        u'Error: {}\n'
-                        u'Your password has not been changed.'
-                    ).format(e),
+                    gettext(PASS_ERROR).format(e),
                     'danger'
                 )
                 has_error = True
@@ -1078,9 +1105,7 @@ if hasattr(config, 'SECURITY_RECOVERABLE') and config.SECURITY_RECOVERABLE:
                     # Handle socket errors which are not
                     # covered by SMTPExceptions.
                     logging.exception(str(e), exc_info=True)
-                    flash(gettext(u'SMTP Socket error: {}\n'
-                                  u'Your password has not been changed.'
-                                  ).format(e),
+                    flash(gettext(SMTP_SOCKET_ERROR).format(e),
                           'danger')
                     has_error = True
                 except (SMTPConnectError, SMTPResponseException,
@@ -1090,17 +1115,13 @@ if hasattr(config, 'SECURITY_RECOVERABLE') and config.SECURITY_RECOVERABLE:
 
                     # Handle smtp specific exceptions.
                     logging.exception(str(e), exc_info=True)
-                    flash(gettext(u'SMTP error: {}\n'
-                                  u'Your password has not been changed.'
-                                  ).format(e),
+                    flash(gettext(SMTP_ERROR).format(e),
                           'danger')
                     has_error = True
                 except Exception as e:
                     # Handle other exceptions.
                     logging.exception(str(e), exc_info=True)
-                    flash(gettext(u'Error: {}\n'
-                                  u'Your password has not been changed.'
-                                  ).format(e),
+                    flash(gettext(PASS_ERROR).format(e),
                           'danger')
                     has_error = True
 
@@ -1149,9 +1170,7 @@ if hasattr(config, 'SECURITY_RECOVERABLE') and config.SECURITY_RECOVERABLE:
             except SOCKETErrorException as e:
                 # Handle socket errors which are not covered by SMTPExceptions.
                 logging.exception(str(e), exc_info=True)
-                flash(gettext(u'SMTP Socket error: {}\n'
-                              u'Your password has not been changed.'
-                              ).format(e),
+                flash(gettext(SMTP_SOCKET_ERROR).format(e),
                       'danger')
                 has_error = True
             except (SMTPConnectError, SMTPResponseException,
@@ -1161,17 +1180,13 @@ if hasattr(config, 'SECURITY_RECOVERABLE') and config.SECURITY_RECOVERABLE:
 
                 # Handle smtp specific exceptions.
                 logging.exception(str(e), exc_info=True)
-                flash(gettext(u'SMTP error: {}\n'
-                              u'Your password has not been changed.'
-                              ).format(e),
+                flash(gettext(SMTP_ERROR).format(e),
                       'danger')
                 has_error = True
             except Exception as e:
                 # Handle other exceptions.
                 logging.exception(str(e), exc_info=True)
-                flash(gettext(u'Error: {}\n'
-                              u'Your password has not been changed.'
-                              ).format(e),
+                flash(gettext(PASS_ERROR).format(e),
                       'danger')
                 has_error = True
 

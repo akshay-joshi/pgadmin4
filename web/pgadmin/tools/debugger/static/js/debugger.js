@@ -11,11 +11,13 @@ define([
   'sources/gettext', 'sources/url_for', 'jquery', 'underscore',
   'alertify', 'sources/pgadmin', 'pgadmin.browser',
   'backbone', 'pgadmin.backgrid', 'codemirror', 'pgadmin.backform',
-  'pgadmin.tools.debugger.ui', 'pgadmin.tools.debugger.utils', 'sources/utils',
+  'pgadmin.tools.debugger.ui', 'pgadmin.tools.debugger.utils',
+  'tools/datagrid/static/js/show_query_tool', 'sources/utils',
   'wcdocker', 'pgadmin.browser.frame',
 ], function(
   gettext, url_for, $, _, Alertify, pgAdmin, pgBrowser, Backbone, Backgrid,
-  CodeMirror, Backform, get_function_arguments, debuggerUtils, pgadminUtils,
+  CodeMirror, Backform, get_function_arguments, debuggerUtils, showQueryTool,
+  pgadminUtils,
 ) {
   var pgTools = pgAdmin.Tools = pgAdmin.Tools || {},
     wcDocker = window.wcDocker;
@@ -334,8 +336,7 @@ define([
       var t = pgBrowser.tree,
         i = item || t.selected(),
         d = i && i.length == 1 ? t.itemData(i) : undefined,
-        node = d && pgBrowser.Nodes[d._type],
-        self = this;
+        node = d && pgBrowser.Nodes[d._type];
 
       if (!d)
         return;
@@ -410,8 +411,9 @@ define([
           var url = url_for('debugger.direct', {
             'trans_id': res.data.debuggerTransId,
           });
-
-          if (self.preferences.debugger_new_browser_tab) {
+          var browser_preferences = pgBrowser.get_preferences_for_module('browser');
+          var open_new_tab = browser_preferences.new_browser_tab_open;
+          if (open_new_tab && open_new_tab.includes('debugger')) {
             window.open(url, '_blank');
           } else {
             pgBrowser.Events.once(
@@ -427,6 +429,8 @@ define([
               panel = pgBrowser.docker.addPanel(
                 'frm_debugger', wcDocker.DOCK.STACKED, dashboardPanel[0]
               );
+            var label = treeInfo.function ? treeInfo.function.label : treeInfo.procedure.label;
+            debuggerUtils.setDebuggerTitle(panel, browser_preferences, label, treeInfo.schema.label, treeInfo.database.label, null, pgBrowser);
 
             panel.focus();
 
@@ -439,6 +443,23 @@ define([
                 url: closeUrl,
                 method: 'DELETE',
               });
+            });
+
+            // Panel Rename event
+            panel.on(wcDocker.EVENT.RENAME, function(panel_data) {
+              Alertify.prompt('', panel_data.$titleText[0].textContent,
+                // We will execute this function when user clicks on the OK button
+                function(evt, value) {
+                  if(value) {
+                    let browser_preferences = pgBrowser.get_preferences_for_module('browser');
+                    var label = treeInfo.function ? treeInfo.function.label : treeInfo.procedure.label;
+                    debuggerUtils.setDebuggerTitle(panel, browser_preferences, label, treeInfo.schema.label, treeInfo.database.label, value, pgBrowser);
+                  }
+                },
+                // We will execute this function when user clicks on the Cancel
+                // button.  Do nothing just close it.
+                function(evt) { evt.cancel = false; }
+              ).set({'title': gettext('Rename Panel')});
             });
           }
         })
@@ -462,8 +483,7 @@ define([
       var t = pgBrowser.tree,
         i = item || t.selected(),
         d = i && i.length == 1 ? t.itemData(i) : undefined,
-        node = d && pgBrowser.Nodes[d._type],
-        self = this;
+        node = d && pgBrowser.Nodes[d._type];
 
       if (!d)
         return;
@@ -533,7 +553,9 @@ define([
                   'trans_id': trans_id,
                 });
 
-                if (self.preferences.debugger_new_browser_tab) {
+                var browser_preferences = pgBrowser.get_preferences_for_module('browser');
+                var open_new_tab = browser_preferences.new_browser_tab_open;
+                if (open_new_tab && open_new_tab.includes('debugger')) {
                   window.open(url, '_blank');
                 } else {
                   pgBrowser.Events.once(
@@ -549,6 +571,8 @@ define([
                     panel = pgBrowser.docker.addPanel(
                       'frm_debugger', wcDocker.DOCK.STACKED, dashboardPanel[0]
                     );
+                  var label = newTreeInfo.function ? newTreeInfo.function.label : newTreeInfo.procedure.label;
+                  debuggerUtils.setDebuggerTitle(panel, browser_preferences, label, newTreeInfo.schema.label, newTreeInfo.database.label, null, pgBrowser);
 
                   panel.focus();
 
@@ -561,6 +585,23 @@ define([
                       url: closeUrl,
                       method: 'DELETE',
                     });
+                  });
+
+                  // Panel Rename event
+                  panel.on(wcDocker.EVENT.RENAME, function(panel_data) {
+                    Alertify.prompt('', panel_data.$titleText[0].textContent,
+                      // We will execute this function when user clicks on the OK button
+                      function(evt, value) {
+                        if(value) {
+                          let browser_preferences = pgBrowser.get_preferences_for_module('browser');
+                          var label = treeInfo.function ? treeInfo.function.label : treeInfo.procedure.label;
+                          debuggerUtils.setDebuggerTitle(panel, browser_preferences, label, treeInfo.schema.label, treeInfo.database.label, value, pgBrowser);
+                        }
+                      },
+                      // We will execute this function when user clicks on the Cancel
+                      // button.  Do nothing just close it.
+                      function(evt) { evt.cancel = false; }
+                    ).set({'title': gettext('Rename Panel')});
                   });
                 }
               })

@@ -143,7 +143,6 @@ module.exports =  Alertify.dialog('createModeDlg', function() {
             'path': $('.currentpath').val(),
           },
           innerbody,
-          sep = '/',
           ext = $('.allowed_file_types select').val();
 
         /*
@@ -152,13 +151,8 @@ module.exports =  Alertify.dialog('createModeDlg', function() {
            there is a . already but it's not following the last /, AND the
            extension isn't *, then we add the extension.
          */
-
-        if ($('.file_manager').attr('data-platform') === 'win32') {
-          sep = '\\';
-        }
-
         if ((!newFile.includes('.') ||
-            newFile.split('.').pop().includes(sep)) &&
+            newFile.split('.').pop() != ext) &&
             ext != '*') {
           newFile = newFile + '.' + ext;
           $('.storage_dialog #uploader .input-path').val(newFile);

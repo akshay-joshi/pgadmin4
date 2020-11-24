@@ -21,7 +21,7 @@ import psycopg2
 from flask import g, current_app
 from flask_babelex import gettext
 from flask_security import current_user
-from pgadmin.utils.crypto import decrypt
+from pgadmin.utils.crypto import decrypt, encrypt
 from psycopg2.extensions import encodings
 
 import config
@@ -140,6 +140,10 @@ class Connection(BaseConnection):
       - This function will return the encrypted password for database server
       - greater than or equal to 10.
     """
+    UNAUTHORIZED_REQUEST = gettext("Unauthorized request.")
+    CURSOR_NOT_FOUND = \
+        gettext("Cursor could not be found for the async connection.")
+    ARGS_STR = "{0}#{1}"
 
     def __init__(self, manager, conn_id, db, auto_reconnect=True, async_=0,
                  use_binary_placeholder=False, array_to_string=False):
@@ -200,6 +204,45 @@ class Connection(BaseConnection):
     def __str__(self):
         return self.__repr__()
 
+    def _check_user_password(self, kwargs):
+        """
+        Check user and password.
+        """
+        password = None
+        encpass = None
+        is_update_password = True
+
+        if 'user' in kwargs and kwargs['password']:
+            password = kwargs['password']
+            kwargs.pop('password')
+            is_update_password = False
+        else:
+            encpass = kwargs['password'] if 'password' in kwargs else None
+
+        return password, encpass, is_update_password
+
+    def _decode_password(self, encpass, manager, password, crypt_key):
+        if encpass:
+            # Fetch Logged in User Details.
+            user = User.query.filter_by(id=current_user.id).first()
+
+            if user is None:
+                return True, self.UNAUTHORIZED_REQUEST, password
+
+            try:
+                password = decrypt(encpass, crypt_key)
+                # password is in bytes, for python3 we need it in string
+                if isinstance(password, bytes):
+                    password = password.decode()
+            except Exception as e:
+                manager.stop_ssh_tunnel()
+                current_app.logger.exception(e)
+                return True, \
+                    _(
+                        "Failed to decrypt the saved password.\nError: {0}"
+                    ).format(str(e))
+        return False, '', password
+
     def connect(self, **kwargs):
         if self.conn:
             if self.conn.closed:
@@ -208,11 +251,13 @@ class Connection(BaseConnection):
                 return True, None
 
         pg_conn = None
-        password = None
         passfile = None
         manager = self.manager
+        crypt_key_present, crypt_key = get_crypt_key()
 
-        encpass = kwargs['password'] if 'password' in kwargs else None
+        password, encpass, is_update_password = self._check_user_password(
+            kwargs)
+
         passfile = kwargs['passfile'] if 'passfile' in kwargs else None
         tunnel_password = kwargs['tunnel_password'] if 'tunnel_password' in \
                                                        kwargs else ''
@@ -227,41 +272,23 @@ class Connection(BaseConnection):
         if manager.use_ssh_tunnel == 1:
             manager.check_ssh_tunnel_alive()
 
-        if encpass is None:
-            encpass = self.password or getattr(manager, 'password', None)
+        if is_update_password:
+            if encpass is None:
+                encpass = self.password or getattr(manager, 'password', None)
 
-        self.password = encpass
+            self.password = encpass
 
         # Reset the existing connection password
         if self.reconnecting is not False:
             self.password = None
 
-        crypt_key_present, crypt_key = get_crypt_key()
         if not crypt_key_present:
             raise CryptKeyMissing()
 
-        if encpass:
-            # Fetch Logged in User Details.
-            user = User.query.filter_by(id=current_user.id).first()
-
-            if user is None:
-                return False, gettext("Unauthorized request.")
-
-            try:
-                password = decrypt(encpass, crypt_key)
-                # Handling of non ascii password (Python2)
-                if hasattr(str, 'decode'):
-                    password = password.decode('utf-8').encode('utf-8')
-                # password is in bytes, for python3 we need it in string
-                elif isinstance(password, bytes):
-                    password = password.decode()
-            except Exception as e:
-                manager.stop_ssh_tunnel()
-                current_app.logger.exception(e)
-                return False, \
-                    _(
-                        "Failed to decrypt the saved password.\nError: {0}"
-                    ).format(str(e))
+        is_error, errmsg, password = self._decode_password(encpass, manager,
+                                                           password, crypt_key)
+        if is_error:
+            return False, errmsg
 
         # If no password credential is found then connect request might
         # come from Query tool, ViewData grid, debugger etc tools.
@@ -271,14 +298,12 @@ class Connection(BaseConnection):
             passfile = manager.passfile if manager.passfile else None
 
         try:
-            if hasattr(str, 'decode'):
-                database = self.db.encode('utf-8')
-                user = manager.user.encode('utf-8')
-                conn_id = self.conn_id.encode('utf-8')
+            database = self.db
+            if 'user' in kwargs and kwargs['user']:
+                user = kwargs['user']
             else:
-                database = self.db
                 user = manager.user
-                conn_id = self.conn_id
+            conn_id = self.conn_id
 
             import os
             os.environ['PGAPPNAME'] = '{0} - {1}'.format(
@@ -320,12 +345,12 @@ class Connection(BaseConnection):
             else:
                 msg = str(e)
             current_app.logger.info(
-                u"Failed to connect to the database server(#{server_id}) for "
-                u"connection ({conn_id}) with error message as below"
-                u":{msg}".format(
+                "Failed to connect to the database server(#{server_id}) for "
+                "connection ({conn_id}) with error message as below"
+                ":{msg}".format(
                     server_id=self.manager.sid,
                     conn_id=conn_id,
-                    msg=msg.decode('utf-8') if hasattr(str, 'decode') else msg
+                    msg=msg
                 )
             )
             return False, msg
@@ -346,42 +371,91 @@ class Connection(BaseConnection):
                 self.wasConnected = False
             raise e
 
-        if status:
+        if status and is_update_password:
             manager._update_password(encpass)
         else:
-            if not self.reconnecting:
+            if not self.reconnecting and is_update_password:
                 self.wasConnected = False
 
         return status, msg
 
-    def _initialize(self, conn_id, **kwargs):
-        self.execution_aborted = False
-        self.__backend_pid = self.conn.get_backend_pid()
-
-        setattr(g, "{0}#{1}".format(
-            self.manager.sid,
-            self.conn_id.encode('utf-8')
-        ), None)
-
-        status, cur = self.__cursor()
-        formatted_exception_msg = self._formatted_exception_msg
-        manager = self.manager
-
-        def _execute(cur, query, params=None):
-            try:
-                self.__internal_blocking_execute(cur, query, params)
-            except psycopg2.Error as pe:
-                cur.close()
-                return formatted_exception_msg(pe, False)
-            return None
-
-        # autocommit flag does not work with asynchronous connections.
-        # By default asynchronous connection runs in autocommit mode.
+    def _set_auto_commit(self, kwargs):
+        """
+        autocommit flag does not work with asynchronous connections.
+        By default asynchronous connection runs in autocommit mode.
+        :param kwargs:
+        :return:
+        """
         if self.async_ == 0:
             if 'autocommit' in kwargs and kwargs['autocommit'] is False:
                 self.conn.autocommit = False
             else:
                 self.conn.autocommit = True
+
+    def _set_role(self, manager, cur, conn_id, **kwargs):
+        """
+        Set role
+        :param manager:
+        :param cur:
+        :param conn_id:
+        :return:
+        """
+        is_set_role = False
+        role = None
+
+        if 'role' in kwargs and kwargs['role']:
+            is_set_role = True
+            role = kwargs['role']
+        elif manager.role:
+            is_set_role = True
+            role = manager.role
+
+        if is_set_role:
+            status = self._execute(cur, "SET ROLE TO %s", [role])
+
+            if status is not None:
+                self.conn.close()
+                self.conn = None
+                current_app.logger.error(
+                    "Connect to the database server (#{server_id}) for "
+                    "connection ({conn_id}), but - failed to setup the role "
+                    "with error message as below:{msg}".format(
+                        server_id=self.manager.sid,
+                        conn_id=conn_id,
+                        msg=status
+                    )
+                )
+                return True, \
+                    _(
+                        "Failed to setup the role with error message:\n{0}"
+                    ).format(status)
+        return False, ''
+
+    def _execute(self, cur, query, params=None):
+        formatted_exception_msg = self._formatted_exception_msg
+        try:
+            self.__internal_blocking_execute(cur, query, params)
+        except psycopg2.Error as pe:
+            cur.close()
+            return formatted_exception_msg(pe, False)
+        return None
+
+    def _initialize(self, conn_id, **kwargs):
+        self.execution_aborted = False
+        self.__backend_pid = self.conn.get_backend_pid()
+
+        setattr(g, self.ARGS_STR.format(
+            self.manager.sid,
+            self.conn_id.encode('utf-8')
+        ), None)
+
+        status, cur = self.__cursor()
+
+        manager = self.manager
+
+        # autocommit flag does not work with asynchronous connections.
+        # By default asynchronous connection runs in autocommit mode.
+        self._set_auto_commit(kwargs)
 
         register_string_typecasters(self.conn)
 
@@ -399,7 +473,7 @@ class Connection(BaseConnection):
         # Note that we use 'UPDATE pg_settings' for setting bytea_output as a
         # convenience hack for those running on old, unsupported versions of
         # PostgreSQL 'cos we're nice like that.
-        status = _execute(
+        status = self._execute(
             cur,
             "SET DateStyle=ISO; "
             "SET client_min_messages=notice; "
@@ -414,28 +488,12 @@ class Connection(BaseConnection):
 
             return False, status
 
-        if manager.role:
-            status = _execute(cur, u"SET ROLE TO %s", [manager.role])
-
-            if status is not None:
-                self.conn.close()
-                self.conn = None
-                current_app.logger.error(
-                    "Connect to the database server (#{server_id}) for "
-                    "connection ({conn_id}), but - failed to setup the role "
-                    "with error message as below:{msg}".format(
-                        server_id=self.manager.sid,
-                        conn_id=conn_id,
-                        msg=status
-                    )
-                )
-                return False, \
-                    _(
-                        "Failed to setup the role with error message:\n{0}"
-                    ).format(status)
+        is_error, errmsg = self._set_role(manager, cur, conn_id, **kwargs)
+        if is_error:
+            return False, errmsg
 
         # Check database version every time on reconnection
-        status = _execute(cur, "SELECT version()")
+        status = self._execute(cur, "SELECT version()")
 
         if status is not None:
             self.conn.close()
@@ -457,7 +515,7 @@ class Connection(BaseConnection):
             manager.ver = row['version']
             manager.sversion = self.conn.server_version
 
-        status = _execute(cur, """
+        status = self._execute(cur, """
 SELECT
     db.oid as did, db.datname, db.datallowconn,
     pg_encoding_to_char(db.encoding) AS serverencoding,
@@ -476,21 +534,44 @@ WHERE db.datname = current_database()""")
                 if len(manager.db_info) == 1:
                     manager.did = res['did']
 
-        status = _execute(cur, """
-SELECT
-    oid as id, rolname as name, rolsuper as is_superuser,
-    CASE WHEN rolsuper THEN true ELSE rolcreaterole END as can_create_role,
-    CASE WHEN rolsuper THEN true ELSE rolcreatedb END as can_create_db
-FROM
-    pg_catalog.pg_roles
-WHERE
-    rolname = current_user""")
+        self._set_user_info(cur, manager, **kwargs)
 
-        if status is None:
+        self._set_server_type_and_password(kwargs, manager)
+
+        manager.update_session()
+
+        return True, None
+
+    def _set_user_info(self, cur, manager, **kwargs):
+        """
+        Set user info.
+        :param cur:
+        :param manager:
+        :return:
+        """
+        status = self._execute(cur, """
+        SELECT
+            oid as id, rolname as name, rolsuper as is_superuser,
+            CASE WHEN rolsuper THEN true ELSE rolcreaterole END as
+            can_create_role,
+            CASE WHEN rolsuper THEN true ELSE rolcreatedb END as can_create_db
+        FROM
+            pg_catalog.pg_roles
+        WHERE
+            rolname = current_user""")
+
+        if status is None and 'user' not in kwargs:
             manager.user_info = dict()
             if cur.rowcount > 0:
                 manager.user_info = cur.fetchmany(1)[0]
 
+    def _set_server_type_and_password(self, kwargs, manager):
+        """
+        Set server type
+        :param kwargs:
+        :param manager:
+        :return:
+        """
         if 'password' in kwargs:
             manager.password = kwargs['password']
 
@@ -509,10 +590,6 @@ WHERE
                 manager.server_cls = st
                 break
 
-        manager.update_session()
-
-        return True, None
-
     def __cursor(self, server_cursor=False):
 
         if not get_crypt_key()[0]:
@@ -527,9 +604,9 @@ WHERE
             raise ConnectionLost(
                 self.manager.sid,
                 self.db,
-                None if self.conn_id[0:3] == u'DB:' else self.conn_id[5:]
+                None if self.conn_id[0:3] == 'DB:' else self.conn_id[5:]
             )
-        cur = getattr(g, "{0}#{1}".format(
+        cur = getattr(g, self.ARGS_STR.format(
             self.manager.sid,
             self.conn_id.encode('utf-8')
         ), None)
@@ -555,7 +632,7 @@ WHERE
                 raise ConnectionLost(
                     self.manager.sid,
                     self.db,
-                    None if self.conn_id[0:3] == u'DB:' else self.conn_id[5:]
+                    None if self.conn_id[0:3] == 'DB:' else self.conn_id[5:]
                 )
 
         try:
@@ -596,12 +673,12 @@ WHERE
                     raise ConnectionLost(
                         self.manager.sid,
                         self.db,
-                        None if self.conn_id[0:3] == u'DB:'
+                        None if self.conn_id[0:3] == 'DB:'
                         else self.conn_id[5:]
                     )
 
         setattr(
-            g, "{0}#{1}".format(
+            g, self.ARGS_STR.format(
                 self.manager.sid, self.conn_id.encode('utf-8')
             ), cur
         )
@@ -616,7 +693,7 @@ WHERE
         if self.conn and \
             self.conn.encoding in ('SQL_ASCII', 'SQLASCII',
                                    'MULE_INTERNAL', 'MULEINTERNAL')\
-                and params is not None and type(params) == dict:
+                and params is not None and isinstance(params, dict):
             for key, val in params.items():
                 modified_val = val
                 # "unicode_escape" will convert single backslash to double
@@ -675,8 +752,8 @@ WHERE
 
         current_app.logger.log(
             25,
-            u"Execute (with server cursor) for server #{server_id} - "
-            u"{conn_id} (Query-id: {query_id}):\n{query}".format(
+            "Execute (with server cursor) for server #{server_id} - "
+            "{conn_id} (Query-id: {query_id}):\n{query}".format(
                 server_id=self.manager.sid,
                 conn_id=self.conn_id,
                 query=query,
@@ -691,10 +768,10 @@ WHERE
             cur.close()
             errmsg = self._formatted_exception_msg(pe, formatted_exception_msg)
             current_app.logger.error(
-                u"failed to execute query ((with server cursor) "
-                u"for the server #{server_id} - {conn_id} "
-                u"(query-id: {query_id}):\n"
-                u"error message:{errmsg}".format(
+                "failed to execute query ((with server cursor) "
+                "for the server #{server_id} - {conn_id} "
+                "(query-id: {query_id}):\n"
+                "error message:{errmsg}".format(
                     server_id=self.manager.sid,
                     conn_id=self.conn_id,
                     errmsg=errmsg,
@@ -761,19 +838,6 @@ WHERE
             else:
                 quote = csv.QUOTE_NONE
 
-            if hasattr(str, 'decode'):
-                # Decode the field_separator
-                try:
-                    field_separator = field_separator.decode('utf-8')
-                except Exception as e:
-                    current_app.logger.error(e)
-
-                # Decode the quote_char
-                try:
-                    quote_char = quote_char.decode('utf-8')
-                except Exception as e:
-                    current_app.logger.error(e)
-
             csv_writer = csv.DictWriter(
                 res_io, fieldnames=header, delimiter=field_separator,
                 quoting=quote,
@@ -826,8 +890,8 @@ WHERE
 
         current_app.logger.log(
             25,
-            u"Execute (scalar) for server #{server_id} - {conn_id} (Query-id: "
-            u"{query_id}):\n{query}".format(
+            "Execute (scalar) for server #{server_id} - {conn_id} (Query-id: "
+            "{query_id}):\n{query}".format(
                 server_id=self.manager.sid,
                 conn_id=self.conn_id,
                 query=query,
@@ -847,13 +911,13 @@ WHERE
                 raise ConnectionLost(
                     self.manager.sid,
                     self.db,
-                    None if self.conn_id[0:3] == u'DB:' else self.conn_id[5:]
+                    None if self.conn_id[0:3] == 'DB:' else self.conn_id[5:]
                 )
             errmsg = self._formatted_exception_msg(pe, formatted_exception_msg)
             current_app.logger.error(
-                u"Failed to execute query (execute_scalar) for the server "
-                u"#{server_id} - {conn_id} (Query-id: {query_id}):\n"
-                u"Error Message:{errmsg}".format(
+                "Failed to execute query (execute_scalar) for the server "
+                "#{server_id} - {conn_id} (Query-id: {query_id}):\n"
+                "Error Message:{errmsg}".format(
                     server_id=self.manager.sid,
                     conn_id=self.conn_id,
                     errmsg=errmsg,
@@ -899,9 +963,9 @@ WHERE
         dsn = self.conn.get_dsn_parameters()
         current_app.logger.log(
             25,
-            u"Execute (async) by {pga_user} on {db_user}@{db_host}/{db_name} "
-            u"#{server_id} - {conn_id} (Query-id: "
-            u"{query_id}):\n{query}".format(
+            "Execute (async) by {pga_user} on {db_user}@{db_host}/{db_name} "
+            "#{server_id} - {conn_id} (Query-id: "
+            "{query_id}):\n{query}".format(
                 pga_user=current_user.username,
                 db_user=dsn['user'],
                 db_host=dsn['host'],
@@ -922,9 +986,9 @@ WHERE
         except psycopg2.Error as pe:
             errmsg = self._formatted_exception_msg(pe, formatted_exception_msg)
             current_app.logger.error(
-                u"Failed to execute query (execute_async) for the server "
-                u"#{server_id} - {conn_id}(Query-id: {query_id}):\n"
-                u"Error Message:{errmsg}".format(
+                "Failed to execute query (execute_async) for the server "
+                "#{server_id} - {conn_id}(Query-id: {query_id}):\n"
+                "Error Message:{errmsg}".format(
                     server_id=self.manager.sid,
                     conn_id=self.conn_id,
                     errmsg=errmsg,
@@ -939,7 +1003,7 @@ WHERE
                 raise ConnectionLost(
                     self.manager.sid,
                     self.db,
-                    None if self.conn_id[0:3] == u'DB:' else self.conn_id[5:]
+                    None if self.conn_id[0:3] == 'DB:' else self.conn_id[5:]
                 )
             return False, errmsg
 
@@ -967,8 +1031,8 @@ WHERE
 
         current_app.logger.log(
             25,
-            u"Execute (void) for server #{server_id} - {conn_id} (Query-id: "
-            u"{query_id}):\n{query}".format(
+            "Execute (void) for server #{server_id} - {conn_id} (Query-id: "
+            "{query_id}):\n{query}".format(
                 server_id=self.manager.sid,
                 conn_id=self.conn_id,
                 query=query,
@@ -989,13 +1053,13 @@ WHERE
                 raise ConnectionLost(
                     self.manager.sid,
                     self.db,
-                    None if self.conn_id[0:3] == u'DB:' else self.conn_id[5:]
+                    None if self.conn_id[0:3] == 'DB:' else self.conn_id[5:]
                 )
             errmsg = self._formatted_exception_msg(pe, formatted_exception_msg)
             current_app.logger.error(
-                u"Failed to execute query (execute_void) for the server "
-                u"#{server_id} - {conn_id}(Query-id: {query_id}):\n"
-                u"Error Message:{errmsg}".format(
+                "Failed to execute query (execute_void) for the server "
+                "#{server_id} - {conn_id}(Query-id: {query_id}):\n"
+                "Error Message:{errmsg}".format(
                     server_id=self.manager.sid,
                     conn_id=self.conn_id,
                     errmsg=errmsg,
@@ -1010,7 +1074,7 @@ WHERE
 
     def __attempt_execution_reconnect(self, fn, *args, **kwargs):
         self.reconnecting = True
-        setattr(g, "{0}#{1}".format(
+        setattr(g, self.ARGS_STR.format(
             self.manager.sid,
             self.conn_id.encode('utf-8')
         ), None)
@@ -1036,7 +1100,7 @@ WHERE
         raise ConnectionLost(
             self.manager.sid,
             self.db,
-            None if self.conn_id[0:3] == u'DB:' else self.conn_id[5:]
+            None if self.conn_id[0:3] == 'DB:' else self.conn_id[5:]
         )
 
     def execute_2darray(self, query, params=None,
@@ -1050,8 +1114,8 @@ WHERE
         query_id = random.randint(1, 9999999)
         current_app.logger.log(
             25,
-            u"Execute (2darray) for server #{server_id} - {conn_id} "
-            u"(Query-id: {query_id}):\n{query}".format(
+            "Execute (2darray) for server #{server_id} - {conn_id} "
+            "(Query-id: {query_id}):\n{query}".format(
                 server_id=self.manager.sid,
                 conn_id=self.conn_id,
                 query=query,
@@ -1070,9 +1134,9 @@ WHERE
                 )
             errmsg = self._formatted_exception_msg(pe, formatted_exception_msg)
             current_app.logger.error(
-                u"Failed to execute query (execute_2darray) for the server "
-                u"#{server_id} - {conn_id} (Query-id: {query_id}):\n"
-                u"Error Message:{errmsg}".format(
+                "Failed to execute query (execute_2darray) for the server "
+                "#{server_id} - {conn_id} (Query-id: {query_id}):\n"
+                "Error Message:{errmsg}".format(
                     server_id=self.manager.sid,
                     conn_id=self.conn_id,
                     errmsg=errmsg,
@@ -1103,8 +1167,8 @@ WHERE
         query_id = random.randint(1, 9999999)
         current_app.logger.log(
             25,
-            u"Execute (dict) for server #{server_id} - {conn_id} (Query-id: "
-            u"{query_id}):\n{query}".format(
+            "Execute (dict) for server #{server_id} - {conn_id} (Query-id: "
+            "{query_id}):\n{query}".format(
                 server_id=self.manager.sid,
                 conn_id=self.conn_id,
                 query=query,
@@ -1124,13 +1188,13 @@ WHERE
                 raise ConnectionLost(
                     self.manager.sid,
                     self.db,
-                    None if self.conn_id[0:3] == u'DB:' else self.conn_id[5:]
+                    None if self.conn_id[0:3] == 'DB:' else self.conn_id[5:]
                 )
             errmsg = self._formatted_exception_msg(pe, formatted_exception_msg)
             current_app.logger.error(
-                u"Failed to execute query (execute_dict) for the server "
-                u"#{server_id}- {conn_id} (Query-id: {query_id}):\n"
-                u"Error Message:{errmsg}".format(
+                "Failed to execute query (execute_dict) for the server "
+                "#{server_id}- {conn_id} (Query-id: {query_id}):\n"
+                "Error Message:{errmsg}".format(
                     server_id=self.manager.sid,
                     conn_id=self.conn_id,
                     query_id=query_id,
@@ -1166,9 +1230,7 @@ WHERE
         """
         cur = self.__async_cursor
         if not cur:
-            return False, gettext(
-                "Cursor could not be found for the async connection."
-            )
+            return False, self.CURSOR_NOT_FOUND
 
         if self.conn.isexecuting():
             return False, gettext(
@@ -1209,26 +1271,36 @@ WHERE
             self.conn = None
         return False
 
+    def _decrypt_password(self, manager):
+        """
+        Decrypt password
+        :param manager: Manager for get password.
+        :return:
+        """
+        password = getattr(manager, 'password', None)
+        if password:
+            # Fetch Logged in User Details.
+            user = User.query.filter_by(id=current_user.id).first()
+
+            if user is None:
+                return False, self.UNAUTHORIZED_REQUEST, password
+
+            crypt_key_present, crypt_key = get_crypt_key()
+            if not crypt_key_present:
+                return False, crypt_key, password
+
+            password = decrypt(password, crypt_key).decode()
+        return True, '', password
+
     def reset(self):
         if self.conn and self.conn.closed:
             self.conn = None
         pg_conn = None
         manager = self.manager
 
-        password = getattr(manager, 'password', None)
-
-        if password:
-            # Fetch Logged in User Details.
-            user = User.query.filter_by(id=current_user.id).first()
-
-            if user is None:
-                return False, gettext("Unauthorized request.")
-
-            crypt_key_present, crypt_key = get_crypt_key()
-            if not crypt_key_present:
-                return False, crypt_key
-
-            password = decrypt(password, crypt_key).decode()
+        is_return, return_value, password = self._decrypt_password(manager)
+        if is_return:
+            return False, return_value
 
         try:
             pg_conn = psycopg2.connect(
@@ -1304,7 +1376,7 @@ Failed to reset the connection to the server due to following error:
             conn: connection object
         """
 
-        while 1:
+        while True:
             state = conn.poll()
             if state == psycopg2.extensions.POLL_OK:
                 break
@@ -1330,7 +1402,7 @@ Failed to reset the connection to the server due to following error:
             time: wait time
         """
 
-        while 1:
+        while True:
             state = conn.poll()
 
             if state == psycopg2.extensions.POLL_OK:
@@ -1373,9 +1445,7 @@ Failed to reset the connection to the server due to following error:
 
         cur = self.__async_cursor
         if not cur:
-            return False, gettext(
-                "Cursor could not be found for the async connection."
-            )
+            return False, self.CURSOR_NOT_FOUND
 
         current_app.logger.log(
             25,
@@ -1474,9 +1544,7 @@ Failed to reset the connection to the server due to following error:
         """
         cur = self.__async_cursor
         if not cur:
-            return gettext(
-                "Cursor could not be found for the async connection."
-            )
+            return self.CURSOR_NOT_FOUND
 
         current_app.logger.log(
             25,
@@ -1528,7 +1596,7 @@ Failed to reset the connection to the server due to following error:
                 # Fetch Logged in User Details.
                 user = User.query.filter_by(id=current_user.id).first()
                 if user is None:
-                    return False, gettext("Unauthorized request.")
+                    return False, self.UNAUTHORIZED_REQUEST
 
                 crypt_key_present, crypt_key = get_crypt_key()
                 if not crypt_key_present:
@@ -1621,40 +1689,6 @@ Failed to reset the connection to the server due to following error:
 
         return resp
 
-    def decode_to_utf8(self, value):
-        """
-        This method will decode values to utf-8
-        Args:
-            value: String to be decode
-
-        Returns:
-            Decoded string
-        """
-        is_error = False
-        if hasattr(str, 'decode'):
-            try:
-                value = value.decode('utf-8')
-            except UnicodeDecodeError:
-                # Let's try with python's preferred encoding
-                # On Windows lc_messages mostly has environment dependent
-                # encoding like 'French_France.1252'
-                try:
-                    import locale
-                    pref_encoding = locale.getpreferredencoding()
-                    value = value.decode(pref_encoding)\
-                        .encode('utf-8')\
-                        .decode('utf-8')
-                except Exception:
-                    is_error = True
-            except Exception:
-                is_error = True
-
-        # If still not able to decode then
-        if is_error:
-            value = value.decode('ascii', 'ignore')
-
-        return value
-
     def _formatted_exception_msg(self, exception_obj, formatted_msg):
         """
         This method is used to parse the psycopg2.Error object and returns the
@@ -1673,8 +1707,6 @@ Failed to reset the connection to the server due to following error:
             errmsg = exception_obj.diag.message_detail
         else:
             errmsg = str(exception_obj)
-        # errmsg might contains encoded value, lets decode it
-        errmsg = self.decode_to_utf8(errmsg)
 
         # if formatted_msg is false then return from the function
         if not formatted_msg:
@@ -1683,14 +1715,14 @@ Failed to reset the connection to the server due to following error:
 
         # Do not append if error starts with `ERROR:` as most pg related
         # error starts with `ERROR:`
-        if not errmsg.startswith(u'ERROR:'):
-            errmsg = gettext(u'ERROR: ') + errmsg + u'\n\n'
+        if not errmsg.startswith('ERROR:'):
+            errmsg = gettext('ERROR: ') + errmsg + '\n\n'
 
         if exception_obj.diag.severity is not None \
                 and exception_obj.diag.message_primary is not None:
-            ex_diag_message = u"{0}:  {1}".format(
-                self.decode_to_utf8(exception_obj.diag.severity),
-                self.decode_to_utf8(exception_obj.diag.message_primary)
+            ex_diag_message = "{0}:  {1}".format(
+                exception_obj.diag.severity,
+                exception_obj.diag.message_primary
             )
             # If both errors are different then only append it
             if errmsg and ex_diag_message and \
@@ -1698,9 +1730,7 @@ Failed to reset the connection to the server due to following error:
                     errmsg.strip().strip('\n').lower():
                 errmsg += ex_diag_message
         elif exception_obj.diag.message_primary is not None:
-            message_primary = self.decode_to_utf8(
-                exception_obj.diag.message_primary
-            )
+            message_primary = exception_obj.diag.message_primary
             if message_primary.lower() not in errmsg.lower():
                 errmsg += message_primary
 
@@ -1708,39 +1738,35 @@ Failed to reset the connection to the server due to following error:
             if not errmsg.endswith('\n'):
                 errmsg += '\n'
             errmsg += gettext('SQL state: ')
-            errmsg += self.decode_to_utf8(exception_obj.diag.sqlstate)
+            errmsg += exception_obj.diag.sqlstate
 
         if exception_obj.diag.message_detail is not None and \
                 'Detail:'.lower() not in errmsg.lower():
             if not errmsg.endswith('\n'):
                 errmsg += '\n'
             errmsg += gettext('Detail: ')
-            errmsg += self.decode_to_utf8(
-                exception_obj.diag.message_detail
-            )
+            errmsg += exception_obj.diag.message_detail
 
         if exception_obj.diag.message_hint is not None and \
                 'Hint:'.lower() not in errmsg.lower():
             if not errmsg.endswith('\n'):
                 errmsg += '\n'
             errmsg += gettext('Hint: ')
-            errmsg += self.decode_to_utf8(exception_obj.diag.message_hint)
+            errmsg += exception_obj.diag.message_hint
 
         if exception_obj.diag.statement_position is not None and \
                 'Character:'.lower() not in errmsg.lower():
             if not errmsg.endswith('\n'):
                 errmsg += '\n'
             errmsg += gettext('Character: ')
-            errmsg += self.decode_to_utf8(
-                exception_obj.diag.statement_position
-            )
+            errmsg += exception_obj.diag.statement_position
 
         if exception_obj.diag.context is not None and \
                 'Context:'.lower() not in errmsg.lower():
             if not errmsg.endswith('\n'):
                 errmsg += '\n'
             errmsg += gettext('Context: ')
-            errmsg += self.decode_to_utf8(exception_obj.diag.context)
+            errmsg += exception_obj.diag.context
 
         notices = self.get_notices()
         return errmsg if notices == '' else notices + '\n' + errmsg
@@ -1859,16 +1885,16 @@ Failed to reset the connection to the server due to following error:
                     )
         elif psycopg2.__libpq_version__ < 100000:
             current_app.logger.warning(
-                u"To encrypt passwords the required libpq version is "
-                u"greater than or equal to 100000. Current libpq version "
-                u"is {curr_ver}".format(
+                "To encrypt passwords the required libpq version is "
+                "greater than or equal to 100000. Current libpq version "
+                "is {curr_ver}".format(
                     curr_ver=psycopg2.__libpq_version__
                 )
             )
         elif not hasattr(psycopg2.extensions, 'encrypt_password'):
             current_app.logger.warning(
-                u"The psycopg2.extensions module does not have the"
-                u"'encrypt_password' method."
+                "The psycopg2.extensions module does not have the"
+                "'encrypt_password' method."
             )
 
         return enc_password

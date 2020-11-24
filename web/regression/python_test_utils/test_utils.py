@@ -36,6 +36,8 @@ from regression import test_setup
 
 from pgadmin.utils.preferences import Preferences
 
+from functools import wraps
+
 CURRENT_PATH = os.path.abspath(os.path.join(os.path.dirname(
     os.path.realpath(__file__)), "../"))
 
@@ -1100,7 +1102,7 @@ def get_server_type(server):
         pg_cursor.execute("SELECT version()")
         version_string = pg_cursor.fetchone()
         connection.close()
-        if type(version_string) == tuple:
+        if isinstance(version_string, tuple):
             version_string = version_string[0]
 
         if "Greenplum Database" in version_string:
@@ -1203,6 +1205,21 @@ def generate_scenarios(key, test_cases):
         tup = (test_name, dict(scenario))
         scenarios.append(tup)
     return scenarios
+
+
+def assert_status_code(self, response):
+    act_res = response.status_code
+    exp_res = self.expected_data["status_code"]
+    return self.assertEqual(act_res, exp_res)
+
+
+def assert_error_message(self, response, error_msg=None):
+    act_res = response.json["errormsg"]
+    if error_msg is not None:
+        exp_res = error_msg
+    else:
+        exp_res = self.expected_data["error_msg"]
+    return self.assertEqual(act_res, exp_res)
 
 
 def create_expected_output(parameters, actual_data):
@@ -1391,9 +1408,7 @@ def get_parallel_sequential_module_list(module_list):
             parallel_tests.remove(module)
 
     #  list of tests can be executed in sequentially
-    sequential_tests = list(
-        filter(lambda i: i not in parallel_tests,
-               module_list))
+    sequential_tests = [i for i in module_list if i not in parallel_tests]
 
     # return parallel & sequential lists
     return parallel_tests, sequential_tests
@@ -1585,3 +1600,106 @@ def get_selenoid_browsers_list(arguments):
         list_of_browsers = test_setup.config_data['selenoid_config'][
             'browsers_list']
     return list_of_browsers
+
+
+def login_using_user_account(tester):
+    """
+    This function login the test client username and password
+    :param tester: test client
+    :type tester: flask test client object
+    :return: None
+    """
+    username = tester.test_config_data['login_username']
+    password = tester.test_config_data['login_password']
+    response = tester.login(username, password)
+
+    if response.status_code != 302:
+        print("Unable to login test client, email and password not found.",
+              file=sys.stderr)
+        sys.exit(1)
+
+
+def logout_tester_account(tester):
+    """
+    This function logout the test account
+    :param tester: test client
+    :type tester: flask test client object
+    :return: None
+    """
+    tester.logout()
+
+
+def create_user(user_details):
+    try:
+        conn = sqlite3.connect(config.TEST_SQLITE_PATH)
+        # Create the server
+        cur = conn.cursor()
+        user_details = (
+            user_details['login_username'], user_details['login_username'],
+            user_details['login_password'], 1)
+
+        cur.execute(
+            'select * from user where username = "%s"' % user_details[0])
+        user = cur.fetchone()
+        if user is None:
+            cur.execute('INSERT INTO user (username, email, password, active) '
+                        'VALUES (?,?,?,?)', user_details)
+            user_id = cur.lastrowid
+            conn.commit()
+        else:
+            user_id = user[0]
+        conn.close()
+
+        return user_id
+    except Exception as exception:
+        traceback.print_exc(file=sys.stderr)
+        raise ("Error while creating server. %s" % exception)
+
+
+def get_test_user(self, user_details,
+                  is_api=True, create_conn=True):
+    if user_details is None:
+        return None, None
+
+    if is_api is True:
+
+        # Create test_client for this user, and login through it.
+        test_client = self.app.test_client()
+        user = create_user(user_details)
+        if user is not None:
+            test_client.test_config_data = dict({
+                "login_username": user_details['login_username'],
+                "login_password": user_details['login_password']
+            })
+        else:
+            return "User not created"
+        login_using_user_account(test_client)
+        user = test_client
+
+    return user
+
+
+def create_user_wise_test_client(user):
+    """
+    This function creates new test client and execute the test cases.
+    :return: None
+    """
+
+    def multi_user_decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            main_tester = self.__class__.tester
+            try:
+                # Login with non-admin_user
+                test_user = get_test_user(self, user)
+                self.setTestClient(test_user)
+
+                # Call 'runTest' with new test client
+                func(self, *args, **kwargs)
+            finally:
+                # Restore the original user and driver
+                self.__class__.tester = main_tester
+
+        return wrapper
+
+    return multi_user_decorator

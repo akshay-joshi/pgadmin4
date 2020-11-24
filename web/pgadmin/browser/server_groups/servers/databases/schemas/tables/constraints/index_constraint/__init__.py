@@ -200,6 +200,7 @@ class IndexConstraintView(PGChildNodeView):
     node_type = 'index_constraint'
 
     node_label = _('Index constraint')
+    INDEX_CONSTRAINT_PATH = 'index_constraint/sql/#{0}#'
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -245,8 +246,8 @@ class IndexConstraintView(PGChildNodeView):
                 self.manager.db_info[kwargs['did']]['datlastsysoid'] \
                 if self.manager.db_info is not None and \
                 kwargs['did'] in self.manager.db_info else 0
-            self.template_path = 'index_constraint/sql/#{0}#'\
-                .format(self.manager.version)
+            self.template_path = self.INDEX_CONSTRAINT_PATH.format(
+                self.manager.version)
 
             # We need parent's name eg table name and schema name
             schema, table = idxcons_utils.get_parent(self.conn, kwargs['tid'])
@@ -287,10 +288,7 @@ class IndexConstraintView(PGChildNodeView):
             return res
 
         if len(res) == 0:
-            return gone(_("""Could not find the {} in the table.""").format(
-                _("primary key") if self.constraint_type == "p"
-                else _("unique key")
-            ))
+            return gone(self.key_not_found_error_msg())
 
         result = res
         if cid:
@@ -347,8 +345,8 @@ class IndexConstraintView(PGChildNodeView):
         """
         self.manager = get_driver(PG_DEFAULT_DRIVER).connection_manager(sid)
         self.conn = self.manager.connection(did=did)
-        self.template_path = 'index_constraint/sql/#{0}#'\
-            .format(self.manager.version)
+        self.template_path = self.INDEX_CONSTRAINT_PATH.format(
+            self.manager.version)
 
         # We need parent's name eg table name and schema name
         schema, table = idxcons_utils.get_parent(self.conn, tid)
@@ -392,16 +390,13 @@ class IndexConstraintView(PGChildNodeView):
             return internal_server_error(errormsg=rset)
 
         if len(rset['rows']) == 0:
-            return gone(_("""Could not find the {} in the table.""").format(
-                _("primary key") if self.constraint_type == "p"
-                else _("unique key")
-            ))
+            return gone(self.key_not_found_error_msg())
 
         res = self.blueprint.generate_browser_node(
             rset['rows'][0]['oid'],
             tid,
             rset['rows'][0]['name'],
-            icon="icon-%s" % self.node_type
+            icon=self.node_icon
         )
         return make_json_response(
             data=res,
@@ -441,7 +436,7 @@ class IndexConstraintView(PGChildNodeView):
                     row['oid'],
                     tid,
                     row['name'],
-                    icon="icon-%s" % self.node_type
+                    icon=self.node_icon
                 )
             )
         return make_json_response(
@@ -466,8 +461,8 @@ class IndexConstraintView(PGChildNodeView):
         """
         self.manager = get_driver(PG_DEFAULT_DRIVER).connection_manager(sid)
         self.conn = self.manager.connection(did=did)
-        self.template_path = 'index_constraint/sql/#{0}#'\
-            .format(self.manager.version)
+        self.template_path = self.INDEX_CONSTRAINT_PATH.format(
+            self.manager.version)
 
         # We need parent's name eg table name and schema name
         schema, table = idxcons_utils.get_parent(self.conn, tid)
@@ -486,7 +481,7 @@ class IndexConstraintView(PGChildNodeView):
                     row['oid'],
                     tid,
                     row['name'],
-                    icon="icon-%s" % self.node_type
+                    icon=self.node_icon
                 ))
         return res
 
@@ -516,7 +511,7 @@ class IndexConstraintView(PGChildNodeView):
     @staticmethod
     def _check_required_args(data):
         required_args = [
-            [u'columns', u'index']  # Either of one should be there.
+            ['columns', 'index']  # Either of one should be there.
         ]
 
         def is_key_list(key, data):
@@ -627,7 +622,7 @@ class IndexConstraintView(PGChildNodeView):
                     res['rows'][0]['oid'],
                     tid,
                     data['name'],
-                    icon="icon-%s" % self.node_type
+                    icon=self.node_icon
                 )
             )
 
@@ -688,7 +683,7 @@ class IndexConstraintView(PGChildNodeView):
                     cid,
                     tid,
                     name,
-                    icon="icon-%s" % self.node_type
+                    icon=self.node_icon
                 )
             )
         except Exception as e:
@@ -718,11 +713,7 @@ class IndexConstraintView(PGChildNodeView):
             data = {'ids': [cid]}
 
         # Below code will decide if it's simple drop or drop with cascade call
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+        cascade = self._check_cascade_operation()
         try:
             for cid in data['ids']:
                 sql = render_template(
@@ -848,10 +839,7 @@ class IndexConstraintView(PGChildNodeView):
         if not status:
             return internal_server_error(errormsg=res)
         if len(res['rows']) == 0:
-            return gone(_("""Could not find the {} in the table.""").format(
-                _("primary key") if self.constraint_type == "p"
-                else _("unique key")
-            ))
+            return gone(self.key_not_found_error_msg())
 
         data = res['rows'][0]
         data['schema'] = self.schema
@@ -889,7 +877,7 @@ class IndexConstraintView(PGChildNodeView):
             data=data,
             constraint_name=self.constraint_name)
 
-        sql_header = u"-- Constraint: {0}\n\n-- ".format(data['name'])
+        sql_header = "-- Constraint: {0}\n\n-- ".format(data['name'])
 
         sql_header += render_template(
             "/".join([self.template_path, self._DELETE_SQL]),
@@ -940,12 +928,7 @@ class IndexConstraintView(PGChildNodeView):
             if not status:
                 return internal_server_error(errormsg=res)
             if len(res['rows']) == 0:
-                return gone(
-                    _("""Could not find the {} in the table.""").format(
-                        _("primary key") if self.constraint_type == "p"
-                        else _("unique key")
-                    )
-                )
+                return gone(self.key_not_found_error_msg())
 
             result = res['rows'][0]
             name = result['name']
@@ -1014,6 +997,12 @@ class IndexConstraintView(PGChildNodeView):
             status=200
         )
 
+    def key_not_found_error_msg(self):
+        return _("""Could not find the {} in the table.""").format(
+            _("primary key") if self.constraint_type == "p"
+            else _("unique key")
+        )
+
 
 class PrimaryKeyConstraintView(IndexConstraintView):
     node_type = 'primary_key'
@@ -1024,6 +1013,8 @@ class PrimaryKeyConstraintView(IndexConstraintView):
 
     constraint_type = "p"
 
+    node_icon = "icon-%s" % node_type
+
 
 class UniqueConstraintView(IndexConstraintView):
     node_type = 'unique_constraint'
@@ -1033,6 +1024,8 @@ class UniqueConstraintView(IndexConstraintView):
     constraint_name = "UNIQUE"
 
     constraint_type = "u"
+
+    node_icon = "icon-%s" % node_type
 
 
 primary_key_constraint = ConstraintRegistry(

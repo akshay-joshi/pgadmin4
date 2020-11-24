@@ -12,6 +12,8 @@
 import copy
 import string
 from pgadmin.tools.schema_diff.model import SchemaDiffModel
+from flask import current_app
+from pgadmin.utils.preferences import Preferences
 
 count = 1
 
@@ -20,40 +22,24 @@ list_keys_array = ['name', 'colname', 'argid', 'token', 'option', 'conname',
                    'fsrvoption', 'umoption']
 
 
-def compare_dictionaries(**kwargs):
+def _get_source_list(**kwargs):
     """
-    This function will compare the two dictionaries.
-
-    :param kwargs:
-    :return:
+    Get only source list.
+    :param kwargs
+    :return: list of source dict.
     """
-    view_object = kwargs.get('view_object')
-    source_params = kwargs.get('source_params')
-    target_params = kwargs.get('target_params')
-    group_name = kwargs.get('group_name')
+    added = kwargs.get('added')
     source_dict = kwargs.get('source_dict')
-    target_dict = kwargs.get('target_dict')
     node = kwargs.get('node')
+    source_params = kwargs.get('source_params')
+    view_object = kwargs.get('view_object')
     node_label = kwargs.get('node_label')
-    ignore_whitespaces = kwargs.get('ignore_whitespaces')
-    ignore_keys = kwargs.get('ignore_keys', None)
+    group_name = kwargs.get('group_name')
+    source_schema_name = kwargs.get('source_schema_name')
+    target_schema = kwargs.get('target_schema')
 
-    dict1 = copy.deepcopy(source_dict)
-    dict2 = copy.deepcopy(target_dict)
-
-    # Find the duplicate keys in both the dictionaries
-    dict1_keys = set(dict1.keys())
-    dict2_keys = set(dict2.keys())
-    intersect_keys = dict1_keys.intersection(dict2_keys)
-
-    # Add gid to the params
-    source_params['gid'] = target_params['gid'] = 1
-
-    # Keys that are available in source and missing in target.
-    source_only = []
-    source_dependencies = []
-    added = dict1_keys - dict2_keys
     global count
+    source_only = []
     for item in added:
         source_object_id = None
         if 'oid' in source_dict[item]:
@@ -65,6 +51,7 @@ def compare_dictionaries(**kwargs):
             temp_src_params['json_resp'] = False
             source_ddl = \
                 view_object.get_sql_from_table_diff(**temp_src_params)
+            temp_src_params.update({'target_schema': target_schema})
             diff_ddl = view_object.get_sql_from_table_diff(**temp_src_params)
             source_dependencies = \
                 view_object.get_table_submodules_dependencies(
@@ -80,6 +67,7 @@ def compare_dictionaries(**kwargs):
                 temp_src_params['fsid'] = source_dict[item]['fsid']
 
             source_ddl = view_object.get_sql_from_diff(**temp_src_params)
+            temp_src_params.update({'target_schema': target_schema})
             diff_ddl = view_object.get_sql_from_diff(**temp_src_params)
             source_dependencies = view_object.get_dependencies(
                 view_object.conn, source_object_id, where=None,
@@ -96,13 +84,42 @@ def compare_dictionaries(**kwargs):
             'target_ddl': '',
             'diff_ddl': diff_ddl,
             'group_name': group_name,
-            'dependencies': source_dependencies
+            'dependencies': source_dependencies,
+            'source_schema_name': source_schema_name
         })
         count += 1
 
+    return source_only
+
+
+def _delete_keys(temp_tgt_params):
+    """
+    Delete keys from temp target parameters.
+    :param temp_tgt_params:
+    :type temp_tgt_params:
+    :return:
+    """
+    if 'gid' in temp_tgt_params:
+        del temp_tgt_params['gid']
+    if 'json_resp' in temp_tgt_params:
+        del temp_tgt_params['json_resp']
+
+
+def _get_target_list(removed, target_dict, node, target_params, view_object,
+                     node_label, group_name):
+    """
+    Get only target list.
+    :param removed: removed list.
+    :param target_dict: target dict.
+    :param node: node type.
+    :param target_params: target parameters.
+    :param view_object: view object for get sql.
+    :param node_label: node label.
+    :param group_name: group name.
+    :return: list of target dict.
+    """
+    global count
     target_only = []
-    # Keys that are available in target and missing in source.
-    removed = dict2_keys - dict1_keys
     for item in removed:
         target_object_id = None
         if 'oid' in target_dict[item]:
@@ -113,10 +130,7 @@ def compare_dictionaries(**kwargs):
             temp_tgt_params['tid'] = target_object_id
             temp_tgt_params['json_resp'] = False
             target_ddl = view_object.get_sql_from_table_diff(**temp_tgt_params)
-            if 'gid' in temp_tgt_params:
-                del temp_tgt_params['gid']
-            if 'json_resp' in temp_tgt_params:
-                del temp_tgt_params['json_resp']
+            _delete_keys(temp_tgt_params)
             diff_ddl = view_object.get_drop_sql(**temp_tgt_params)
         else:
             temp_tgt_params = copy.deepcopy(target_params)
@@ -148,20 +162,82 @@ def compare_dictionaries(**kwargs):
         })
         count += 1
 
-    # Compare the values of duplicates keys.
+    return target_only
+
+
+def _check_add_req_ids(source_dict, target_dict, key, temp_src_params,
+                       temp_tgt_params):
+    """
+    Check for Foreign Data Wrapper ID and Foreign Server ID and update it
+    in req parameters.
+    :param source_dict: Source dict for compare schema.
+    :param target_dict: Target dict for compare schema.
+    :param key: Key for get obj.
+    :param temp_src_params:
+    :param temp_tgt_params:
+    :return:
+    """
+    if 'fdwid' in source_dict[key]:
+        temp_src_params['fdwid'] = source_dict[key]['fdwid']
+        temp_tgt_params['fdwid'] = target_dict[key]['fdwid']
+    # Provide Foreign Server ID
+    if 'fsid' in source_dict[key]:
+        temp_src_params['fsid'] = source_dict[key]['fsid']
+        temp_tgt_params['fsid'] = target_dict[key]['fsid']
+
+
+def get_source_target_oid(source_dict, target_dict, key):
+    """
+    Get source and target object ID.
+    :param source_dict: Source schema diff data.
+    :param target_dict: Target schema diff data.
+    :param key: Key.
+    :return: source and target object ID.
+    """
+    source_object_id = None
+    target_object_id = None
+    if 'oid' in source_dict[key]:
+        source_object_id = source_dict[key]['oid']
+        target_object_id = target_dict[key]['oid']
+
+    return source_object_id, target_object_id
+
+
+def _get_identical_and_different_list(intersect_keys, source_dict, target_dict,
+                                      node, node_label, view_object,
+                                      **kwargs):
+    """
+    get lists of identical and different keys list.
+    :param intersect_keys:
+    :param source_dict:
+    :param target_dict:
+    :param node:
+    :param node_label:
+    :param view_object:
+    :param other_param:
+    :return: return list of identical and different dict.
+    """
+    global count
     identical = []
     different = []
-    diff_dependencies = []
+    dict1 = kwargs['dict1']
+    dict2 = kwargs['dict2']
+    ignore_keys = kwargs['ignore_keys']
+    source_params = kwargs['source_params']
+    target_params = kwargs['target_params']
+    group_name = kwargs['group_name']
+    target_schema = kwargs.get('target_schema')
     for key in intersect_keys:
-        source_object_id = None
-        target_object_id = None
-        if 'oid' in source_dict[key]:
-            source_object_id = source_dict[key]['oid']
-            target_object_id = target_dict[key]['oid']
+        source_object_id, target_object_id = \
+            get_source_target_oid(source_dict, target_dict, key)
 
         # Recursively Compare the two dictionary
-        if are_dictionaries_identical(dict1[key], dict2[key],
-                                      ignore_whitespaces, ignore_keys):
+        current_app.logger.debug(
+            "Schema Diff: Source Dict: {0}".format(dict1[key]))
+        current_app.logger.debug(
+            "Schema Diff: Target Dict: {0}".format(dict2[key]))
+
+        if are_dictionaries_identical(dict1[key], dict2[key], ignore_keys):
             identical.append({
                 'id': count,
                 'type': node,
@@ -210,7 +286,7 @@ def compare_dictionaries(**kwargs):
                     source_params=temp_src_params,
                     target_params=temp_tgt_params,
                     source=dict1[key], target=dict2[key], diff_dict=diff_dict,
-                    ignore_whitespaces=ignore_whitespaces)
+                    target_schema=target_schema)
             else:
                 temp_src_params = copy.deepcopy(source_params)
                 temp_tgt_params = copy.deepcopy(target_params)
@@ -223,13 +299,8 @@ def compare_dictionaries(**kwargs):
                 temp_src_params['oid'] = source_object_id
                 temp_tgt_params['oid'] = target_object_id
                 # Provide Foreign Data Wrapper ID
-                if 'fdwid' in source_dict[key]:
-                    temp_src_params['fdwid'] = source_dict[key]['fdwid']
-                    temp_tgt_params['fdwid'] = target_dict[key]['fdwid']
-                # Provide Foreign Server ID
-                if 'fsid' in source_dict[key]:
-                    temp_src_params['fsid'] = source_dict[key]['fsid']
-                    temp_tgt_params['fsid'] = target_dict[key]['fsid']
+                _check_add_req_ids(source_dict, target_dict, key,
+                                   temp_src_params, temp_tgt_params)
 
                 source_ddl = view_object.get_sql_from_diff(**temp_src_params)
                 diff_dependencies = view_object.get_dependencies(
@@ -237,7 +308,7 @@ def compare_dictionaries(**kwargs):
                     show_system_objects=None, is_schema_diff=True)
                 target_ddl = view_object.get_sql_from_diff(**temp_tgt_params)
                 temp_tgt_params.update(
-                    {'data': diff_dict})
+                    {'data': diff_dict, 'target_schema': target_schema})
                 diff_ddl = view_object.get_sql_from_diff(**temp_tgt_params)
 
             different.append({
@@ -257,16 +328,90 @@ def compare_dictionaries(**kwargs):
             })
         count += 1
 
+    return identical, different
+
+
+def compare_dictionaries(**kwargs):
+    """
+    This function will compare the two dictionaries.
+
+    :param kwargs:
+    :return:
+    """
+    view_object = kwargs.get('view_object')
+    source_params = kwargs.get('source_params')
+    target_params = kwargs.get('target_params')
+    target_schema = kwargs.get('target_schema')
+    group_name = kwargs.get('group_name')
+    source_dict = kwargs.get('source_dict')
+    target_dict = kwargs.get('target_dict')
+    node = kwargs.get('node')
+    node_label = kwargs.get('node_label')
+    ignore_keys = kwargs.get('ignore_keys', None)
+    source_schema_name = kwargs.get('source_schema_name')
+
+    dict1 = copy.deepcopy(source_dict)
+    dict2 = copy.deepcopy(target_dict)
+
+    # Find the duplicate keys in both the dictionaries
+    dict1_keys = set(dict1.keys())
+    dict2_keys = set(dict2.keys())
+    intersect_keys = dict1_keys.intersection(dict2_keys)
+
+    # Add gid to the params
+    source_params['gid'] = target_params['gid'] = 1
+
+    # Keys that are available in source and missing in target.
+
+    added = dict1_keys - dict2_keys
+
+    source_only = _get_source_list(added=added, source_dict=source_dict,
+                                   node=node, source_params=source_params,
+                                   view_object=view_object,
+                                   node_label=node_label,
+                                   group_name=group_name,
+                                   source_schema_name=source_schema_name,
+                                   target_schema=target_schema)
+
+    target_only = []
+    # Keys that are available in target and missing in source.
+    removed = dict2_keys - dict1_keys
+    target_only = _get_target_list(removed, target_dict, node, target_params,
+                                   view_object, node_label, group_name)
+
+    pref = Preferences.module('schema_diff')
+    ignore_owner = pref.preference('ignore_owner').get()
+    # if ignore_owner if True then add all the possible owner keys to the
+    # ignore keys.
+    if ignore_owner:
+        owner_keys = ['owner', 'eventowner', 'funcowner', 'fdwowner',
+                      'fsrvowner', 'lanowner', 'relowner', 'seqowner',
+                      'typowner', 'typeowner']
+        ignore_keys = ignore_keys + owner_keys
+
+    # Compare the values of duplicates keys.
+    other_param = {
+        "dict1": dict1,
+        "dict2": dict2,
+        "ignore_keys": ignore_keys,
+        "source_params": source_params,
+        "target_params": target_params,
+        "group_name": group_name,
+        "target_schema": target_schema
+    }
+
+    identical, different = _get_identical_and_different_list(
+        intersect_keys, source_dict, target_dict, node, node_label,
+        view_object, **other_param)
+
     return source_only + target_only + different + identical
 
 
-def are_lists_identical(source_list, target_list, ignore_whitespaces,
-                        ignore_keys):
+def are_lists_identical(source_list, target_list, ignore_keys):
     """
     This function is used to compare two list.
     :param source_list:
     :param target_list:
-    :param ignore_whitespaces: ignore whitespaces
     :param ignore_keys: ignore keys to compare
     :return:
     """
@@ -277,10 +422,9 @@ def are_lists_identical(source_list, target_list, ignore_whitespaces,
         for index in range(len(source_list)):
             # Check the type of the value if it is an dictionary then
             # call are_dictionaries_identical() function.
-            if type(source_list[index]) is dict:
+            if isinstance(source_list[index], dict):
                 if not are_dictionaries_identical(source_list[index],
                                                   target_list[index],
-                                                  ignore_whitespaces,
                                                   ignore_keys):
                     return False
             else:
@@ -289,17 +433,17 @@ def are_lists_identical(source_list, target_list, ignore_whitespaces,
     return True
 
 
-def are_dictionaries_identical(source_dict, target_dict, ignore_whitespaces,
-                               ignore_keys):
+def are_dictionaries_identical(source_dict, target_dict, ignore_keys):
     """
     This function is used to recursively compare two dictionaries with
     same keys.
     :param source_dict: source dict
     :param target_dict: target dict
-    :param ignore_whitespaces: If set to True then ignore whitespaces
     :param ignore_keys: ignore keys to compare
     :return:
     """
+    pref = Preferences.module('schema_diff')
+    ignore_whitespaces = pref.preference('ignore_whitespaces').get()
 
     src_keys = set(source_dict.keys())
     tar_keys = set(target_dict.keys())
@@ -312,12 +456,17 @@ def are_dictionaries_identical(source_dict, target_dict, ignore_whitespaces,
     # If number of keys are different in source and target then
     # return False
     if len(src_only) != len(tar_only):
+        current_app.logger.debug("Schema Diff: Number of keys are different "
+                                 "in source and target")
         return False
     else:
         # If number of keys are same but key is not present in target then
         # return False
         for key in src_only:
             if key not in tar_only:
+                current_app.logger.debug(
+                    "Schema Diff: Number of keys are same but key is not"
+                    " present in target")
                 return False
 
     for key in source_dict.keys():
@@ -325,20 +474,18 @@ def are_dictionaries_identical(source_dict, target_dict, ignore_whitespaces,
         if key in ignore_keys:
             continue
 
-        if type(source_dict[key]) is dict:
+        if isinstance(source_dict[key], dict):
             if not are_dictionaries_identical(source_dict[key],
                                               target_dict[key],
-                                              ignore_whitespaces,
                                               ignore_keys):
                 return False
-        elif type(source_dict[key]) is list:
+        elif isinstance(source_dict[key], list):
             # Sort the source and target list on the basis of
             # list key array.
             source_dict[key], target_dict[key] = sort_list(source_dict[key],
                                                            target_dict[key])
             # Compare the source and target lists
             if not are_lists_identical(source_dict[key], target_dict[key],
-                                       ignore_whitespaces,
                                        ignore_keys):
                 return False
         else:
@@ -356,7 +503,20 @@ def are_dictionaries_identical(source_dict, target_dict, ignore_whitespaces,
                     target_value = target_value.translate(
                         str.maketrans('', '', string.whitespace))
 
+            # We need a proper solution as sometimes we observe that
+            # source_value is '' and target_value is None or vice versa
+            # in such situation we shown the comparison as different
+            # which is wrong.
+            if (source_value == '' and target_value is None) or \
+                    (source_value is None and target_value == ''):
+                continue
+
             if source_value != target_value:
+                current_app.logger.debug(
+                    "Schema Diff: Object name: '{0}', Source Value: '{1}', "
+                    "Target Value: '{2}', Key: '{3}'".format(
+                        source_dict['name'] if 'name' in source_dict else '',
+                        source_value, target_value, key))
                 return False
 
     return True
@@ -392,31 +552,30 @@ def directory_diff(source_dict, target_dict, ignore_keys=[], difference=None):
         if key in ignore_keys:
             continue
         elif key in tar_only:
-            if type(target_dict[key]) is list:
+            if isinstance(target_dict[key], list):
                 difference[key] = {}
                 difference[key]['deleted'] = target_dict[key]
         elif key in src_only:
             # Source only values in the newly added list
-            if type(source_dict[key]) is list:
+            if isinstance(source_dict[key], list):
                 difference[key] = {}
                 difference[key]['added'] = source_dict[key]
-        elif type(source_dict[key]) is dict:
+        elif isinstance(source_dict[key], dict):
             directory_diff(source_dict[key], target_dict[key],
                            ignore_keys, difference)
-        elif type(source_dict[key]) is list:
+        elif isinstance(source_dict[key], list):
             tmp_target = None
-            tmp_list = list(filter(
-                lambda x: type(x) == list or type(x) == dict, source_dict[key]
-            ))
+            tmp_list = [x for x in source_dict[key]
+                        if isinstance(x, (list, dict))]
 
-            if len(tmp_list) > 0:
+            if tmp_list:
                 tmp_target = copy.deepcopy(target_dict[key])
                 for index in range(len(source_dict[key])):
                     source = copy.deepcopy(source_dict[key][index])
-                    if type(source) is list:
+                    if isinstance(source, list):
                         # TODO
                         pass
-                    elif type(source) is dict:
+                    elif isinstance(source, dict):
                         # Check the above keys are exist in the dictionary
                         tmp_key = is_key_exists(list_keys_array, source)
                         if tmp_key is not None:
@@ -431,35 +590,33 @@ def directory_diff(source_dict, target_dict, ignore_keys=[], difference=None):
                         if len(updated) > 0:
                             difference[key]['changed'] = updated
                     elif target_dict[key] is None or \
-                            (type(target_dict[key]) is list and
+                            (isinstance(target_dict[key], list) and
                              len(target_dict[key]) < index and
                              source != target_dict[key][index]):
                         difference[key] = source
-                    elif type(target_dict[key]) is list and\
+                    elif isinstance(target_dict[key], list) and\
                             len(target_dict[key]) > index:
                         difference[key] = source
             elif len(source_dict[key]) > 0:
                 difference[key] = source_dict[key]
-            elif key in target_dict and type(target_dict[key]) is list:
+            elif key in target_dict and isinstance(target_dict[key], list):
                 # If no element in source dict then check for the element
                 # is available in target and the type is of list.
                 # Added such elements as a deleted.
-                tmp_tar_list = list(filter(
-                    lambda x: type(x) == list or type(x) == dict,
-                    target_dict[key]
-                ))
-                if len(tmp_tar_list):
+                tmp_tar_list = [x for x in target_dict[key]
+                                if isinstance(x, (list, dict))]
+                if tmp_tar_list:
                     difference[key] = {'deleted': target_dict[key]}
 
-            if type(source) is dict and tmp_target and key in tmp_target and \
-                    tmp_target[key] and len(tmp_target[key]) > 0:
-                if type(tmp_target[key]) is list and \
-                        type(tmp_target[key][0]) is dict:
+            if isinstance(source, dict) and tmp_target and key in tmp_target \
+                    and tmp_target[key] and len(tmp_target[key]) > 0:
+                if isinstance(tmp_target[key], list) and \
+                        isinstance(tmp_target[key][0], dict):
                     deleted = deleted + tmp_target[key]
                 else:
                     deleted.append({key: tmp_target[key]})
                 difference[key]['deleted'] = deleted
-            elif tmp_target and type(tmp_target) is list:
+            elif tmp_target and isinstance(tmp_target, list):
                 difference[key]['deleted'] = tmp_target
 
             # No point adding empty list into difference.
@@ -472,6 +629,12 @@ def directory_diff(source_dict, target_dict, ignore_keys=[], difference=None):
                     difference[key] = ''
                 else:
                     difference[key] = source_dict[key]
+
+    if len(src_only) == 0 and len(tar_only) > 0:
+        for key in tar_only:
+            if isinstance(target_dict[key], list):
+                difference[key] = {}
+                difference[key]['deleted'] = target_dict[key]
 
     return difference
 
@@ -491,6 +654,25 @@ def is_key_exists(key_list, target_dict):
     return None
 
 
+def _check_key_in_source_target(key, acl_keys, target, source):
+    """
+    Check if key is present in source if not then check it's present in target.
+    :param key: key to be checked.
+    :param acl_keys:  acl keys
+    :param target: target object.
+    :param source: source object.
+    :return: return key.
+    """
+    if key is None:
+        key = is_key_exists(acl_keys, target)
+        if key is None:
+            key = 'acl'
+    elif key is not None and not isinstance(source[key], list):
+        key = 'acl'
+
+    return key
+
+
 def parse_acl(source, target, diff_dict):
     """
     This function is used to parse acl.
@@ -504,12 +686,7 @@ def parse_acl(source, target, diff_dict):
 
     # If key is not found in source then check the key is available
     # in target.
-    if key is None:
-        key = is_key_exists(acl_keys, target)
-        if key is None:
-            key = 'acl'
-    elif key is not None and type(source[key]) != list:
-        key = 'acl'
+    key = _check_key_in_source_target(key, acl_keys, target, source)
 
     tmp_source = source[key] if\
         key in source and source[key] is not None else []
@@ -541,13 +718,13 @@ def sort_list(source, target):
     :return:
     """
     # Check the above keys are exist in the dictionary
-    if source is not None and len(source) > 0 and type(source[0]) == dict:
+    if source is not None and source and isinstance(source[0], dict):
         tmp_key = is_key_exists(list_keys_array, source[0])
         if tmp_key is not None:
             source = sorted(source, key=lambda k: k[tmp_key])
 
     # Check the above keys are exist in the dictionary
-    if target is not None and len(target) > 0 and type(target[0]) == dict:
+    if target is not None and target and isinstance(target[0], dict):
         tmp_key = is_key_exists(list_keys_array, target[0])
         if tmp_key is not None:
             target = sorted(target, key=lambda k: k[tmp_key])
@@ -568,7 +745,7 @@ def compare_list_by_ignoring_keys(source_list, target_list, added, updated,
     :param ignore_keys:
     :return:
     """
-    if type(target_list) is list and len(target_list) > 0:
+    if isinstance(target_list, list) and target_list:
         tmp_target = None
         for item in target_list:
             if key in item and item[key] == source_list[key]:

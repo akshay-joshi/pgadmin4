@@ -8,6 +8,7 @@
 ##########################################################################
 
 import uuid
+from unittest.mock import patch
 
 from pgadmin.browser.server_groups.servers.databases.schemas.tests import \
     utils as schema_utils
@@ -21,12 +22,17 @@ from . import utils as tables_utils
 
 class TableDeleteTestCase(BaseTestGenerator):
     """This class will delete new table under schema node."""
-    scenarios = [
-        # Fetching default URL for table node.
-        ('Delete Table', dict(url='/browser/table/obj/'))
-    ]
+    url = '/browser/table/obj/'
+
+    # Generates scenarios
+    scenarios = utils.generate_scenarios("table_delete",
+                                         tables_utils.test_cases)
 
     def setUp(self):
+        # Load test data
+        self.data = self.test_data
+
+        # Create db connection
         self.db_name = parent_node_dict["database"][-1]["db_name"]
         schema_info = parent_node_dict["schema"][-1]
         self.server_id = schema_info["server_id"]
@@ -35,6 +41,8 @@ class TableDeleteTestCase(BaseTestGenerator):
                                                  self.server_id, self.db_id)
         if not db_con['data']["connected"]:
             raise Exception("Could not connect to database to add a table.")
+
+        # Create schema
         self.schema_id = schema_info["schema_id"]
         self.schema_name = schema_info["schema_name"]
         schema_response = schema_utils.verify_schemas(self.server,
@@ -42,24 +50,53 @@ class TableDeleteTestCase(BaseTestGenerator):
                                                       self.schema_name)
         if not schema_response:
             raise Exception("Could not find the schema to add a table.")
+
+        # Create table
         self.table_name = "test_table_delete_%s" % (str(uuid.uuid4())[1:8])
         self.table_id = tables_utils.create_table(self.server, self.db_name,
                                                   self.schema_name,
                                                   self.table_name)
 
-    def runTest(self):
-        """This function will delete added table under schema node."""
+        # Create table
+        if self.is_list:
+            self.table_name_1 = \
+                "test_table_delete_%s" % (str(uuid.uuid4())[1:8])
+            self.table_id_1 = tables_utils.create_table(self.server,
+                                                        self.db_name,
+                                                        self.schema_name,
+                                                        self.table_name_1
+                                                        )
+
+        # Verify table creation
         table_response = tables_utils.verify_table(self.server, self.db_name,
                                                    self.table_id)
         if not table_response:
             raise Exception("Could not find the table to delete.")
-        response = self.tester.delete(self.url + str(utils.SERVER_GROUP) +
-                                      '/' + str(self.server_id) + '/' +
-                                      str(self.db_id) + '/' +
-                                      str(self.schema_id) + '/' +
-                                      str(self.table_id),
-                                      follow_redirects=True)
-        self.assertEquals(response.status_code, 200)
+
+    def runTest(self):
+        """This function will delete added table under schema node."""
+        if self.is_positive_test:
+            if self.is_list:
+                self.data["ids"] = [self.table_id, self.table_id_1]
+                response = tables_utils.api_delete(self, "")
+            else:
+                response = tables_utils.api_delete(self)
+
+            # Assert response
+            utils.assert_status_code(self, response)
+        else:
+            if self.mocking_required:
+                with patch(self.mock_data["function_name"],
+                           side_effect=eval(self.mock_data["return_value"])):
+                    response = tables_utils.api_delete(self)
+            else:
+                if 'table_id' in self.data:
+                    self.table_id = self.data['table_id']
+                response = tables_utils.api_delete(self)
+
+            # Assert response
+            utils.assert_status_code(self, response)
+            utils.assert_error_message(self, response)
 
     def tearDown(self):
         # Disconnect the database

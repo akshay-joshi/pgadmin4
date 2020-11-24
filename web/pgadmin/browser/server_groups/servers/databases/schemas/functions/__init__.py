@@ -895,11 +895,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         else:
             data = {'ids': [fnid]}
 
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+        cascade = self._check_cascade_operation()
 
         try:
             for fnid in data['ids']:
@@ -1089,6 +1085,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             json_resp:
         """
         json_resp = kwargs.get('json_resp', True)
+        target_schema = kwargs.get('target_schema', None)
 
         resp_data = self._fetch_properties(gid, sid, did, scid, fnid)
         # Most probably this is due to error
@@ -1096,7 +1093,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             return resp_data
 
         # Fetch the function definition.
-        args = u''
+        args = ''
         args_without_name = []
 
         args_list = []
@@ -1132,6 +1129,8 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             status, res = self.conn.execute_2darray(sql)
             if not status:
                 return internal_server_error(errormsg=res)
+            elif target_schema:
+                res['rows'][0]['nspname'] = target_schema
 
             # Add newline and tab before each argument to format
             name_with_default_args = self.qtIdent(
@@ -1155,6 +1154,14 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         else:
             object_type = 'function'
 
+            # We are showing trigger functions under the trigger node.
+            # It may possible that trigger is in one schema and trigger
+            # function is in another schema, so to show the SQL we need to
+            # change the schema id i.e scid.
+            if self.node_type == 'trigger_function' and \
+                    scid != resp_data['pronamespace']:
+                scid = resp_data['pronamespace']
+
             # Get Schema Name from its OID.
             self._get_schema_name_from_oid(resp_data)
 
@@ -1169,6 +1176,9 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             status, res = self.conn.execute_2darray(sql)
             if not status:
                 return internal_server_error(errormsg=res)
+            elif target_schema:
+                res['rows'][0]['nspname'] = target_schema
+                resp_data['pronamespace'] = target_schema
 
             # Add newline and tab before each argument to format
             name_with_default_args = self.qtIdent(
@@ -1187,7 +1197,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                                        func_def=name_with_default_args,
                                        query_for="sql_panel")
 
-        sql_header = u"""-- {0}: {1}.{2}({3})\n\n""".format(
+        sql_header = """-- {0}: {1}.{2}({3})\n\n""".format(
             object_type.upper(), resp_data['pronamespace'],
             resp_data['proname'],
             resp_data['proargtypenames'].lstrip('(').rstrip(')'))
@@ -1196,11 +1206,13 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                 self.conn, resp_data['pronamespace'], resp_data['proname']),
             resp_data['proargtypenames'].lstrip('(').rstrip(')'))
 
+        pattern = '\n{2,}'
+        repl = '\n\n'
         if not json_resp:
-            return re.sub('\n{2,}', '\n\n', func_def)
+            return re.sub(pattern, repl, func_def)
 
         sql = sql_header + func_def
-        sql = re.sub('\n{2,}', '\n\n', sql)
+        sql = re.sub(pattern, repl, sql)
 
         return ajax_response(response=sql)
 
@@ -1223,15 +1235,14 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         status, sql = self._get_sql(gid=gid, sid=sid, did=did, scid=scid,
                                     data=self.request, fnid=fnid)
 
-        if status:
-            sql = re.sub('\n{2,}', '\n\n', sql)
-            return make_json_response(
-                data=sql,
-                status=200
-            )
-        else:
-            sql = re.sub('\n{2,}', '\n\n', sql)
-            return sql
+        if not status:
+            return internal_server_error(errormsg=sql)
+
+        sql = re.sub('\n{2,}', '\n\n', sql)
+        return make_json_response(
+            data=sql,
+            status=200
+        )
 
     @staticmethod
     def _update_arguments_for_get_sql(data, old_data):
@@ -1363,7 +1374,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         if not isinstance(old_data, dict):
             return False, gettext(
                 "Could not find the function in the database."
-            )
+            ), ''
 
         # Get Schema Name
         old_data['pronamespace'] = self._get_schema(
@@ -1384,7 +1395,8 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         fun_change_args = ['lanname', 'prosrc', 'probin', 'prosrc_c',
                            'provolatile', 'proisstrict', 'prosecdef',
                            'proparallel', 'procost', 'proleakproof',
-                           'arguments', 'prorows', 'prosupportfunc']
+                           'arguments', 'prorows', 'prosupportfunc',
+                           'prorettypename']
 
         data['change_func'] = False
         for arg in fun_change_args:
@@ -1427,7 +1439,7 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             "/".join([self.sql_template_path, self._UPDATE_SQL]),
             data=data, o_data=old_data
         )
-        return sql
+        return True, '', sql
 
     def _get_sql(self, **kwargs):
         """
@@ -1451,12 +1463,11 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         # Get Schema Name from its OID.
         self._get_schema_name_from_oid(data)
 
-        if 'provolatile' in data:
-            data['provolatile'] = vol_dict[data['provolatile']]\
-                if data['provolatile'] else ''
-
         if fnid is not None:
             # Edit Mode
+            if 'provolatile' in data:
+                data['provolatile'] = vol_dict[data['provolatile']] \
+                    if data['provolatile'] else ''
 
             all_ids_dict = {
                 'gid': gid,
@@ -1468,13 +1479,17 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
                 'is_sql': is_sql,
                 'is_schema_diff': is_schema_diff,
             }
-            sql = self._get_sql_for_edit_mode(data, parallel_dict,
-                                              all_ids_dict, vol_dict)
+            status, errmsg, sql = self._get_sql_for_edit_mode(
+                data, parallel_dict, all_ids_dict, vol_dict)
+
+            if not status:
+                return False, errmsg
+
         else:
             # Parse Privileges
             self._parse_privilege_data(data)
 
-            args = u''
+            args = ''
             args_without_name = []
 
             args_list = []
@@ -1820,8 +1835,11 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
         oid = kwargs.get('oid')
         data = kwargs.get('data', None)
         drop_sql = kwargs.get('drop_sql', False)
+        target_schema = kwargs.get('target_schema', None)
 
         if data:
+            if target_schema:
+                data['schema'] = target_schema
             status, sql = self._get_sql(gid=gid, sid=sid, did=did, scid=scid,
                                         data=data, fnid=oid, is_sql=False,
                                         is_schema_diff=True)
@@ -1835,6 +1853,9 @@ class FunctionView(PGChildNodeView, DataTypeReader, SchemaDiffObjectCompare):
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, fnid=oid, only_sql=True)
+            elif target_schema:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, fnid=oid,
+                               target_schema=target_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, fnid=oid,
                                json_resp=False)

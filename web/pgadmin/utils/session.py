@@ -68,12 +68,7 @@ class ManagedSession(CallbackDict, SessionMixin):
 
     def sign(self, secret):
         if not self.hmac_digest:
-            if hasattr(string, 'lowercase'):
-                population = string.lowercase
-            # If script is running under python3
-            elif hasattr(string, 'ascii_lowercase'):
-                population = string.ascii_lowercase
-            population += string.digits
+            population = string.ascii_lowercase + string.digits
 
             self.randval = ''.join(random.sample(population, 20))
             self.hmac_digest = _calc_hmac(
@@ -316,7 +311,11 @@ class ManagedSessionInterface(SessionInterface):
         response.set_cookie(
             app.session_cookie_name,
             '%s!%s' % (session.sid, session.hmac_digest),
-            expires=cookie_exp, httponly=True, domain=domain
+            expires=cookie_exp,
+            secure=config.SESSION_COOKIE_SECURE,
+            httponly=config.SESSION_COOKIE_HTTPONLY,
+            samesite=config.SESSION_COOKIE_SAMESITE,
+            domain=domain
         )
 
 

@@ -22,6 +22,8 @@ from pgadmin.utils.ajax import success_return, \
     make_response as ajax_response, internal_server_error
 from pgadmin.utils.menu import MenuItem
 from pgadmin.utils.preferences import Preferences
+from pgadmin.utils.constants import MIMETYPE_APP_JS
+from pgadmin.browser.server_groups import ServerGroupModule as sgm
 
 MODULE_NAME = 'preferences'
 
@@ -78,7 +80,7 @@ def script():
     return Response(
         response=render_template("preferences/preferences.js", _=gettext),
         status=200,
-        mimetype="application/javascript"
+        mimetype=MIMETYPE_APP_JS
     )
 
 
@@ -200,8 +202,15 @@ def save(pid):
     """
     data = request.form if request.form else json.loads(request.data.decode())
 
+    if data['name'] in ['vw_edt_tab_title_placeholder',
+                        'qt_tab_title_placeholder',
+                        'debugger_tab_title_placeholder']:
+        if data['value'].isspace():
+            data['value'] = ''
+
     res, msg = Preferences.save(
         data['mid'], data['category_id'], data['id'], data['value'])
+    sgm.get_nodes(sgm)
 
     if not res:
         return internal_server_error(errormsg=msg)
@@ -229,6 +238,9 @@ def save(pid):
     setattr(session, 'PGADMIN_LANGUAGE', language)
     response.set_cookie("PGADMIN_LANGUAGE", value=language,
                         path=config.COOKIE_DEFAULT_PATH,
+                        secure=config.SESSION_COOKIE_SECURE,
+                        httponly=config.SESSION_COOKIE_HTTPONLY,
+                        samesite=config.SESSION_COOKIE_SAMESITE,
                         **domain)
 
     return response

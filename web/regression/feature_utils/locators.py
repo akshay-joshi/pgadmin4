@@ -89,7 +89,7 @@ class NavMenuLocators:
 
     process_watcher_close_button_xpath = \
         "//div[contains(@class,'wcFloating')]//" \
-        "div[contains(@class,'fa-close')]"
+        "div[@aria-label='Close panel']//div"
 
     restore_file_name_xpath = "//div[contains(text(),'Restore')]" \
                               "//following::input[@name='file']"
@@ -102,6 +102,9 @@ class NavMenuLocators:
     select_tab_xpath = \
         "//*[contains(@class,'wcTabTop')]//*[contains(@class,'wcPanelTab') " \
         "and contains(.,'{}')]"
+
+    process_watcher_error_close_xpath = \
+        ".btn.btn-sm-sq.btn-primary.pg-bg-close > i"
 
 
 class QueryToolLocators:
@@ -210,7 +213,7 @@ class QueryToolLocators:
 
     execute_icon = "fa-play"
 
-    explain_icon = "fa-hand-pointer-o"
+    explain_icon = "fa-hand-pointer"
 
     explain_analyze_icon = "fa-list-alt"
 
@@ -225,7 +228,7 @@ class QueryToolLocators:
 
     editable_column_icon_xpath = "//div[contains(@class," \
                                  " 'editable-column-header-icon')]" \
-                                 "/i[contains(@class, 'fa-pencil')]"
+                                 "/i[contains(@class, 'fa-pencil-alt')]"
 
     read_only_column_icon_xpath = "//div[contains(@class," \
                                   " 'editable-column-header-icon')]" \

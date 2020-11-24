@@ -10,7 +10,6 @@
 """Schema diff object comparison."""
 
 from flask import render_template
-from flask_babelex import gettext
 from pgadmin.utils.driver import get_driver
 from config import PG_DEFAULT_DRIVER
 from pgadmin.utils.ajax import internal_server_error
@@ -19,7 +18,7 @@ from pgadmin.tools.schema_diff.directory_compare import compare_dictionaries
 
 class SchemaDiffObjectCompare:
 
-    keys_to_ignore = ['oid', 'oid-2']
+    keys_to_ignore = ['oid', 'oid-2', 'is_sys_obj', 'schema']
 
     @staticmethod
     def get_schema(sid, did, scid):
@@ -60,9 +59,15 @@ class SchemaDiffObjectCompare:
                          'did': kwargs.get('target_did')}
 
         group_name = kwargs.get('group_name')
-        ignore_whitespaces = kwargs.get('ignore_whitespaces')
+        source_schema_name = kwargs.get('source_schema_name', None)
         source = {}
         target = {}
+
+        status, target_schema = self.get_schema(kwargs.get('target_sid'),
+                                                kwargs.get('target_did'),
+                                                kwargs.get('target_scid'))
+        if not status:
+            return internal_server_error(errormsg=target_schema)
 
         if group_name == 'Database Objects':
             source = self.fetch_objects_to_compare(**source_params)
@@ -85,13 +90,14 @@ class SchemaDiffObjectCompare:
         return compare_dictionaries(view_object=self,
                                     source_params=source_params,
                                     target_params=target_params,
+                                    target_schema=target_schema,
                                     source_dict=source,
                                     target_dict=target,
                                     node=self.node_type,
                                     node_label=self.blueprint.collection_label,
                                     group_name=group_name,
-                                    ignore_whitespaces=ignore_whitespaces,
-                                    ignore_keys=self.keys_to_ignore)
+                                    ignore_keys=self.keys_to_ignore,
+                                    source_schema_name=source_schema_name)
 
     def ddl_compare(self, **kwargs):
         """

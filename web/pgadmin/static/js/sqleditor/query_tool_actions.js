@@ -39,6 +39,11 @@ let queryToolActions = {
     $('.sql-editor-message').html('');
   },
 
+  executeMacro: function (sqlEditorController, MacroId) {
+    this._clearMessageTab();
+    sqlEditorController.check_data_changes_to_execute_query(null, false, MacroId);
+  },
+
   executeQuery: function (sqlEditorController) {
     this._clearMessageTab();
     sqlEditorController.check_data_changes_to_execute_query();
@@ -123,6 +128,10 @@ let queryToolActions = {
     );
   },
 
+  formatSql: function (sqlEditorController) {
+    sqlEditorController.gridView.on_format_sql();
+  },
+
   focusOut: function () {
     document.activeElement.blur();
     pgWindow.document.activeElement.blur();
@@ -156,6 +165,14 @@ let queryToolActions = {
   saveDataChanges: function (sqlEditorController) {
     sqlEditorController.close_on_save = false;
     sqlEditorController.save_data();
+  },
+
+  openQueryTool: function (sqlEditorController) {
+    sqlEditorController.gridView.handler.trigger(
+      'pgadmin-sqleditor:button:show_query_tool',
+      sqlEditorController.gridView,
+      sqlEditorController.gridView.handler
+    );
   },
 };
 

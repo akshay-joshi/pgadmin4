@@ -170,10 +170,6 @@ fs.readdirSync(all_themes_dir).map(function(curr_dir) {
 
     let disp_name = curr_dir;
 
-    if(curr_dir == 'high_contrast') {
-      disp_name = curr_dir + ' (Beta)';
-    }
-
     pgadminThemes[curr_dir] = {
       /* For now lets keep it as beta release */
       disp_name: disp_name,
@@ -504,6 +500,7 @@ module.exports = [{
         ',pgadmin.tools.debugger.direct' +
         ',pgadmin.node.pga_job' +
         ',pgadmin.tools.schema_diff' +
+        ',pgadmin.tools.storage_manager' +
         ',pgadmin.tools.search_objects',
       },
     }, {

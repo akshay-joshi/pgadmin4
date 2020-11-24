@@ -105,6 +105,7 @@ def get_trigger_function_and_columns(conn, data, tid,
     # with schema name.
     if data['lanname'] == 'edbspl':
         data['tfunction'] = 'Inline EDB-SPL'
+        data['tgargs'] = None
     else:
         SQL = render_template("/".join(
             [template_path, 'get_triggerfunctions.sql']),
@@ -131,6 +132,8 @@ def get_trigger_function_and_columns(conn, data, tid,
             formatted_args = ', '.join(formatted_args)
 
             data['tgargs'] = formatted_args
+        else:
+            data['tgargs'] = None
 
         if len(data['tgattr']) >= 1:
             columns = ', '.join(data['tgattr'].split(' '))
@@ -292,7 +295,7 @@ def get_reverse_engineered_sql(conn, **kwargs):
                         show_system_objects=show_system_objects)
 
     if with_header:
-        sql_header = u"-- Trigger: {0}\n\n-- ".format(data['name'])
+        sql_header = "-- Trigger: {0}\n\n-- ".format(data['name'])
 
         sql_header += render_template("/".join([template_path, 'delete.sql']),
                                       data=data, conn=conn)

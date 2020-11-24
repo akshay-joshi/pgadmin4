@@ -82,6 +82,8 @@ blueprint = PackageModule(__name__)
 
 class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
     node_type = blueprint.node_type
+    node_label = "Package"
+    node_icon = "icon-%s" % node_type
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -213,7 +215,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         if pkgid is not None:
             if len(rset['rows']) == 0:
                 return gone(
-                    errormsg=_("Could not find the package.")
+                    errormsg=self.not_found_error_msg()
                 )
 
             row = rset['rows'][0]
@@ -222,7 +224,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                     row['oid'],
                     scid,
                     row['name'],
-                    icon="icon-%s" % self.node_type
+                    icon=self.node_icon
                 )
             )
 
@@ -232,7 +234,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                     row['oid'],
                     scid,
                     row['name'],
-                    icon="icon-%s" % self.node_type
+                    icon=self.node_icon
                 ))
 
         return make_json_response(
@@ -267,7 +269,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
 
         if len(rset['rows']) == 0:
             return gone(
-                errormsg=_("Could not find the package in the database.")
+                errormsg=self.not_found_error_msg()
             )
 
         for row in rset['rows']:
@@ -276,7 +278,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                     row['oid'],
                     scid,
                     row['name'],
-                    icon="icon-%s" % self.node_type
+                    icon=self.node_icon
                 ))
 
         return make_json_response(
@@ -325,7 +327,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
 
         if len(res['rows']) == 0:
             return False, gone(
-                errormsg=_("Could not find the package in the database.")
+                errormsg=self.not_found_error_msg()
             )
 
         res['rows'][0]['pkgheadsrc'] = self.get_inner(
@@ -364,8 +366,8 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
 
         """
         required_args = [
-            u'name',
-            u'pkgheadsrc'
+            'name',
+            'pkgheadsrc'
         ]
 
         data = request.form if request.form else json.loads(
@@ -408,7 +410,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                 pkgid,
                 scid,
                 data['name'],
-                icon="icon-%s" % self.node_type
+                icon=self.node_icon
             )
         )
 
@@ -437,11 +439,8 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             data = {'ids': [pkgid]}
 
         # Below will decide if it's simple drop or drop with cascade call
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+
+        cascade = self._check_cascade_operation()
 
         try:
             for pkgid in data['ids']:
@@ -459,9 +458,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                         errormsg=_(
                             'Error: Object not found.'
                         ),
-                        info=_(
-                            'The specified package could not be found.\n'
-                        )
+                        info=self.not_found_error_msg()
                     )
 
                 res['rows'][0]['schema'] = self.schema
@@ -520,7 +517,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                 pkgid,
                 scid,
                 name,
-                icon="icon-%s" % self.node_type
+                icon=self.node_icon
             )
         )
 
@@ -585,8 +582,12 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         pkgid = kwargs.get('pkgid', None)
         sqltab = kwargs.get('sqltab', False)
         is_schema_diff = kwargs.get('is_schema_diff', None)
+        target_schema = kwargs.get('target_schema', None)
 
-        data['schema'] = self.schema
+        if target_schema:
+            data['schema'] = target_schema
+        else:
+            data['schema'] = self.schema
 
         if pkgid is not None and not sqltab:
             return self.get_sql_with_pkgid(scid, pkgid, data, is_schema_diff)
@@ -625,7 +626,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         :return:
         """
         required_args = [
-            u'name'
+            'name'
         ]
         sql = render_template(
             "/".join([self.template_path, self._PROPERTIES_SQL]), scid=scid,
@@ -635,7 +636,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             return internal_server_error(errormsg=res)
         elif len(res['rows']) == 0:
             return gone(
-                errormsg=_("Could not find the package in the database.")
+                errormsg=self.not_found_error_msg()
             )
 
         res['rows'][0]['pkgheadsrc'] = self.get_inner(
@@ -690,6 +691,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         """
         is_schema_diff = kwargs.get('is_schema_diff', None)
         json_resp = kwargs.get('json_resp', True)
+        target_schema = kwargs.get('target_schema', None)
 
         try:
             sql = render_template(
@@ -700,7 +702,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                 return internal_server_error(errormsg=res)
             if len(res['rows']) == 0:
                 return gone(
-                    errormsg=_("Could not find the package in the database.")
+                    errormsg=self.not_found_error_msg()
                 )
 
             res['rows'][0]['pkgheadsrc'] = self.get_inner(
@@ -722,10 +724,13 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
                 res['rows'][0].setdefault(row['deftype'], []).append(priv)
 
             result = res['rows'][0]
+            if target_schema:
+                result['schema'] = target_schema
 
             sql, name = self.getSQL(data=result, scid=scid, pkgid=pkgid,
                                     sqltab=True,
-                                    is_schema_diff=is_schema_diff)
+                                    is_schema_diff=is_schema_diff,
+                                    target_schema=target_schema)
 
             # Most probably this is due to error
             if not isinstance(sql, str):
@@ -737,7 +742,7 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
             if not json_resp:
                 return sql
 
-            sql_header = u"-- Package: {0}.{1}\n\n-- ".format(
+            sql_header = "-- Package: {0}.{1}\n\n-- ".format(
                 self.schema, result['name'])
 
             sql_header += render_template(
@@ -850,13 +855,20 @@ class PackageView(PGChildNodeView, SchemaDiffObjectCompare):
         oid = kwargs.get('oid')
         data = kwargs.get('data', None)
         drop_sql = kwargs.get('drop_sql', False)
+        target_schema = kwargs.get('target_schema', None)
 
         if data:
+            if target_schema:
+                data['schema'] = target_schema
             sql, name = self.getSQL(data=data, scid=scid, pkgid=oid)
         else:
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, pkgid=oid, only_sql=True)
+            elif target_schema:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, pkgid=oid,
+                               is_schema_diff=True, json_resp=False,
+                               target_schema=target_schema)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, pkgid=oid,
                                is_schema_diff=True, json_resp=False)

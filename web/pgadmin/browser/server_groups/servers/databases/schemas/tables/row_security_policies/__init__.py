@@ -148,6 +148,7 @@ class RowSecurityView(PGChildNodeView):
     """
 
     node_type = blueprint.node_type
+    node_label = "RLS Policy"
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -249,7 +250,7 @@ class RowSecurityView(PGChildNodeView):
             return internal_server_error(errormsg=rset)
 
         if len(rset['rows']) == 0:
-            return gone(gettext("""Could not find the policy in the table."""))
+            return gone(self.not_found_error_msg())
 
         res = self.blueprint.generate_browser_node(
             rset['rows'][0]['oid'],
@@ -314,15 +315,15 @@ class RowSecurityView(PGChildNodeView):
         """
         sql = render_template("/".join(
             [self.template_path, self._PROPERTIES_SQL]
-        ), plid=plid, scid=scid, datlastsysoid=self.datlastsysoid)
+        ), plid=plid, scid=scid, policy_table_id=tid,
+            datlastsysoid=self.datlastsysoid)
         status, res = self.conn.execute_dict(sql)
 
         if not status:
             return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return False, gone(
-                gettext("""Could not find the policy in the table."""))
+            return False, gone(self.not_found_error_msg())
 
         data = dict(res['rows'][0])
 
@@ -415,6 +416,7 @@ class RowSecurityView(PGChildNodeView):
         try:
             sql, name = row_security_policies_utils.get_sql(
                 self.conn, data=data, scid=scid, plid=plid,
+                policy_table_id=tid,
                 schema=self.schema, table=self.table)
 
             # Most probably this is due to error
@@ -436,6 +438,22 @@ class RowSecurityView(PGChildNodeView):
         except Exception as e:
             return internal_server_error(errormsg=str(e))
 
+    @staticmethod
+    def get_policy_data(plid):
+        """
+        return policy data
+        :param plid:
+        :return: policy id
+        """
+        if plid is None:
+            data = request.form if request.form else json.loads(
+                request.data, encoding='utf-8'
+            )
+        else:
+            data = {'ids': [plid]}
+
+        return data
+
     @check_precondition
     def delete(self, gid, sid, did, scid, tid, **kwargs):
         """
@@ -453,22 +471,13 @@ class RowSecurityView(PGChildNodeView):
         only_sql = kwargs.get('only_sql', False)
 
         # Below will deplide if it's simple drop or drop with cascade call
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+        cascade = self._check_cascade_operation()
 
-        if plid is None:
-            data = request.form if request.form else json.loads(
-                request.data, encoding='utf-8'
-            )
-        else:
-            data = {'ids': [plid]}
+        data = self.get_policy_data(plid)
 
         for plid in data['ids']:
             try:
-                # Get name for policy from plid
+                # Get name of policy using plid
                 sql = render_template("/".join([self.template_path,
                                                 'get_policy_name.sql']),
                                       plid=plid)
@@ -483,9 +492,7 @@ class RowSecurityView(PGChildNodeView):
                         errormsg=gettext(
                             'Error: Object not found.'
                         ),
-                        info=gettext(
-                            'The specified policy object could not be found.\n'
-                        )
+                        info=self.not_found_error_msg()
                     )
 
                 # drop policy
@@ -520,7 +527,7 @@ class RowSecurityView(PGChildNodeView):
         data = dict(request.args)
 
         sql, name = row_security_policies_utils.get_sql(
-            self.conn, data=data, scid=scid, plid=plid,
+            self.conn, data=data, scid=scid, plid=plid, policy_table_id=tid,
             schema=self.schema, table=self.table)
         if not isinstance(sql, str):
             return sql
@@ -549,7 +556,7 @@ class RowSecurityView(PGChildNodeView):
 
         SQL = row_security_policies_utils.get_reverse_engineered_sql(
             self.conn, schema=self.schema, table=self.table, scid=scid,
-            plid=plid, datlastsysoid=self.datlastsysoid)
+            plid=plid, policy_table_id=tid, datlastsysoid=self.datlastsysoid)
 
         return ajax_response(response=SQL)
 
@@ -607,8 +614,8 @@ class RowSecurityView(PGChildNodeView):
         oid = kwargs.get('plid')
         data = kwargs.get('data', None)
         drop_req = kwargs.get('drop_req', False)
+        target_schema = kwargs.get('target_schema', None)
 
-        sql = ''
         if data:
             data['schema'] = self.schema
             data['table'] = self.table
@@ -619,8 +626,12 @@ class RowSecurityView(PGChildNodeView):
             sql = sql.strip('\n').strip(' ')
 
         else:
+            schema = self.schema
+            if target_schema:
+                schema = target_schema
+
             sql = row_security_policies_utils.get_reverse_engineered_sql(
-                self.conn, schema=self.schema, table=self.table, scid=scid,
+                self.conn, schema=schema, table=self.table, scid=scid,
                 plid=oid, datlastsysoid=self.datlastsysoid, with_header=False)
 
         drop_sql = ''
@@ -681,6 +692,7 @@ class RowSecurityView(PGChildNodeView):
         tgt_params = kwargs.get('target_params')
         source = kwargs.get('source')
         target = kwargs.get('target')
+        target_schema = kwargs.get('target_schema')
         comp_status = kwargs.get('comp_status')
 
         diff = ''
@@ -690,7 +702,8 @@ class RowSecurityView(PGChildNodeView):
                                           did=src_params['did'],
                                           scid=src_params['scid'],
                                           tid=src_params['tid'],
-                                          plid=source['oid'])
+                                          plid=source['oid'],
+                                          target_schema=target_schema)
         elif comp_status == 'target_only':
             diff = self.delete(gid=1,
                                sid=tgt_params['sid'],
@@ -717,7 +730,8 @@ class RowSecurityView(PGChildNodeView):
                                               did=src_params['did'],
                                               scid=src_params['scid'],
                                               tid=src_params['tid'],
-                                              plid=source['oid'])
+                                              plid=source['oid'],
+                                              target_schema=target_schema)
                 return delete_sql + diff
 
             diff = self.get_sql_from_diff(gid=tgt_params['gid'],

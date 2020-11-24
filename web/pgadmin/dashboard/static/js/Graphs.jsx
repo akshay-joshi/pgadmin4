@@ -67,7 +67,6 @@ export function getStatsUrl(sid=-1, did=-1, chart_names=[]) {
  * data to get the new state.
  */
 export function statsReducer(state, action) {
-  let newState = {};
 
   if(action.reset) {
     return action.reset;
@@ -81,14 +80,12 @@ export function statsReducer(state, action) {
     action.counterData = action.incoming;
   }
 
+  let newState = {};
   Object.keys(action.incoming).forEach(label => {
     if(state[label]) {
-      if(state[label].length >= X_AXIS_LENGTH) {
-        state[label].unshift();
-      }
       newState[label] = [
         action.counter ?  action.incoming[label] - action.counterData[label] : action.incoming[label],
-        ...state[label],
+        ...state[label].slice(0, X_AXIS_LENGTH-1),
       ];
     } else {
       newState[label] = [
@@ -263,6 +260,7 @@ export function GraphsWrapper(props) {
   const toStatsLegendRef = useRef();
   const bioStatsLegendRef = useRef();
   const options = useMemo(()=>({
+    normalized: true,
     legendCallback: legendCallback,
     animation: {
       duration: 0,

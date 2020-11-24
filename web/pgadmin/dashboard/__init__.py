@@ -20,6 +20,7 @@ from pgadmin.utils.ajax import precondition_required
 from pgadmin.utils.driver import get_driver
 from pgadmin.utils.menu import Panel
 from pgadmin.utils.preferences import Preferences
+from pgadmin.utils.constants import PREF_LABEL_DISPLAY, MIMETYPE_APP_JS
 
 from config import PG_DEFAULT_DRIVER
 
@@ -69,6 +70,8 @@ class DashboardModule(PgAdminModule):
         register_preferences
         Register preferences for this module.
         """
+        help_string = gettext('The number of seconds between graph samples.')
+
         # Register options for the PG and PPAS help paths
         self.dashboard_preference = Preferences(
             'dashboards', gettext('Dashboards')
@@ -79,7 +82,7 @@ class DashboardModule(PgAdminModule):
             gettext("Session statistics refresh rate"), 'integer',
             1, min_val=1, max_val=999999,
             category_label=gettext('Graphs'),
-            help_str=gettext('The number of seconds between graph samples.')
+            help_str=help_string
         )
 
         self.tps_stats_refresh = self.dashboard_preference.register(
@@ -87,7 +90,7 @@ class DashboardModule(PgAdminModule):
             gettext("Transaction throughput refresh rate"), 'integer',
             1, min_val=1, max_val=999999,
             category_label=gettext('Graphs'),
-            help_str=gettext('The number of seconds between graph samples.')
+            help_str=help_string
         )
 
         self.ti_stats_refresh = self.dashboard_preference.register(
@@ -95,7 +98,7 @@ class DashboardModule(PgAdminModule):
             gettext("Tuples in refresh rate"), 'integer',
             1, min_val=1, max_val=999999,
             category_label=gettext('Graphs'),
-            help_str=gettext('The number of seconds between graph samples.')
+            help_str=help_string
         )
 
         self.to_stats_refresh = self.dashboard_preference.register(
@@ -103,7 +106,7 @@ class DashboardModule(PgAdminModule):
             gettext("Tuples out refresh rate"), 'integer',
             1, min_val=1, max_val=999999,
             category_label=gettext('Graphs'),
-            help_str=gettext('The number of seconds between graph samples.')
+            help_str=help_string
         )
 
         self.bio_stats_refresh = self.dashboard_preference.register(
@@ -111,13 +114,13 @@ class DashboardModule(PgAdminModule):
             gettext("Block I/O statistics refresh rate"), 'integer',
             1, min_val=1, max_val=999999,
             category_label=gettext('Graphs'),
-            help_str=gettext('The number of seconds between graph samples.')
+            help_str=help_string
         )
 
         self.display_graphs = self.dashboard_preference.register(
             'display', 'show_graphs',
             gettext("Show graphs?"), 'boolean', True,
-            category_label=gettext('Display'),
+            category_label=PREF_LABEL_DISPLAY,
             help_str=gettext('If set to True, graphs '
                              'will be displayed on dashboards.')
         )
@@ -125,7 +128,7 @@ class DashboardModule(PgAdminModule):
         self.display_server_activity = self.dashboard_preference.register(
             'display', 'show_activity',
             gettext("Show activity?"), 'boolean', True,
-            category_label=gettext('Display'),
+            category_label=PREF_LABEL_DISPLAY,
             help_str=gettext('If set to True, activity tables '
                              'will be displayed on dashboards.')
         )
@@ -133,7 +136,7 @@ class DashboardModule(PgAdminModule):
         self.graph_data_points = self.dashboard_preference.register(
             'display', 'graph_data_points',
             gettext("Show graph data points?"), 'boolean', False,
-            category_label=gettext('Display'),
+            category_label=PREF_LABEL_DISPLAY,
             help_str=gettext('If set to True, data points will be '
                              'visible on graph lines.')
         )
@@ -141,7 +144,7 @@ class DashboardModule(PgAdminModule):
         self.graph_mouse_track = self.dashboard_preference.register(
             'display', 'graph_mouse_track',
             gettext("Show mouse hover tooltip?"), 'boolean', True,
-            category_label=gettext('Display'),
+            category_label=PREF_LABEL_DISPLAY,
             help_str=gettext('If set to True, tooltip will appear on mouse '
                              'hover on the graph lines giving the data point '
                              'details')
@@ -246,7 +249,7 @@ def script():
             _=gettext
         ),
         status=200,
-        mimetype="application/javascript"
+        mimetype=MIMETYPE_APP_JS
     )
 
 

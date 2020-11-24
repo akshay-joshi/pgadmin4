@@ -235,8 +235,24 @@ export class QueryHistoryEntries {
     newItem.onClick(this.setSelectedListItem.bind(this));
     newItem.render(this.is_pgadmin_queries_shown);
 
-    if (!_.isUndefined($groupEl))
-      $groupEl.find('.query-entries').prepend(newItem.$el);
+    if (!_.isUndefined($groupEl)){
+      let entries = $groupEl.find('.query-entries').find('.list-item');
+      let i=0;
+      if(entries.length > 0)
+      {
+        while(i<entries.length){
+          if(newItem.$el.attr('data-key') > $(entries[i]).attr('data-key')) {
+            $(newItem.$el).insertBefore(entries[i]);
+            break;
+          }else{
+            $(newItem.$el).insertAfter(entries[i]);
+          }
+          i++;
+        }
+      } else{
+        $groupEl.find('.query-entries').append(newItem.$el);
+      }
+    }
     this.setSelectedListItem(newItem.$el);
   }
 
@@ -252,7 +268,7 @@ export class QueryHistoryEntries {
     self.$el = $(`
         <div class="toggle-and-history-container">
             <div class="query-history-toggle">
-                <label class="control-label">
+                <label class="control-label" for="generated-queries-toggle">
                     ` + gettext('Show queries generated internally by pgAdmin?') + `
                 </label>
                 <input id="generated-queries-toggle" type="checkbox"

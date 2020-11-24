@@ -11,6 +11,8 @@
 
 import simplejson as json
 import os
+import functools
+import operator
 
 from flask import render_template, request, current_app, \
     url_for, Response
@@ -24,6 +26,7 @@ from pgadmin.utils.ajax import make_json_response, bad_request
 from config import PG_DEFAULT_DRIVER
 from pgadmin.model import Server
 from pgadmin.misc.bgprocess import escape_dquotes_process_arg
+from pgadmin.utils.constants import MIMETYPE_APP_JS
 
 # set template path for sql scripts
 MODULE_NAME = 'backup'
@@ -95,6 +98,7 @@ class BackupMessage(IProcessDesc):
         self.bfile = _bfile
         self.database = _kwargs['database'] if 'database' in _kwargs else None
         self.cmd = ''
+        self.args_str = "{0} ({1}:{2})"
 
         def cmd_arg(x):
             if x:
@@ -148,22 +152,19 @@ class BackupMessage(IProcessDesc):
             return _(
                 "Backing up an object on the server '{0}' "
                 "from database '{1}'"
-            ).format(
-                "{0} ({1}:{2})".format(
-                    name, host, port
-                ),
-                html.safe_str(self.database)
-            )
+            ).format(self.args_str.format(name, host, port),
+                     html.safe_str(self.database)
+                     )
         if self.backup_type == BACKUP.GLOBALS:
             return _("Backing up the global objects on "
                      "the server '{0}'").format(
-                "{0} ({1}:{2})".format(
+                self.args_str.format(
                     name, host, port
                 )
             )
         elif self.backup_type == BACKUP.SERVER:
             return _("Backing up the server '{0}'").format(
-                "{0} ({1}:{2})".format(
+                self.args_str.format(
                     name, host, port
                 )
             )
@@ -181,7 +182,7 @@ class BackupMessage(IProcessDesc):
                 "Backing up an object on the server '{0}' "
                 "from database '{1}'..."
             ).format(
-                "{0} ({1}:{2})".format(
+                self.args_str.format(
                     name, host, port
                 ),
                 self.database
@@ -190,14 +191,14 @@ class BackupMessage(IProcessDesc):
         elif self.backup_type == BACKUP.GLOBALS:
             msg = _("Backing up the global objects on "
                     "the server '{0}'...").format(
-                "{0} ({1}:{2})".format(
+                self.args_str.format(
                     name, host, port
                 )
             )
             res += html.safe_str(msg)
         elif self.backup_type == BACKUP.SERVER:
             msg = _("Backing up the server '{0}'...").format(
-                "{0} ({1}:{2})".format(
+                self.args_str.format(
                     name, host, port
                 )
             )
@@ -230,7 +231,7 @@ def script():
             "backup/js/backup.js", _=_
         ),
         status=200,
-        mimetype="application/javascript"
+        mimetype=MIMETYPE_APP_JS
     )
 
 
@@ -245,7 +246,7 @@ def filename_with_file_manager_path(_file, create_file=True):
     # Set file manager directory from preference
     storage_dir = get_storage_directory()
     if storage_dir:
-        _file = os.path.join(storage_dir, _file.lstrip(u'/').lstrip(u'\\'))
+        _file = os.path.join(storage_dir, _file.lstrip('/').lstrip('\\'))
     elif not os.path.isabs(_file):
         _file = os.path.join(document_dir(), _file)
 
@@ -268,6 +269,125 @@ def filename_with_file_manager_path(_file, create_file=True):
     return short_filepath()
 
 
+def _get_args_params_values(data, conn, backup_obj_type, backup_file, server,
+                            manager):
+    """
+    Used internally by create_backup_objects_job. This function will create
+    the required args and params for the job.
+    :param data: input data
+    :param conn: connection obj
+    :param backup_obj_type: object type
+    :param backup_file: file name
+    :param server: server obj
+    :param manager: connection manager
+    :return: args array
+    """
+    from pgadmin.utils.driver import get_driver
+    driver = get_driver(PG_DEFAULT_DRIVER)
+
+    host, port = (manager.local_bind_host, str(manager.local_bind_port)) \
+        if manager.use_ssh_tunnel else (server.host, str(server.port))
+    args = [
+        '--file',
+        backup_file,
+        '--host',
+        host,
+        '--port',
+        port,
+        '--username',
+        server.username,
+        '--no-password'
+    ]
+
+    def set_param(key, param, assertion=True):
+        if not assertion:
+            return
+        if data.get(key, None):
+            args.append(param)
+
+    def set_value(key, param, default_value=None, assertion=True):
+        if not assertion:
+            return
+        val = data.get(key, default_value)
+        if val:
+            args.append(param)
+            args.append(val)
+
+    if backup_obj_type != 'objects':
+        args.append('--database')
+        args.append(server.maintenance_db)
+
+    if backup_obj_type == 'globals':
+        args.append('--globals-only')
+
+    set_param('verbose', '--verbose')
+    set_param('dqoute', '--quote-all-identifiers')
+    set_value('role', '--role')
+
+    if backup_obj_type == 'objects' and data.get('format', None):
+        args.extend(['--format={0}'.format({
+            'custom': 'c',
+            'tar': 't',
+            'plain': 'p',
+            'directory': 'd'
+        }[data['format']])])
+
+        set_param('blobs', '--blobs', data['format'] in ['custom', 'tar'])
+        set_value('ratio', '--compress', None,
+                  ['custom', 'plain', 'directory'])
+
+    set_param('only_data', '--data-only',
+              data.get('only_data', None))
+    set_param('disable_trigger', '--disable-triggers',
+              data.get('only_data', None) and
+              data.get('format', '') == 'plain')
+
+    set_param('only_schema', '--schema-only',
+              data.get('only_schema', None) and
+              not data.get('only_data', None))
+
+    set_param('dns_owner', '--no-owner')
+    set_param('include_create_database', '--create')
+    set_param('include_drop_database', '--clean')
+    set_param('pre_data', '--section=pre-data')
+    set_param('data', '--section=data')
+    set_param('post_data', '--section=post-data')
+    set_param('dns_privilege', '--no-privileges')
+    set_param('dns_tablespace', '--no-tablespaces')
+    set_param('dns_unlogged_tbl_data', '--no-unlogged-table-data')
+    set_param('use_insert_commands', '--inserts')
+    set_param('use_column_inserts', '--column-inserts')
+    set_param('disable_quoting', '--disable-dollar-quoting')
+    set_param('with_oids', '--oids')
+    set_param('use_set_session_auth', '--use-set-session-authorization')
+
+    set_param('no_comments', '--no-comments', manager.version >= 110000)
+    set_param('load_via_partition_root', '--load-via-partition-root',
+              manager.version >= 110000)
+
+    set_value('encoding', '--encoding')
+    set_value('no_of_jobs', '--jobs')
+
+    args.extend(
+        functools.reduce(operator.iconcat, map(
+            lambda s: ['--schema', r'{0}'.format(driver.qtIdent(conn, s).
+                                                 replace('"', '\"'))],
+            data.get('schemas', [])), []
+        )
+    )
+
+    args.extend(
+        functools.reduce(operator.iconcat, map(
+            lambda t: ['--table',
+                       r'{0}'.format(driver.qtIdent(conn, t[0], t[1])
+                                     .replace('"', '\"'))],
+            data.get('tables', [])), []
+        )
+    )
+
+    return args
+
+
 @blueprint.route(
     '/job/<int:sid>', methods=['POST'], endpoint='create_server_job'
 )
@@ -286,20 +406,13 @@ def create_backup_objects_job(sid):
     Returns:
         None
     """
-    if request.form:
-        data = json.loads(request.form['data'], encoding='utf-8')
-    else:
-        data = json.loads(request.data, encoding='utf-8')
 
-    backup_obj_type = 'objects'
-    if 'type' in data:
-        backup_obj_type = data['type']
+    data = json.loads(request.data, encoding='utf-8')
+    backup_obj_type = data.get('type', 'objects')
 
     try:
-        if 'format' in data and data['format'] == 'directory':
-            backup_file = filename_with_file_manager_path(data['file'], False)
-        else:
-            backup_file = filename_with_file_manager_path(data['file'])
+        backup_file = filename_with_file_manager_path(
+            data['file'], (data.get('format', '') != 'directory'))
     except Exception as e:
         return bad_request(errormsg=str(e))
 
@@ -337,112 +450,21 @@ def create_backup_objects_job(sid):
             errormsg=ret_val
         )
 
-    args = [
-        '--file',
-        backup_file,
-        '--host',
-        manager.local_bind_host if manager.use_ssh_tunnel else server.host,
-        '--port',
-        str(manager.local_bind_port) if manager.use_ssh_tunnel
-        else str(server.port),
-        '--username',
-        server.username,
-        '--no-password'
-    ]
-
-    if backup_obj_type != 'objects':
-        args.append('--database')
-        args.append(server.maintenance_db)
-
-    if backup_obj_type == 'globals':
-        args.append('--globals-only')
-
-    def set_param(key, param):
-        if key in data and data[key]:
-            args.append(param)
-
-    def set_value(key, param, default_value=None):
-        if key in data and data[key] is not None and data[key] != '':
-            args.append(param)
-            args.append(data[key])
-        elif default_value is not None:
-            args.append(param)
-            args.append(default_value)
-
-    set_param('verbose', '--verbose')
-    set_param('dqoute', '--quote-all-identifiers')
-    set_value('role', '--role')
-
-    if backup_obj_type == 'objects' and \
-            'format' in data and data['format'] is not None:
-        if data['format'] == 'custom':
-            args.extend(['--format=c'])
-            set_param('blobs', '--blobs')
-            set_value('ratio', '--compress')
-        elif data['format'] == 'tar':
-            args.extend(['--format=t'])
-            set_param('blobs', '--blobs')
-        elif data['format'] == 'plain':
-            args.extend(['--format=p'])
-            set_value('ratio', '--compress')
-        elif data['format'] == 'directory':
-            args.extend(['--format=d'])
-            set_value('ratio', '--compress')
-
-    if 'only_data' in data and data['only_data']:
-        set_param('only_data', '--data-only')
-        if 'format' in data and data['format'] == 'plain':
-            set_param('disable_trigger', '--disable-triggers')
-    elif 'only_schema' in data and data['only_schema']:
-        set_param('only_schema', '--schema-only')
-
-    set_param('dns_owner', '--no-owner')
-    set_param('include_create_database', '--create')
-    set_param('include_drop_database', '--clean')
-    set_param('pre_data', '--section=pre-data')
-    set_param('data', '--section=data')
-    set_param('post_data', '--section=post-data')
-    set_param('dns_privilege', '--no-privileges')
-    set_param('dns_tablespace', '--no-tablespaces')
-    set_param('dns_unlogged_tbl_data', '--no-unlogged-table-data')
-    set_param('use_insert_commands', '--inserts')
-    set_param('use_column_inserts', '--column-inserts')
-    set_param('disable_quoting', '--disable-dollar-quoting')
-    set_param('with_oids', '--oids')
-    set_param('use_set_session_auth', '--use-set-session-authorization')
-
-    if manager.version >= 110000:
-        set_param('no_comments', '--no-comments')
-        set_param('load_via_partition_root', '--load-via-partition-root')
-
-    set_value('encoding', '--encoding')
-    set_value('no_of_jobs', '--jobs')
-
-    if 'schemas' in data:
-        for s in data['schemas']:
-            args.extend(['--schema', r'{0}'.format(
-                driver.qtIdent(conn, s).replace('"', '\"'))])
-
-    if 'tables' in data:
-        for s, t in data['tables']:
-            args.extend([
-                '--table', r'{0}'.format(
-                    driver.qtIdent(conn, s, t).replace('"', '\"'))
-            ])
+    args = _get_args_params_values(
+        data, conn, backup_obj_type, backup_file, server, manager)
 
     escaped_args = [
         escape_dquotes_process_arg(arg) for arg in args
     ]
     try:
+        bfile = data['file'].encode('utf-8') \
+            if hasattr(data['file'], 'encode') else data['file']
         if backup_obj_type == 'objects':
             args.append(data['database'])
             escaped_args.append(data['database'])
             p = BatchProcess(
                 desc=BackupMessage(
-                    BACKUP.OBJECT, sid,
-                    data['file'].encode('utf-8') if hasattr(
-                        data['file'], 'encode'
-                    ) else data['file'],
+                    BACKUP.OBJECT, sid, bfile,
                     *args,
                     database=data['database']
                 ),
@@ -453,10 +475,7 @@ def create_backup_objects_job(sid):
                 desc=BackupMessage(
                     BACKUP.SERVER if backup_obj_type != 'globals'
                     else BACKUP.GLOBALS,
-                    sid,
-                    data['file'].encode('utf-8') if hasattr(
-                        data['file'], 'encode'
-                    ) else data['file'],
+                    sid, bfile,
                     *args
                 ),
                 cmd=utility, args=escaped_args

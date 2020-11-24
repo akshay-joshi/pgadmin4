@@ -14,11 +14,11 @@ CREATE OR REPLACE PROCEDURE {{ conn|qtIdent(data.pronamespace, data.name) }}{% i
 ){% endif %}
 
 {% endif %}
-    {{ data.provolatile }} {% if data.proleakproof %}LEAKPROOF {% endif %}
+    {% if data.provolatile %}{% if data.provolatile == 'i' %}IMMUTABLE{% elif data.provolatile == 's' %}STABLE{% else %}VOLATILE{% endif %} {% endif %}{% if data.proleakproof %}LEAKPROOF {% endif %}
 {% if data.proisstrict %}STRICT {% endif %}
 {% if data.prosecdef %}SECURITY DEFINER{% endif %}
-{% if data.proparallel and (data.proparallel == 'r' or data.proparallel == 's') %}
-{% if data.proparallel == 'r' %} PARALLEL RESTRICTED{% elif data.proparallel == 's' %} PARALLEL SAFE{% endif %}{% endif %}{% if data.procost %}
+{% if data.proparallel and (data.proparallel == 'r' or data.proparallel == 's' or data.proparallel == 'u') %}
+{% if data.proparallel == 'r' %} PARALLEL RESTRICTED{% elif data.proparallel == 's' %} PARALLEL SAFE {% elif data.proparallel == 'u' %} PARALLEL UNSAFE{% endif %}{% endif %}{% if data.procost %}
 
     COST {{data.procost}}{% endif %}{% if data.prorows and (data.prorows | int) > 0 %}
 

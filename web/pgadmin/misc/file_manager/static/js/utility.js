@@ -23,6 +23,8 @@ define([
   'sources/csrf', 'tablesorter', 'tablesorter-metric',
 ], function($, _, Alertify, gettext, url_for, Dropzone, pgAdmin, csrf) {
 
+  pgAdmin.Browser = pgAdmin.Browser || {};
+
   /*---------------------------------------------------------
     Define functions used for various operations
   ---------------------------------------------------------*/
@@ -179,14 +181,17 @@ define([
       $('.file_manager').find('button.download').hide();
     } else {
       $('.file_manager').find('button.download').off().on('click', function() {
-        var path;
+        var path,
+          params = {};
+
+        params[pgAdmin.csrf_token_header] = pgAdmin.csrf_token;
+
         if ($('.fileinfo').data('view') == 'grid') {
           path = $('.fileinfo li.selected').find('.clip span').attr('data-alt');
-          window.open(pgAdmin.FileUtils.fileConnector + '?_=' + Date.now() + 'mode=download&path=' + path, '_blank');
         } else {
           path = $('.fileinfo').find('table#contents tbody tr.selected td:first-child').attr('title');
-          window.open(pgAdmin.FileUtils.fileConnector + '?_=' + Date.now() + 'mode=download&path=' + path, '_blank');
         }
+        download_file(path);
       });
     }
   };
@@ -467,9 +472,9 @@ define([
         if (item_data.file_type == 'dir') {
           icon_type = 'fa fa-folder-open fm_folder_grid';
         } else if (item_data.file_type == 'drive') {
-          icon_type = 'fa fa-hdd-o fm_drive';
+          icon_type = 'fa fa-hdd fm_drive';
         } else {
-          icon_type = 'fa fa-file-text-o fm_file_grid';
+          icon_type = 'fa fa-file-alt fm_file_grid';
         }
 
         /* For the html ele */
@@ -567,10 +572,10 @@ define([
           icon_type = 'fa fa-folder-open fm_folder_list';
         } else if (item_data.file_type == 'drive') {
           class_type = 'tbl_drive';
-          icon_type = 'fa fa-hdd-o';
+          icon_type = 'fa fa-hdd';
         } else {
           class_type = 'tbl_file';
-          icon_type = 'fa fa-file-text-o';
+          icon_type = 'fa fa-file-alt';
         }
 
         /* For the html ele */
@@ -589,7 +594,7 @@ define([
         } else {
           item_ele +=
             `<div>
-              <input type="text" class="fm_file_rename"/>
+              <input aria-label="file_rename" type="text" class="fm_file_rename"/>
               <div class="fm_file_name">
                 <div class="d-flex">
                   <span class="fm_file_list ${icon_type}"></span>
@@ -746,10 +751,10 @@ define([
           // if file/folder is protected do nothing
           if ($(this).find('.fa-lock').length)
             return;
-          if ($(this).find('.fa-file-text-o').length)
+          if ($(this).find('.fa-file-alt').length || $(this).find('.tbl_folder_rename').length > 0)
             $(this).click();
           // If folder then first select and then double click to open folder/drive
-          else if ($(this).find('.fa-folder-open').length || $(this).find('.fa-hdd-o').length) {
+          else if ($(this).find('.fa-folder-open').length || $(this).find('.fa-hdd').length) {
             $(this).click();
             setTimeout(() => { $(self).trigger('dblclick'); }, 10);
           }
@@ -841,10 +846,17 @@ define([
             $this = $('.fileinfo').find(
               'table#contents tbody tr.selected td.tbl_file'
             );
+            if($this.length == 0) {
+              $this = $('.fileinfo').find(
+                'table#contents tbody tr.selected td.tbl_folder'
+              );
+              // putting temporary class to distiguish between folder rename & double click.
+              $this.addClass('tbl_folder_rename');
+            }
             orig_value = decodeURI($this.find('span.less_text').html());
             newvalue = orig_value.substring(0, orig_value.lastIndexOf('.'));
 
-            if (orig_value.lastIndexOf('/') == orig_value.length - 1 || newvalue === '') {
+            if (orig_value.lastIndexOf('/') == orig_value.length - 1 || (_.isEmpty(newvalue) || _.isUndefined(newvalue) || _.isNull(newvalue))) {
               newvalue = decodeURI(orig_value);
             }
 
@@ -855,9 +867,7 @@ define([
             $('.file_manager').off().on('keyup', function(event) {
               if (event.keyCode == 13) {
                 event.stopPropagation();
-                $('.fileinfo table#contents tr.selected td.tbl_file').find(
-                  'fm_file_rename'
-                ).trigger('blur');
+                $this.find('fm_file_rename').trigger('blur');
               }
             });
           }
@@ -867,7 +877,7 @@ define([
         $('.fileinfo #contents li div').on('blur dblclick', 'input', function(e) {
           e.stopPropagation();
 
-          var old_name = decodeURI($(this).siblings('span').attr('title'));
+          var old_name = decodeURI($(this).siblings('div').find('.less_text').attr('title'));
           newvalue = old_name.substring(0, old_name.indexOf('.'));
           var last = getFileExtension(old_name),
             file_data, new_name, file_path, full_name;
@@ -919,22 +929,38 @@ define([
                 $(this).val()
               ) + (last !== '' ? '.' + last : '');
 
-              $(this).toggle();
-              $(this).siblings('span').toggle().html(full_name);
-
-              new_name = decodeURI($(this).val());
-              file_path = decodeURI($(this).parent().parent().find(
-                'span'
-              ).attr('data-alt'));
-              file_data = {
-                'Filename': old_name,
-                'Path': file_path,
-                'NewFilename': new_name,
-              };
-
               if (newvalue !== new_name) {
+
+                $(this).toggle();
+                $(this).siblings('span').toggle().html(full_name);
+
+                //check if user is trying to rename folder
+                let isFolder = $(this).closest('.tbl_folder').length > 0;
+
+                new_name = decodeURI($(this).val());
+                file_path = decodeURI($(this).parent().parent().find(
+                  'span'
+                ).attr('data-alt'));
+                file_data = {
+                  'Filename': old_name,
+                  'Path': file_path,
+                  'NewFilename': new_name,
+                  'isFolder': isFolder,
+                };
+
                 renameItem(file_data);
-                getFolderInfo($('.currentpath').val());
+                let path = $('.currentpath').val();
+                if(isFolder == true) {
+                  // if its folder rename, remove the temporary added class
+                  $(this).closest('.tbl_folder').removeClass('tbl_folder_rename');
+                  if(path.includes('\\')) {
+                    path = $('.currentpath').val().split('\\').slice(0, -2).join('\\')+'\\';
+                  }
+                  else {
+                    path = $('.currentpath').val().split('/').slice(0, -2).join('/')+'/';
+                  }
+                }
+                getFolderInfo(path);
               }
             }
           } else {
@@ -945,7 +971,7 @@ define([
         $('.fileinfo table#contents tr td div').on(
           'blur dblclick', 'input',
           function(e) {
-            var old_name = decodeURI($(this).siblings('span').attr('title')),
+            var old_name = decodeURI($(this).siblings('div').find('.less_text').attr('title')),
               new_value = old_name.substring(0, old_name.indexOf('.')),
               last = getFileExtension(old_name);
             if (old_name.indexOf('.') == 0) {
@@ -961,21 +987,36 @@ define([
                 var full_name = decodeURI($(this).val()) + (
                   last !== '' ? '.' + last : ''
                 );
-                $(this).toggle();
-                $(this).siblings('span').toggle().html(full_name);
-
-                var new_name = decodeURI($(this).val()),
-                  file_path = decodeURI($(this).parent().parent().attr('title')),
-                  file_data = {
-                    'Filename': old_name,
-                    'Path': file_path,
-                    'NewFilename': new_name,
-                  };
 
                 if (new_value !== new_name) {
+
+                  $(this).toggle();
+                  $(this).siblings('span').toggle().html(full_name);
+
+                  let isFolder = $(this).closest('.tbl_folder').length > 0;
+
+                  var new_name = decodeURI($(this).val()),
+                    file_path = decodeURI($(this).parent().parent().attr('title')),
+                    file_data = {
+                      'Filename': old_name,
+                      'Path': file_path,
+                      'NewFilename': new_name,
+                      'isFolder': isFolder,
+                    };
+
                   renameItem(file_data);
-                  var parent = file_path.split('/').reverse().slice(2).reverse().join('/') + '/';
-                  getFolderInfo(parent);
+                  let path = $('.currentpath').val();
+                  if(isFolder == true) {
+                    // if its folder rename, remove the temporary added class
+                    $(this).closest('.tbl_folder').removeClass('tbl_folder_rename');
+                    if(path.includes('\\')) {
+                      path = $('.currentpath').val().split('\\').slice(0, -2).join('\\')+'\\';
+                    }
+                    else {
+                      path = $('.currentpath').val().split('/').slice(0, -2).join('/')+'/';
+                    }
+                  }
+                  getFolderInfo(path);
                 }
               }
             } else {
@@ -1169,6 +1210,60 @@ define([
       is_protected == undefined;
   };
 
+  // Download selected file
+  var download_file = function (path) {
+
+    var data = { 'path': path, 'mode': 'download' },
+      params = {};
+
+    params[pgAdmin.csrf_token_header] = pgAdmin.csrf_token;
+
+    $.ajax({
+      type: 'POST',
+      url: pgAdmin.FileUtils.fileConnector,
+      contentType: false,
+      headers: params,
+      xhrFields: {
+        responseType: 'blob',
+      },
+      cache: false,
+      data: JSON.stringify(data),
+      success: function (blob, status, xhr) {
+        // check for a filename
+        var filename = xhr.getResponseHeader('filename');
+
+        if (typeof window.navigator.msSaveBlob !== 'undefined') {
+          // IE workaround for "HTML7007: One or more blob URLs were revoked by closing the blob for which they were created. These URLs will no longer resolve as the data backing the URL has been freed."
+          window.navigator.msSaveBlob(blob, filename);
+        } else {
+          var URL = window.URL || window.webkitURL;
+          var downloadUrl = URL.createObjectURL(blob);
+
+          if (filename) {
+            // use HTML5 a[download] attribute to specify filename
+            var a = document.createElement('a');
+            // safari doesn't support this yet
+            if (typeof a.download === 'undefined') {
+              window.location.href = downloadUrl;
+            } else {
+              a.href = downloadUrl;
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+            }
+          } else {
+            window.location.href = downloadUrl;
+          }
+
+          setTimeout(function () { URL.revokeObjectURL(downloadUrl); }, 100); // cleanup
+        }
+      },
+      error: function (error) {
+        Alertify.error(error);
+      },
+    });
+  };
+
   /*---------------------------------------------------------
     Initialization - Entry point
   ---------------------------------------------------------*/
@@ -1260,11 +1355,11 @@ define([
           select_box = `<div class='change_file_types d-flex align-items-center p-1'>
           <div>` +
             gettext('Show hidden files and folders?') +
-            `<input type='checkbox' id='show_hidden' onclick='pgAdmin.FileUtils.handleClick(this)' tabindex='0'>
+            `<input  aria-label="Show hidden files and folders" type='checkbox' id='show_hidden' onclick='pgAdmin.FileUtils.handleClick(this)' tabindex='0'>
           </div>
           <div class="ml-auto">
             <label class="my-auto">` + gettext('Format') + `</label>
-            <select name='type' tabindex='0'>${fileFormats}</select>
+            <select aria-label="select" name='type' tabindex='0'>${fileFormats}</select>
           <div>`;
         }
 
@@ -1447,12 +1542,13 @@ define([
                 ) {
                   $('.file_manager_ok').removeClass('disabled');
                   $('.file_manager_ok').attr('disabled', false);
-                  $('.file_manager button.delete, .file_manager button.rename').removeAttr(
+                  $('.file_manager button.delete').removeAttr(
                     'disabled', 'disabled'
                   );
                   $('.file_manager button.download').attr(
                     'disabled', 'disabled'
                   );
+                  $('.file_manager button.rename').attr('disabled', 'disabled');
                   // set selected folder name in breadcrums
                   $('.file_manager #uploader .input-path').hide();
                   $('.file_manager #uploader .show_selected_file').remove();
@@ -1542,7 +1638,7 @@ define([
         // we remove simple file upload element
         $('.file-input-container').remove();
         $('.upload').remove();
-        $('.create').before('<button value="Upload" type="button" title="Upload File" name="upload" id="upload" class="btn btn-sm btn-primary-icon upload" tabindex="0"><span class="fa fa-upload sql-icon-lg"></span></button> ');
+        $('.create').before('<button aria-label="Upload" value="Upload" type="button" title="Upload File" name="upload" id="upload" class="btn btn-sm btn-primary-icon upload" tabindex="0"><span class="fa fa-upload sql-icon-lg"></span></button> ');
 
         $('#uploader .upload').off().on('click', function() {
           // we create prompt

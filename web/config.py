@@ -46,7 +46,7 @@ APP_ICON = 'pg-icon'
 
 # Application version number components
 APP_RELEASE = 4
-APP_REVISION = 24
+APP_REVISION = 28
 
 # Application version suffix, e.g. 'beta1', 'dev'. Usually an empty string
 # for GA releases.
@@ -55,7 +55,7 @@ APP_SUFFIX = ''
 # Numeric application version for upgrade checks. Should be in the format:
 # [X]XYYZZ, where X is the release version, Y is the revision, with a leading
 # zero if needed, and Z represents the suffix, with a leading zero if needed
-APP_VERSION_INT = 42400
+APP_VERSION_INT = 42800
 
 # DO NOT CHANGE!
 # The application version string, constructed from the components
@@ -143,11 +143,53 @@ DEFAULT_SERVER = '127.0.0.1'
 # environment by the runtime
 DEFAULT_SERVER_PORT = 5050
 
+# This param is used to override the default web server information about
+# the web technology and the frameworks being used in the application
+# An attacker could use this information to fingerprint underlying operating
+# system and research known exploits for the specific version of
+# software in use
+WEB_SERVER = 'Python'
+
 # Enable X-Frame-Option protection.
 # Set to one of "SAMEORIGIN", "ALLOW-FROM origin" or "" to disable.
 # Note that "DENY" is NOT supported (and will be silently ignored).
 # See https://tools.ietf.org/html/rfc7034 for more info.
 X_FRAME_OPTIONS = "SAMEORIGIN"
+
+# The Content-Security-Policy header allows you to restrict how resources
+# such as JavaScript, CSS, or pretty much anything that the browser loads.
+# see https://content-security-policy.com/#source_list for more info
+# e.g. "default-src https: data: 'unsafe-inline' 'unsafe-eval';"
+CONTENT_SECURITY_POLICY = "default-src http: data: blob: 'unsafe-inline' " \
+                          "'unsafe-eval';"
+
+# STRICT_TRANSPORT_SECURITY_ENABLED when set to True will set the
+# Strict-Transport-Security header
+STRICT_TRANSPORT_SECURITY_ENABLED = False
+
+# The Strict-Transport-Security header tells the browser to convert all HTTP
+# requests to HTTPS, preventing man-in-the-middle (MITM) attacks.
+# e.g. 'max-age=31536000; includeSubDomains'
+STRICT_TRANSPORT_SECURITY = "max-age=31536000; includeSubDomains"
+
+# The X-Content-Type-Options header forces the browser to honor the response
+# content type instead of trying to detect it, which can be abused to
+# generate a cross-site scripting (XSS) attack.
+# e.g. nosniff
+X_CONTENT_TYPE_OPTIONS = "nosniff"
+
+# The browser will try to prevent reflected XSS attacks by not loading the
+# page if the request contains something that looks like JavaScript and the
+# response contains the same data. e.g. '1; mode=block'
+X_XSS_PROTECTION = "1; mode=block"
+
+# This param is used to validate ALLOWED_HOSTS for the application
+# This will be used to avoid Host Header Injection attack
+# ALLOWED_HOSTS = ['225.0.0.0/8', '226.0.0.0/7', '228.0.0.0/6']
+# ALLOWED_HOSTS = ['127.0.0.1', '192.168.0.1']
+# if ALLOWED_HOSTS= [] then it will accept all ips (and application will be
+# vulnerable to Host Header Injection attack)
+ALLOWED_HOSTS = []
 
 # Hashing algorithm used for password storage
 SECURITY_PASSWORD_HASH = 'pbkdf2_sha512'
@@ -204,13 +246,13 @@ APP_VERSION_EXTN = ('.css', '.js', '.html', '.svg', '.png', '.gif', '.ico')
 if IS_WIN:
     # Use the short path on windows
     DATA_DIR = os.path.realpath(
-        os.path.join(fs_short_path(env('APPDATA')), u"pgAdmin")
+        os.path.join(fs_short_path(env('APPDATA')), "pgAdmin")
     )
 else:
     if SERVER_MODE:
         DATA_DIR = '/var/lib/pgadmin'
     else:
-        DATA_DIR = os.path.realpath(os.path.expanduser(u'~/.pgadmin/'))
+        DATA_DIR = os.path.realpath(os.path.expanduser('~/.pgadmin/'))
 
 # An optional login banner to show security warnings/disclaimers etc. at
 # login and password recovery etc. HTML may be included for basic formatting,
@@ -421,12 +463,14 @@ ON_DEMAND_RECORD_COUNT = 1000
 SHOW_GRAVATAR_IMAGE = True
 
 ##########################################################################
-# Set cookie path
+# Set cookie path and options
 ##########################################################################
 COOKIE_DEFAULT_PATH = '/'
 COOKIE_DEFAULT_DOMAIN = None
 SESSION_COOKIE_DOMAIN = None
 SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = False
+SESSION_COOKIE_HTTPONLY = True
 
 #########################################################################
 # Skip storing session in files and cache for specific paths

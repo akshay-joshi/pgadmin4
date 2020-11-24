@@ -148,6 +148,7 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
     """
 
     node_type = blueprint.node_type
+    node_label = "Collation"
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -306,7 +307,7 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
                 status=200
             )
 
-        return gone(gettext("Could not find the specified collation."))
+        return gone(self.not_found_error_msg())
 
     @check_precondition
     def properties(self, gid, sid, did, scid, coid):
@@ -352,8 +353,7 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
             return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return False, gone(gettext("Could not find the collation "
-                                       "object in the database."))
+            return False, gone(self.not_found_error_msg())
 
         res['rows'][0]['is_sys_obj'] = (
             res['rows'][0]['oid'] <= self.datlastsysoid)
@@ -524,7 +524,8 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
             else {'ids': [coid]}
 
         # Below will decide if it's simple drop or drop with cascade call
-        cascade = True if self.cmd == 'delete' else False
+
+        cascade = self._check_cascade_operation()
 
         try:
             for coid in data['ids']:
@@ -536,9 +537,7 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
                     return internal_server_error(errormsg=res)
 
                 if len(res['rows']) == 0:
-                    return gone(gettext(
-                        "Could not find the collation object in the database."
-                    ))
+                    return gone(self.not_found_error_msg())
 
                 data = res['rows'][0]
 
@@ -660,10 +659,7 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
             if not status:
                 return internal_server_error(errormsg=res)
             if len(res['rows']) == 0:
-                return gone(
-                    gettext(
-                        "Could not find the collation object in the database.")
-                )
+                return gone(self.not_found_error_msg())
 
             old_data = res['rows'][0]
             SQL = render_template(
@@ -704,6 +700,7 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
            json_resp: True then return json response
         """
         json_resp = kwargs.get('json_resp', True)
+        target_schema = kwargs.get('target_schema', None)
 
         SQL = render_template("/".join([self.template_path,
                                         self._PROPERTIES_SQL]),
@@ -712,17 +709,17 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
         if not status:
             return internal_server_error(errormsg=res)
         if len(res['rows']) == 0:
-            return gone(
-                gettext("Could not find the collation object in the database.")
-            )
+            return gone(self.not_found_error_msg())
 
         data = res['rows'][0]
+        if target_schema:
+            data['schema'] = target_schema
 
         SQL = render_template("/".join([self.template_path,
                                         self._CREATE_SQL]),
                               data=data, conn=self.conn)
 
-        sql_header = u"-- Collation: {0};\n\n-- ".format(data['name'])
+        sql_header = "-- Collation: {0};\n\n-- ".format(data['name'])
 
         sql_header += render_template("/".join([self.template_path,
                                                 self._DELETE_SQL]),
@@ -817,14 +814,20 @@ class CollationView(PGChildNodeView, SchemaDiffObjectCompare):
         oid = kwargs.get('oid')
         data = kwargs.get('data', None)
         drop_sql = kwargs.get('drop_sql', False)
+        target_schema = kwargs.get('target_schema', None)
 
         if data:
+            if target_schema:
+                data['schema'] = target_schema
             sql, name = self.get_sql(gid=gid, sid=sid, data=data, scid=scid,
                                      coid=oid)
         else:
             if drop_sql:
                 sql = self.delete(gid=gid, sid=sid, did=did,
                                   scid=scid, coid=oid, only_sql=True)
+            elif target_schema:
+                sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, coid=oid,
+                               target_schema=target_schema, json_resp=False)
             else:
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, coid=oid,
                                json_resp=False)

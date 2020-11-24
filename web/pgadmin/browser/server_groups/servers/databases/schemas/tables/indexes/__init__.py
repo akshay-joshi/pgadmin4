@@ -193,6 +193,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
     """
 
     node_type = blueprint.node_type
+    node_label = "Index"
 
     parent_ids = [
         {'type': 'int', 'id': 'gid'},
@@ -425,7 +426,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
             return internal_server_error(errormsg=rset)
 
         if len(rset['rows']) == 0:
-            return gone(gettext("""Could not find the index in the table."""))
+            return gone(self.not_found_error_msg())
 
         res = self.blueprint.generate_browser_node(
             rset['rows'][0]['oid'],
@@ -521,8 +522,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
             return False, internal_server_error(errormsg=res)
 
         if len(res['rows']) == 0:
-            return False, gone(
-                gettext("""Could not find the index in the table."""))
+            return False, gone(self.not_found_error_msg())
 
         # Making copy of output for future use
         data = dict(res['rows'][0])
@@ -602,7 +602,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
         data['schema'] = self.schema
         data['table'] = self.table
         if len(data['table']) == 0:
-            return gone(gettext("The specified table could not be found."))
+            return gone(gettext(self.not_found_error_msg('Table')))
 
         try:
             # Start transaction.
@@ -681,11 +681,8 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
             data = {'ids': [idx]}
 
         # Below will decide if it's simple drop or drop with cascade call
-        if self.cmd == 'delete':
-            # This is a cascade operation
-            cascade = True
-        else:
-            cascade = False
+
+        cascade = self._check_cascade_operation()
 
         try:
             for idx in data['ids']:
@@ -705,9 +702,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
                         errormsg=gettext(
                             'Error: Object not found.'
                         ),
-                        info=gettext(
-                            'The specified index could not be found.\n'
-                        )
+                        info=self.not_found_error_msg()
                     )
 
                 data = dict(res['rows'][0])
@@ -849,8 +844,9 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
         tid = kwargs.get('tid')
         idx = kwargs.get('idx')
         data = kwargs.get('data', None)
-        create_mode = kwargs.get('create_mode', None)
+        target_schema = kwargs.get('target_schema', None)
         drop_req = kwargs.get('drop_req', False)
+
         sql = ''
 
         if data:
@@ -864,9 +860,9 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
 
             sql = sql.strip('\n').strip(' ')
 
-        elif create_mode:
+        elif target_schema:
             sql = index_utils.get_reverse_engineered_sql(
-                self.conn, schema=self.schema,
+                self.conn, schema=target_schema,
                 table=self.table, did=did, tid=tid, idx=idx,
                 datlastsysoid=self.datlastsysoid,
                 template_path=None, with_header=False)
@@ -969,9 +965,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
                 if not status:
                     return internal_server_error(errormsg=res)
                 if len(res['rows']) == 0:
-                    return gone(
-                        gettext("""Could not find the index in the table.""")
-                    )
+                    return gone(self.not_found_error_msg())
 
                 data = dict(res['rows'][0])
                 index = data['name']
@@ -1077,6 +1071,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
         source = kwargs.get('source')
         target = kwargs.get('target')
         comp_status = kwargs.get('comp_status')
+        tgt_schema = kwargs.get('target_schema', None)
 
         diff = ''
         if comp_status == 'source_only':
@@ -1085,7 +1080,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
                                                 scid=src_params['scid'],
                                                 tid=src_params['tid'],
                                                 idx=source['oid'],
-                                                create_mode=True)
+                                                target_schema=tgt_schema)
         elif comp_status == 'target_only':
             diff = self.delete(gid=1, sid=tgt_params['sid'],
                                did=tgt_params['did'], scid=tgt_params['scid'],
@@ -1111,7 +1106,7 @@ class IndexesView(PGChildNodeView, SchemaDiffObjectCompare):
                                                     scid=src_params['scid'],
                                                     tid=src_params['tid'],
                                                     idx=source['oid'],
-                                                    create_mode=True,
+                                                    target_schema=tgt_schema,
                                                     drop_req=True)
             else:
                 diff = self.get_sql_from_index_diff(sid=tgt_params['sid'],

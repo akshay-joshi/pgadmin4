@@ -56,7 +56,12 @@ define('pgadmin.node.server', [
       type: 'server',
       dialogHelp: url_for('help.static', {'filename': 'server_dialog.html'}),
       label: gettext('Server'),
-      canDrop: true,
+      canDrop: function(node){
+        var serverOwner = node.user_id;
+        if (serverOwner != current_user.id && !_.isUndefined(serverOwner))
+          return false;
+        return true;
+      },
       dropAsRemove: true,
       dropPriority: 5,
       hasStatistics: true,
@@ -75,12 +80,12 @@ define('pgadmin.node.server', [
           name: 'create_server_on_sg', node: 'server_group', module: this,
           applies: ['object', 'context'], callback: 'show_obj_properties',
           category: 'create', priority: 1, label: gettext('Server...'),
-          data: {action: 'create'}, icon: 'wcTabIcon icon-server',
+          data: {action: 'create'}, icon: 'wcTabIcon icon-server', enable: 'canCreate',
         },{
           name: 'create_server', node: 'server', module: this,
           applies: ['object', 'context'], callback: 'show_obj_properties',
           category: 'create', priority: 3, label: gettext('Server...'),
-          data: {action: 'create'}, icon: 'wcTabIcon icon-server',
+          data: {action: 'create'}, icon: 'wcTabIcon icon-server', enable: 'canCreate',
         },{
           name: 'connect_server', node: 'server', module: this,
           applies: ['object', 'context'], callback: 'connect_server',
@@ -90,12 +95,12 @@ define('pgadmin.node.server', [
           name: 'disconnect_server', node: 'server', module: this,
           applies: ['object', 'context'], callback: 'disconnect_server',
           category: 'drop', priority: 5, label: gettext('Disconnect Server'),
-          icon: 'fa fa-chain-broken', enable : 'is_connected',
+          icon: 'fa fa-unlink', enable : 'is_connected',
         },{
           name: 'reload_configuration', node: 'server', module: this,
           applies: ['tools', 'context'], callback: 'reload_configuration',
           category: 'reload', priority: 6, label: gettext('Reload Configuration'),
-          icon: 'fa fa-repeat', enable : 'enable_reload_config',
+          icon: 'fa fa-redo-alt', enable : 'enable_reload_config',
         },{
           name: 'restore_point', node: 'server', module: this,
           applies: ['tools', 'context'], callback: 'restore_point',
@@ -149,6 +154,13 @@ define('pgadmin.node.server', [
       },
       is_not_connected: function(node) {
         return (node && node.connected != true);
+      },
+      canCreate: function(node){
+        var serverOwner = node.user_id;
+        if (serverOwner == current_user.id || _.isUndefined(serverOwner))
+          return true;
+        return false;
+
       },
       is_connected: function(node) {
         return (node && node.connected == true);
@@ -226,28 +238,25 @@ define('pgadmin.node.server', [
                     d = t.itemData(i);
                     t.removeIcon(i);
                     d.connected = false;
-                    d.icon = 'icon-server-not-connected';
+                    if (d.shared && pgAdmin.server_mode == 'True'){
+                      d.icon = 'icon-shared-server-not-connected';
+                    }else{
+                      d.icon = 'icon-server-not-connected';
+                    }
                     t.addIcon(i, {icon: d.icon});
                     obj.callbacks.refresh.apply(obj, [null, i]);
                     if (pgBrowser.serverInfo && d._id in pgBrowser.serverInfo) {
                       delete pgBrowser.serverInfo[d._id];
                     }
-                    pgBrowser.enable_disable_menus(i);
-                    // Trigger server disconnect event
-                    pgBrowser.Events.trigger(
-                      'pgadmin:server:disconnect',
-                      {item: i, data: d}, false
-                    );
-                  }
-                  else {
-                    try {
-                      Alertify.error(res.errormsg);
-                    } catch (e) {
-                      console.warn(e.stack || e);
+                    else {
+                      try {
+                        Alertify.error(res.errormsg);
+                      } catch (e) {
+                        console.warn(e.stack || e);
+                      }
+                      t.unload(i);
                     }
-                    t.unload(i);
-                  }
-                })
+                  }})
                 .fail(function(xhr, status, error) {
                   Alertify.pgRespErrorNotify(xhr, error);
                   t.unload(i);
@@ -260,7 +269,10 @@ define('pgadmin.node.server', [
                 gettext('Are you sure you want to disconnect the server %s?', d.label),
                 function() { disconnect(); },
                 function() { return true;}
-              );
+              ).set('labels', {
+                ok: gettext('Ok'),
+                cancel: gettext('Cancel'),
+              });
             } else {
               disconnect();
             }
@@ -743,14 +755,32 @@ define('pgadmin.node.server', [
         },
         schema: [{
           id: 'id', label: gettext('ID'), type: 'int', mode: ['properties'],
+          visible: function(model){
+            if (model.attributes.user_id != current_user.id && pgAdmin.server_mode == 'True')
+              return false;
+            return true;
+          },
         },{
           id: 'name', label: gettext('Name'), type: 'text',
-          mode: ['properties', 'edit', 'create'],
-        },{
+          mode: ['properties', 'edit', 'create'], disabled: 'isShared',
+        },
+        {
           id: 'gid', label: gettext('Server group'), type: 'int',
           control: 'node-list-by-id', node: 'server_group',
-          mode: ['create', 'edit'], select2: {allowClear: false},
-        },{
+          mode: ['create', 'edit'], select2: {allowClear: false}, disabled: 'isShared',
+        },
+        {
+          id: 'server_owner', label: gettext('Shared Server Owner'), type: 'text', mode: ['properties'],
+          visible:function(model){
+            var serverOwner = model.attributes.user_id;
+            if (model.attributes.shared && serverOwner != current_user.id && pgAdmin.server_mode == 'True'){
+              return true;
+            }
+            return false;
+
+          },
+        },
+        {
           id: 'server_type', label: gettext('Server type'), type: 'options',
           mode: ['properties'], visible: 'isConnected',
           'options': supported_servers,
@@ -773,11 +803,27 @@ define('pgadmin.node.server', [
           id: 'connect_now', controlLabel: gettext('Connect now?'), type: 'checkbox',
           group: null, mode: ['create'],
         },{
+          id: 'shared', label: gettext('Shared?'), type: 'switch',
+          mode: ['properties', 'create', 'edit'], 'options': {'size': 'mini'},
+          readonly: function(model){
+            var serverOwner = model.attributes.user_id;
+            if (!model.isNew() && serverOwner != current_user.id){
+              return true;
+            }
+            return false;
+          },visible: function(){
+            if (current_user.is_admin && pgAdmin.server_mode == 'True')
+              return true;
+
+            return false;
+          },
+        },
+        {
           id: 'comment', label: gettext('Comments'), type: 'multiline', group: null,
           mode: ['properties', 'edit', 'create'],
         },{
           id: 'host', label: gettext('Host name/address'), type: 'text', group: gettext('Connection'),
-          mode: ['properties', 'edit', 'create'],
+          mode: ['properties', 'edit', 'create'],disabled: 'isShared',
           control: Backform.InputControl.extend({
             onChange: function() {
               Backform.InputControl.prototype.onChange.apply(this, arguments);
@@ -798,7 +844,7 @@ define('pgadmin.node.server', [
           }),
         },{
           id: 'port', label: gettext('Port'), type: 'int', group: gettext('Connection'),
-          mode: ['properties', 'edit', 'create'], min: 1, max: 65535,
+          mode: ['properties', 'edit', 'create'], min: 1, max: 65535, disabled: 'isShared',
           control: Backform.InputControl.extend({
             onChange: function() {
               Backform.InputControl.prototype.onChange.apply(this, arguments);
@@ -819,7 +865,7 @@ define('pgadmin.node.server', [
           }),
         },{
           id: 'db', label: gettext('Maintenance database'), type: 'text', group: gettext('Connection'),
-          mode: ['properties', 'edit', 'create'], readonly: 'isConnected',
+          mode: ['properties', 'edit', 'create'], readonly: 'isConnected',disabled: 'isShared',
         },{
           id: 'username', label: gettext('Username'), type: 'text', group: gettext('Connection'),
           mode: ['properties', 'edit', 'create'],
@@ -842,7 +888,7 @@ define('pgadmin.node.server', [
             },
           }),
         },{
-          id: 'password', label: gettext('Password'), type: 'password', maxlength: '2000',
+          id: 'password', label: gettext('Password'), type: 'password', maxlength: null,
           group: gettext('Connection'), control: 'input', mode: ['create'], deps: ['connect_now'],
           visible: function(model) {
             return model.get('connect_now') && model.isNew();
@@ -1057,6 +1103,21 @@ define('pgadmin.node.server', [
           mode: ['properties', 'edit', 'create'], readonly: 'isConnected',
           min: 0,
         }],
+        isVisible: function(model){
+          var serverOwner = model.attributes.user_id;
+          if (!model.isNew() && serverOwner != current_user.id){
+            return false;
+          }
+          return true;
+
+        },
+        isShared: function(model){
+          var serverOwner = model.attributes.user_id;
+          if (!model.isNew() && serverOwner != current_user.id && model.attributes.shared){
+            return true;
+          }
+          return false;
+        },
         validate: function() {
           const validateModel = new modelValidation.ModelValidation(this);
           return validateModel.validate();
@@ -1153,7 +1214,37 @@ define('pgadmin.node.server', [
         }
       },
     });
+
     var connect_to_server = function(obj, data, tree, item, reconnect) {
+    // Open properties dialog in edit mode
+      const selectedTreeNode = tree.selected().length > 0 ? tree.selected() : tree.first();
+      const selectedTreeNodeData = selectedTreeNode && selectedTreeNode.length === 1 ? tree.itemData(selectedTreeNode) : undefined;
+      var server_url = obj.generate_url(item, 'obj', data, true);
+      // Fetch the updated data
+      $.get(server_url)
+        .done(function(res) {
+          if (res.shared && _.isNull(res.username) && data.user_id != current_user.id){
+            if (selectedTreeNodeData._type == 'server' && !res.service){
+              pgAdmin.Browser.Node.callbacks.show_obj_properties.call(
+                pgAdmin.Browser.Nodes[tree.itemData(item)._type], {action: 'edit'}
+              );
+              data.is_connecting = false;
+              tree.unload(item);
+              tree.setInode(item);
+              tree.addIcon(item, {icon: 'icon-shared-server-not-connected'});
+              Alertify.info('Please enter the server details to connect to the server. This server is a shared server.');
+            }else{
+              data.is_connecting = false;
+              tree.unload(item);
+              tree.setInode(item);
+              tree.addIcon(item, {icon: 'icon-shared-server-not-connected'});
+            }
+          }
+          return;
+        }).always(function(){
+          data.is_connecting = false;
+        });
+
       var wasConnected = reconnect || data.connected,
         onFailure = function(
           xhr, status, error, _node, _data, _tree, _item, _wasConnected
@@ -1164,7 +1255,12 @@ define('pgadmin.node.server', [
           // Let's not change the status of the tree node now.
           if (!_wasConnected) {
             tree.setInode(_item);
-            tree.addIcon(_item, {icon: 'icon-server-not-connected'});
+            if (_data.shared && pgAdmin.server_mode == 'True'){
+              tree.addIcon(_item, {icon: 'icon-shared-server-not-connected'});
+            }else{
+              tree.addIcon(_item, {icon: 'icon-server-not-connected'});
+            }
+
           }
 
           Alertify.pgNotifier('error', xhr, error, function(msg) {
@@ -1195,7 +1291,16 @@ define('pgadmin.node.server', [
               pgBrowser.serverInfo || {};
             serverInfo[_data._id] = _.extend({}, _data);
 
-            Alertify.success(res.info);
+            if (_data.version < 90500) {
+              Alertify.warning(gettext('You have connected to a server version that is older ' +
+                'than is supported by pgAdmin. This may cause pgAdmin to break in strange and ' +
+                'unpredictable ways. Or a plague of frogs. Either way, you have been warned!') +
+                '<br /><br />' +
+                res.info, 0);
+            } else {
+              Alertify.success(res.info);
+            }
+
             obj.trigger('connected', obj, _item, _data);
 
             // Generate the event that server is connected
@@ -1312,7 +1417,11 @@ define('pgadmin.node.server', [
         _tree.unload(_item);
         _tree.setInode(_item);
         _tree.removeIcon(_item);
-        _tree.addIcon(_item, {icon: 'icon-server-not-connected'});
+        if (_data.shared && pgAdmin.server_mode == 'True'){
+          _tree.addIcon(_item, {icon: 'icon-shared-server-not-connected'});
+        }else{
+          _tree.addIcon(_item, {icon: 'icon-server-not-connected'});
+        }
         obj.trigger('connect:cancelled', data._id, data.db, obj, _item, _data);
         pgBrowser.Events.trigger(
           'pgadmin:server:connect:cancelled', data._id, _item, _data, obj
@@ -1378,7 +1487,11 @@ define('pgadmin.node.server', [
         })
         .fail(function(xhr, status, error) {
           tree.setInode(item);
-          tree.addIcon(item, {icon: 'icon-server-not-connected'});
+          if (data.shared && pgAdmin.server_mode == 'True'){
+            tree.addIcon(item, {icon: 'icon-shared-server-not-connected'});
+          }else{
+            tree.addIcon(item, {icon: 'icon-server-not-connected'});
+          }
           Alertify.pgRespErrorNotify(xhr, error);
         });
     };
