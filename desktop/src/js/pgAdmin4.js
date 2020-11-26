@@ -8,6 +8,8 @@
 //////////////////////////////////////////////////////////////
 
 const axios = require('axios');
+const misc = require('../js/misc.js');
+
 const DEFAULT_PORT = 5050;
 
 var python_path = '../../Workspace-3.8/bin/python';
@@ -75,12 +77,12 @@ function startDesktopMode() {
 
   pgadmin_server_process.stdout.setEncoding('utf8');
   pgadmin_server_process.stdout.on('data', (chunk) => {
-    console.warn(chunk);
+    misc.writeDataToLogFile(chunk);
   });
 
   pgadmin_server_process.stderr.setEncoding('utf8');
   pgadmin_server_process.stderr.on('data', (chunk) => {
-    console.warn(chunk);
+    misc.writeDataToLogFile(chunk);
   });
 
   // This function is used to ping the pgAdmin4 server whether it
@@ -200,7 +202,7 @@ main_win.on('loaded', function() {
       enabled: false,
       click: function() {
         // Create and lunch new window and open pgAdmin url
-        nw.Window.open('src/configure.html', {
+        nw.Window.open('src/html/configure.html', {
           'frame': true,
           'width': 600,
           'height': 208,
@@ -222,7 +224,7 @@ main_win.on('loaded', function() {
       enabled: false,
       click: function() {
         // Create and lunch new window and open pgAdmin url
-        nw.Window.open('src/view_log.html', {
+        nw.Window.open('src/html/view_log.html', {
           'frame': true,
           'width': 790,
           'height': 425,
@@ -230,10 +232,6 @@ main_win.on('loaded', function() {
           'resizable': false,
           'focus': true,
           'show': true,
-        }, (log_win)=> {
-          log_win.on('loaded', function() {
-            console.warn('View Log Window Loaded.');
-          });
         });
       },
     }));
