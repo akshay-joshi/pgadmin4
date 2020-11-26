@@ -7,13 +7,44 @@
 //
 //////////////////////////////////////////////////////////////
 
-let python_path = '../../Workspace-3.8/bin/python';
-let pgadmin_file = '../web/pgAdmin4.py';
-const start_page_url = 'http://127.0.0.1:5050/';
-const server_check_url = 'http://127.0.0.1:5050/misc/ping';
+const axios = require('axios');
+const DEFAULT_PORT = 5050;
 
-let pgadmin_server_process = null;
-let spawn = require('child_process').spawn;
+var python_path = '../../Workspace-3.8/bin/python';
+var pgadmin_file = '../web/pgAdmin4.py';
+
+var pgadmin_server_process = null;
+var spawn = require('child_process').spawn;
+var server_port = DEFAULT_PORT;
+
+// This function is used to get the random available TCP port
+function getAvailablePort(fixed_port) {
+  var net = require('net');
+  var srv = net.createServer();
+  var port = 0;
+
+  if (fixed_port) {
+    port = fixed_port;
+  }
+
+  srv.listen(port, function() {
+    server_port = srv.address().port;
+    srv.close();
+  });
+
+  srv.on('error', (e) => {
+    if (e.code === 'EADDRINUSE') {
+      console.warn('Port already in use.');
+      setTimeout(() => {
+        srv.close();
+      }, 1000);
+    }
+  });
+}
+
+// get the available TCP port
+server_port = getAvailablePort();
+var server_check_url = 'http://127.0.0.1:' + server_port + '/misc/ping';
 
 // This functions is used to start the pgAdmin4 server by spawning a
 // separate process.
@@ -21,6 +52,15 @@ function startDesktopMode() {
   // Return if pgadmin server process is already spawned.
   if (pgadmin_server_process != null)
     return;
+
+  if (server_port == 0) {
+    server_port = DEFAULT_PORT;
+  }
+
+  // Set the environment variable so that pgAdmn 4 server
+  // start listening on that port.
+  process.env.PGADMIN_INT_PORT = server_port;
+  server_check_url = 'http://127.0.0.1:' + server_port + '/misc/ping';
 
   document.getElementById('loader-text-status').innerHTML = 'Starting pgAdmin server....';
 
@@ -43,33 +83,22 @@ function startDesktopMode() {
     console.warn(chunk);
   });
 
-  function transferComplete() {
-    document.getElementById('loader-text-status').innerHTML = 'pgAdmin server started';
-    launchPgAdminWindow();
-  }
-
-  function transferFailed() {
-    document.getElementById('loader-text-status').innerHTML = 'Waiting for pgAdmin server to start...';
-    pingServer();
-  }
-
-  function reqListener () {
-    document.getElementById('loader-text-status').innerHTML = 'Launching pgAdmin window...';
-  }
-
   // This function is used to ping the pgAdmin4 server whether it
   // it is started or not.
   function pingServer() {
-    let oReq = new XMLHttpRequest();
-    oReq.addEventListener('load', transferComplete, false);
-    oReq.addEventListener('error', transferFailed, false);
-
-    oReq.onload = reqListener;
-    oReq.open('GET', server_check_url, true);
-    oReq.send();
+    return axios.get(server_check_url);
   }
 
-  pingServer();
+  // ping pgAdmin server every 1 second.
+  var int_id = setInterval(function() {
+    pingServer().then(() => {
+      document.getElementById('loader-text-status').innerHTML = 'pgAdmin server started';
+      clearInterval(int_id);
+      launchPgAdminWindow();
+    }).catch(() => {
+      document.getElementById('loader-text-status').innerHTML = 'Waiting for pgAdmin server to start...';
+    });
+  }, 1000);
 }
 
 // This function is used to hide the splash screen and create/launch
@@ -78,6 +107,8 @@ function launchPgAdminWindow() {
   var gui = require('nw.gui');
   // Get the current window
   var current_win = gui.Window.get();
+  // Start Page URL
+  var start_page_url = 'http://127.0.0.1:' + server_port + '/';
 
   // Create and lunch new window and open pgAdmin url
   nw.Window.open(start_page_url, {
@@ -149,8 +180,8 @@ function launchPgAdminWindow() {
 }
 
 // Get the gui object of NW.js
-let gui = require('nw.gui');
-let main_win = gui.Window.get();
+var gui = require('nw.gui');
+var main_win = gui.Window.get();
 
 // Always clear the cache before starting the application.
 nw.App.clearCache();
@@ -210,10 +241,10 @@ main_win.on('loaded', function() {
     // Append separator.
     view_menu.append(new nw.MenuItem({ type: 'separator' }));
 
-    main_menu.append(new nw.MenuItem({
+    main_menu.insert(new nw.MenuItem({
       label: 'View',
       submenu: view_menu,
-    }));
+    }), 1);
 
     nw.Window.get().menu = main_menu;
   } else {
