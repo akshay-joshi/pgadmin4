@@ -59,17 +59,20 @@ const writeDataToLogFile = (file_name, data) => {
   if (fs.existsSync(file_name)) {
     fs.writeFileSync(file_name, data, {flag: 'a+'});
   } else {
-    var err_msg = 'Unable to write file ' + file_name + ' not found.';
-    console.warn(err_msg);
-    return false, err_msg;    
+    fs.writeFileSync(file_name, data, {flag: 'w'});
   }
+};
 
-  return true, '';
+// This function is used to remove the log files
+const removeLogFile = (file_name) => {
+  if (fs.existsSync(file_name)) {
+    fs.rmSync(file_name);
+  }
 };
 
 module.exports = {
-  getAppDataPath: getAppDataPath,
   readLogFile: readLogFile,
   writeDataToLogFile: writeDataToLogFile,
+  removeLogFile: removeLogFile,
   server_log_file: server_log_file,
 };

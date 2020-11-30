@@ -77,12 +77,12 @@ function startDesktopMode() {
 
   pgadmin_server_process.stdout.setEncoding('utf8');
   pgadmin_server_process.stdout.on('data', (chunk) => {
-    misc.writeDataToLogFile(chunk);
+    misc.writeDataToLogFile(misc.server_log_file, chunk);
   });
 
   pgadmin_server_process.stderr.setEncoding('utf8');
   pgadmin_server_process.stderr.on('data', (chunk) => {
-    misc.writeDataToLogFile(chunk);
+    misc.writeDataToLogFile(misc.server_log_file, chunk);
   });
 
   // This function is used to ping the pgAdmin4 server whether it
@@ -91,6 +91,13 @@ function startDesktopMode() {
     return axios.get(server_check_url);
   }
 
+  // TODO : Get the "ConnectionTimeout" from configuration.
+  var connection_timeout = 90 * 1000;
+  var current_time = (new Date).getTime();
+  var endTime =  current_time + connection_timeout;
+  var midTime1 = current_time + (connection_timeout/2);
+  var midTime2 = current_time + (connection_timeout*2/3);
+
   // ping pgAdmin server every 1 second.
   var int_id = setInterval(function() {
     pingServer().then(() => {
@@ -98,7 +105,36 @@ function startDesktopMode() {
       clearInterval(int_id);
       launchPgAdminWindow();
     }).catch(() => {
-      document.getElementById('loader-text-status').innerHTML = 'Waiting for pgAdmin server to start...';
+      var cur_time = (new Date).getTime();
+      // if the connection timeout has lapsed then throw an error
+      // and stop pinging the server.
+      if (cur_time >= endTime) {
+        clearInterval(int_id);
+        main_win.hide();
+
+        nw.Window.open('src/html/server_error.html', {
+          'frame': true,
+          'width': 790,
+          'height': 385,
+          'position': 'center',
+          'resizable': false,
+          'focus': true,
+          'show': true,
+        });
+      }
+
+      if (cur_time > midTime1) {
+        // Enable menu items
+        enableMenu(main_win);
+
+        if(cur_time < midTime2) {
+          document.getElementById('loader-text-status').innerHTML = 'Taking longer than usual...';
+        } else {
+          document.getElementById('loader-text-status').innerHTML = 'Almost there...';
+        }
+      } else {
+        document.getElementById('loader-text-status').innerHTML = 'Waiting for pgAdmin server to start...';
+      }
     });
   }, 1000);
 }
@@ -106,13 +142,10 @@ function startDesktopMode() {
 // This function is used to hide the splash screen and create/launch
 // new window to render pgAdmin4 page.
 function launchPgAdminWindow() {
-  var gui = require('nw.gui');
-  // Get the current window
-  var current_win = gui.Window.get();
   // Start Page URL
   var start_page_url = 'http://127.0.0.1:' + server_port + '/';
 
-  // Create and lunch new window and open pgAdmin url
+  // Create and launch new window and open pgAdmin url
   nw.Window.open(start_page_url, {
     'icon': '../assets/pgAdmin4.png',
     'frame': true,
@@ -126,15 +159,8 @@ function launchPgAdminWindow() {
     'show': false,
   }, (new_win)=> {
     new_win.on('close', function() {
-      // Killing pgAdmin4 server process if application quits
-      if (pgadmin_server_process != null) {
-        try {
-          process.kill(pgadmin_server_process.pid);
-        }
-        catch (e) {
-          console.warn('Failed to kill server process.');
-        }
-      }
+      // Clenup
+      cleanup();
 
       // Closing the window
       new_win.close(true);
@@ -154,19 +180,11 @@ function launchPgAdminWindow() {
     });
 
     new_win.on('loaded', function() {
-      for (var outerIndex = 0; outerIndex < current_win.menu.items.length; outerIndex++) {
-        if (current_win.menu.items[outerIndex].label == 'View') {
-          var outer_obj = current_win.menu.items[outerIndex];
-          for (var innerIndex = 0; innerIndex < outer_obj.submenu.items.length; innerIndex++) {
-            if (outer_obj.submenu.items[innerIndex].label == 'Configure...' || outer_obj.submenu.items[innerIndex].label == 'View log...') {
-              outer_obj.submenu.items[innerIndex].enabled = true;
-            }
-          }
-        }
-      }
+      // Enable menu items
+      enableMenu(main_win);
 
       // Hide the splash screen
-      current_win.hide();
+      main_win.hide();
 
       /* Make the new window opener to null as it is
        * nothing but a splash screen. We will have to make it null,
@@ -179,6 +197,37 @@ function launchPgAdminWindow() {
       new_win.focus();
     });
   });
+}
+
+// This function is used to kill the server process and
+// remove the log files.
+function cleanup() {
+  // Remove the server log file on exit
+  misc.removeLogFile(misc.server_log_file);
+
+  // Killing pgAdmin4 server process if application quits
+  if (pgadmin_server_process != null) {
+    try {
+      process.kill(pgadmin_server_process.pid);
+    }
+    catch (e) {
+      console.warn('Failed to kill server process.');
+    }
+  }
+}
+
+// This function is used to enable the configure and view log menu
+function enableMenu(current_win) {
+  for (var outerIndex = 0; outerIndex < current_win.menu.items.length; outerIndex++) {
+    if (current_win.menu.items[outerIndex].label == 'View') {
+      var outer_obj = current_win.menu.items[outerIndex];
+      for (var innerIndex = 0; innerIndex < outer_obj.submenu.items.length; innerIndex++) {
+        if (outer_obj.submenu.items[innerIndex].label == 'Configure...' || outer_obj.submenu.items[innerIndex].label == 'View log...') {
+          outer_obj.submenu.items[innerIndex].enabled = true;
+        }
+      }
+    }
+  }
 }
 
 // Get the gui object of NW.js
@@ -201,7 +250,7 @@ main_win.on('loaded', function() {
       label: 'Configure...',
       enabled: false,
       click: function() {
-        // Create and lunch new window and open pgAdmin url
+        // Create and launch new window and open pgAdmin url
         nw.Window.open('src/html/configure.html', {
           'frame': true,
           'width': 600,
@@ -223,7 +272,7 @@ main_win.on('loaded', function() {
       label: 'View log...',
       enabled: false,
       click: function() {
-        // Create and lunch new window and open pgAdmin url
+        // Create and launch new window and open pgAdmin url
         nw.Window.open('src/html/view_log.html', {
           'frame': true,
           'width': 790,
@@ -254,13 +303,8 @@ main_win.on('loaded', function() {
 });
 
 main_win.on('close', function() {
-  // Killing pgAdmin4 server process if application quits
-  if (pgadmin_server_process != null) {
-    try {
-      process.kill(pgadmin_server_process.pid);
-    }
-    catch (e) {
-      console.warn('Failed to kill server process.');
-    }
-  }
+  cleanup();
+
+  // Quit Application
+  nw.App.quit();
 });
