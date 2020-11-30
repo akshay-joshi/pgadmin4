@@ -77,12 +77,12 @@ function startDesktopMode() {
 
   pgadmin_server_process.stdout.setEncoding('utf8');
   pgadmin_server_process.stdout.on('data', (chunk) => {
-    misc.writeDataToLogFile(misc.server_log_file, chunk);
+    misc.writeDataToFile(misc.server_log_file, chunk);
   });
 
   pgadmin_server_process.stderr.setEncoding('utf8');
   pgadmin_server_process.stderr.on('data', (chunk) => {
-    misc.writeDataToLogFile(misc.server_log_file, chunk);
+    misc.writeDataToFile(misc.server_log_file, chunk);
   });
 
   // This function is used to ping the pgAdmin4 server whether it
@@ -254,7 +254,7 @@ main_win.on('loaded', function() {
         nw.Window.open('src/html/configure.html', {
           'frame': true,
           'width': 600,
-          'height': 208,
+          'height': 356,
           'position': 'center',
           'resizable': false,
           'focus': true,

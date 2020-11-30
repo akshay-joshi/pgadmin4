@@ -15,29 +15,40 @@
 </head>
 <body>
   <div class="card shadow-sm">
+    <div class="card-header h6">Fixed Port</div>
     <div class="card-body">
       <div class="form-group">
         <label>By default, the pgAdmin 4 uses a random port number to ensure it can always run successfully. If you need to use a predictable port number, you can set one here. Note that if the port is already in use, the application will be unable to start.</label>
       </div>
       <div class="form-inline">
         <div class="form-check mr-3">
-          <label class="form-check-label mr-1" for="fixedPortCheck">Fixed port number?</label>
+          <label class="form-check-label mr-2" for="fixedPortCheck">Fixed port number?</label>
           <input type="checkbox" class="form-check-input" id="fixedPortCheck"
             data-name="fixed_port"/>
         </div>
         <div class="form-group">
           <label class="mr-1" for="portNo">Port Number</label>
-          <input type="number" class="form-control" id="portNo" min="1" max="65535" value="1"
-            data-name="port_no" style="min-width: 100px;">
+          <input type="number" class="form-control" id="portNo" min="1" max="65535" value="1" style="min-width: 100px;">
         </div>
       </div>
     </div>
-
-    <div class="p-2 d-flex fixed-bottom shadow bg-white">
-      <div class="my-auto status-text"></div>
-      <div class="ml-auto">
-        <button id="btnSave" type="submit" class="btn btn-primary" disabled>Save</button>
+  </div>
+  <div class="card shadow-sm mt-3">
+    <div class="card-header h6">Connection Timeout</div>
+    <div class="card-body">
+      <div class="form-inline">
+        <div class="form-group">
+          <label class="mr-2">Timeout</label>
+          <input type="number" class="form-control" id="time_out" min="10" max="600" value="90" style="min-width: 80px;">
+          <label class="ml-1">(Seconds)</label>
+        </div>
       </div>
+    </div>
+  </div>
+  <div class="p-2 d-flex fixed-bottom shadow bg-white">
+    <div class="my-auto status-text"></div>
+    <div class="ml-auto">
+      <button id="btnSave" type="submit" class="btn btn-primary" disabled>Save</button>
     </div>
   </div>
   <script type="text/javascript" src="../js/configure.js"></script>

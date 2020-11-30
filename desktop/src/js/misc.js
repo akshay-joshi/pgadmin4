@@ -40,8 +40,8 @@ const getAppDataPath = () => {
 const current_time = (new Date()).getTime();
 const server_log_file = getAppDataPath() + '/pgadmin4.' + current_time + '.log';
 
-// This function is used to read the log file and return the content
-const readLogFile = (file_name) => {
+// This function is used to read the file and return the content
+const readFile = (file_name) => {
   var data = null;
   if (fs.existsSync(file_name)) {
     data = fs.readFileSync(file_name, 'utf8');
@@ -54,8 +54,8 @@ const readLogFile = (file_name) => {
   return true, data;
 };
 
-// This function is used to write the logs in the log file
-const writeDataToLogFile = (file_name, data) => {
+// This function is used to write the data into the specified file
+const writeDataToFile = (file_name, data) => {
   if (fs.existsSync(file_name)) {
     fs.writeFileSync(file_name, data, {flag: 'a+'});
   } else {
@@ -71,8 +71,8 @@ const removeLogFile = (file_name) => {
 };
 
 module.exports = {
-  readLogFile: readLogFile,
-  writeDataToLogFile: writeDataToLogFile,
+  readFile: readFile,
+  writeDataToFile: writeDataToFile,
   removeLogFile: removeLogFile,
   server_log_file: server_log_file,
 };

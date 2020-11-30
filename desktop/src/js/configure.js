@@ -7,53 +7,26 @@
 //
 //////////////////////////////////////////////////////////////
 
-import $ from 'jquery';
+const misc = require('../js/misc.js');
 
-var state = {};
+// Get the window object of view log window
+var gui = require('nw.gui');
+var config_win = gui.Window.get();
 
-function setState(key, value) {
-  state[key] = value;
+function saveConfiguration() {
+  console.warn("Saved Configuration");
 }
 
-function onTextChange(e) {
-  let $ele = $(e.currentTarget);
-  setState($ele.attr('data-name'), $ele.val());
-}
-
-function onCheckChange(e) {
-  let $ele = $(e.currentTarget);
-  setState($ele.attr('data-name'), $ele.prop('checked'));
-
-  if($ele.attr('data-name') == 'fixed_port') {
-    portNoDisableCheck();
+function onCheckChange() {
+  if (this.checked) {
+    document.getElementById('portNo').disabled = false;
+  } else {
+    document.getElementById('portNo').disabled = true;
   }
 }
 
-function portNoDisableCheck() {
-  if(state.fixed_port === undefined) {
-    state.fixed_port = false;
-  }
-  $('#portNo').prop('disabled', state.fixed_port);
-}
-
-function setStatus(msg) {
-  $('.status-text').html(msg);
-}
-
-$('#btnSave').on('click', ()=> {
-  $('#btnSave').prop('disabled', true);
+config_win.on('loaded', function() {
+  document.getElementById('portNo').disabled = true;
+  document.getElementById('btnSave').addEventListener('click', saveConfiguration);
+  document.getElementById('fixedPortCheck').addEventListener('change', onCheckChange);
 });
-
-$('*[data-name]').each(function() {
-  let $ele = $(this);
-  switch ($ele.attr('type')) {
-  case 'checkbox':
-    $ele.on('change', onCheckChange);
-    break;
-  default:
-    $ele.on('change keyup', onTextChange);
-    break;
-  }
-});
-
-setStatus('Loading config...');
