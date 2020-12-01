@@ -37,42 +37,111 @@ const getAppDataPath = () => {
 };
 
 // Get the app data folder path 
-const current_time = (new Date()).getTime();
-const server_log_file = getAppDataPath() + '/pgadmin4.' + current_time + '.log';
+const currentTime = (new Date()).getTime();
+const serverLogFile = path.join(getAppDataPath(), 'pgadmin4.' + currentTime.toString() + '.log');
+const configFileName = path.join(homedir(), '.pgadmin', 'pgadmin4_config.json');
+const DEFAULT_CONFIG_DATA = {'fixedPort': false, 'portNo': 5050, 'connectionTimeout': 90};
 
 // This function is used to read the file and return the content
-const readFile = (file_name) => {
+const readServerLog = () => {
   var data = null;
-  if (fs.existsSync(file_name)) {
-    data = fs.readFileSync(file_name, 'utf8');
+
+  if (fs.existsSync(serverLogFile)) {
+    data = fs.readFileSync(serverLogFile, 'utf8');
   } else {
-    var err_msg = 'Unable to read file ' + file_name + ' not found.';
-    console.warn(err_msg);
-    return false, err_msg;
+    var errMsg = 'Unable to read file ' + serverLogFile + ' not found.';
+    console.warn(errMsg);
+    return errMsg;
   }
 
-  return true, data;
+  return data;
 };
 
-// This function is used to write the data into the specified file
-const writeDataToFile = (file_name, data) => {
-  if (fs.existsSync(file_name)) {
-    fs.writeFileSync(file_name, data, {flag: 'a+'});
+// This function is used to write the data into the log file
+const writeServerLog = (data) => {
+  if (fs.existsSync(serverLogFile)) {
+    fs.writeFileSync(serverLogFile, data, {flag: 'a+'});
   } else {
-    fs.writeFileSync(file_name, data, {flag: 'w'});
+    fs.writeFileSync(serverLogFile, data, {flag: 'w'});
   }
 };
 
-// This function is used to remove the log files
-const removeLogFile = (file_name) => {
-  if (fs.existsSync(file_name)) {
-    fs.rmSync(file_name);
+// This function is used to remove the log file
+const removeLogFile = () => {
+  if (fs.existsSync(serverLogFile)) {
+    fs.rmSync(serverLogFile);
   }
 };
+
+var ConfigureStore = {
+  fileName: configFileName,
+  jsonData: {},
+
+  init: function() {
+    if (!this.readConfig()){
+      this.jsonData = DEFAULT_CONFIG_DATA;
+      this.saveConfig();
+    }
+  },
+
+  // This function is used to write configuration data
+  saveConfig: function() {
+    fs.writeFileSync(this.fileName, JSON.stringify(this.jsonData, null, 4), {flag: 'w'});
+  },
+
+  // This function is used to read the configuration data
+  readConfig: function() {
+    if (fs.existsSync(this.fileName)) {
+      try {
+        this.jsonData = JSON.parse(fs.readFileSync(this.fileName));  
+      } catch (error) {
+        /* If the file is not present or invalid JSON data in file */
+        this.jsonData = {};
+      }
+    } else {
+      var errMsg = 'Unable to read file ' + this.fileName + ' not found.';
+      console.warn(errMsg);
+      return false;
+    }
+
+    return true;
+  },
+
+  getConfigData: function() {
+    return this.jsonData;
+  },
+
+  get: function(key, if_not_value) {
+    if(this.jsonData[key] != undefined) {
+      return this.jsonData[key];
+    } else {
+      return if_not_value;
+    }
+  },
+
+  set: function(key, value) {
+    if(typeof key === 'object'){
+      this.jsonData = {
+        ...this.jsonData,
+        ...key,
+      };
+    } else {
+      if(value === '' || value == null || typeof(value) == 'undefined') {
+        if(this.jsonData[key] != undefined) {
+          delete this.jsonData[key];
+        }
+      } else {
+        this.jsonData[key] = value;
+      }
+    }
+  }, 
+};
+
 
 module.exports = {
-  readFile: readFile,
-  writeDataToFile: writeDataToFile,
+  readServerLog: readServerLog,
+  writeServerLog: writeServerLog,
   removeLogFile: removeLogFile,
-  server_log_file: server_log_file,
+  serverLogFile: serverLogFile,
+  ConfigureStore: ConfigureStore,
 };

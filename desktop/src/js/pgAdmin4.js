@@ -12,25 +12,25 @@ const misc = require('../js/misc.js');
 
 const DEFAULT_PORT = 5050;
 
-var python_path = '../../Workspace-3.8/bin/python';
-var pgadmin_file = '../web/pgAdmin4.py';
+var pythonPath = '../../Workspace-3.8/bin/python';
+var pgadminFile = '../web/pgAdmin4.py';
 
-var pgadmin_server_process = null;
+var pgadminServerProcess = null;
 var spawn = require('child_process').spawn;
-var server_port = DEFAULT_PORT;
+var serverPort = DEFAULT_PORT;
 
 // This function is used to get the random available TCP port
-function getAvailablePort(fixed_port) {
+function getAvailablePort(fixedPort) {
   var net = require('net');
   var srv = net.createServer();
   var port = 0;
 
-  if (fixed_port) {
-    port = fixed_port;
+  if (fixedPort) {
+    port = fixedPort;
   }
 
   srv.listen(port, function() {
-    server_port = srv.address().port;
+    serverPort = srv.address().port;
     srv.close();
   });
 
@@ -45,72 +45,72 @@ function getAvailablePort(fixed_port) {
 }
 
 // get the available TCP port
-server_port = getAvailablePort();
-var server_check_url = 'http://127.0.0.1:' + server_port + '/misc/ping';
+serverPort = getAvailablePort();
+var serverCheckUrl = 'http://127.0.0.1:' + serverPort + '/misc/ping';
 
 // This functions is used to start the pgAdmin4 server by spawning a
 // separate process.
 function startDesktopMode() {
   // Return if pgadmin server process is already spawned.
-  if (pgadmin_server_process != null)
+  if (pgadminServerProcess != null)
     return;
 
-  if (server_port == 0) {
-    server_port = DEFAULT_PORT;
+  if (serverPort == 0) {
+    serverPort = DEFAULT_PORT;
   }
 
   // Set the environment variable so that pgAdmn 4 server
   // start listening on that port.
-  process.env.PGADMIN_INT_PORT = server_port;
-  server_check_url = 'http://127.0.0.1:' + server_port + '/misc/ping';
+  process.env.PGADMIN_INT_PORT = serverPort;
+  serverCheckUrl = 'http://127.0.0.1:' + serverPort + '/misc/ping';
 
   document.getElementById('loader-text-status').innerHTML = 'Starting pgAdmin server....';
 
   if (platform() == 'win32') {
-    python_path = '../../Workspace-3.8/Scripts/python.exe';
-    python_path = python_path.replace(/\//g, '\\\\');
-    pgadmin_file = pgadmin_file.replace(/\//g, '\\\\');
+    pythonPath = '../../Workspace-3.8/Scripts/python.exe';
+    pythonPath = pythonPath.replace(/\//g, '\\\\');
+    pgadminFile = pgadminFile.replace(/\//g, '\\\\');
   }
 
   // Spawn the process to start pgAdmin4 server.
-  pgadmin_server_process = spawn(python_path, [pgadmin_file]);
+  pgadminServerProcess = spawn(pythonPath, [pgadminFile]);
 
-  pgadmin_server_process.stdout.setEncoding('utf8');
-  pgadmin_server_process.stdout.on('data', (chunk) => {
-    misc.writeDataToFile(misc.server_log_file, chunk);
+  pgadminServerProcess.stdout.setEncoding('utf8');
+  pgadminServerProcess.stdout.on('data', (chunk) => {
+    misc.writeServerLog(chunk);
   });
 
-  pgadmin_server_process.stderr.setEncoding('utf8');
-  pgadmin_server_process.stderr.on('data', (chunk) => {
-    misc.writeDataToFile(misc.server_log_file, chunk);
+  pgadminServerProcess.stderr.setEncoding('utf8');
+  pgadminServerProcess.stderr.on('data', (chunk) => {
+    misc.writeServerLog(chunk);
   });
 
   // This function is used to ping the pgAdmin4 server whether it
   // it is started or not.
   function pingServer() {
-    return axios.get(server_check_url);
+    return axios.get(serverCheckUrl);
   }
 
   // TODO : Get the "ConnectionTimeout" from configuration.
-  var connection_timeout = 90 * 1000;
-  var current_time = (new Date).getTime();
-  var endTime =  current_time + connection_timeout;
-  var midTime1 = current_time + (connection_timeout/2);
-  var midTime2 = current_time + (connection_timeout*2/3);
+  var connectionTimeout = misc.ConfigureStore.get('connectionTimeout', 90) * 1000;
+  var currentTime = (new Date).getTime();
+  var endTime =  currentTime + connectionTimeout;
+  var midTime1 = currentTime + (connectionTimeout/2);
+  var midTime2 = currentTime + (connectionTimeout*2/3);
 
   // ping pgAdmin server every 1 second.
-  var int_id = setInterval(function() {
+  var intervalID = setInterval(function() {
     pingServer().then(() => {
       document.getElementById('loader-text-status').innerHTML = 'pgAdmin server started';
-      clearInterval(int_id);
+      clearInterval(intervalID);
       launchPgAdminWindow();
     }).catch(() => {
-      var cur_time = (new Date).getTime();
+      var curTime = (new Date).getTime();
       // if the connection timeout has lapsed then throw an error
       // and stop pinging the server.
-      if (cur_time >= endTime) {
-        clearInterval(int_id);
-        main_win.hide();
+      if (curTime >= endTime) {
+        clearInterval(intervalID);
+        splashWindow.hide();
 
         nw.Window.open('src/html/server_error.html', {
           'frame': true,
@@ -123,11 +123,11 @@ function startDesktopMode() {
         });
       }
 
-      if (cur_time > midTime1) {
+      if (curTime > midTime1) {
         // Enable menu items
-        enableMenu(main_win);
+        enableMenu(splashWindow);
 
-        if(cur_time < midTime2) {
+        if(curTime < midTime2) {
           document.getElementById('loader-text-status').innerHTML = 'Taking longer than usual...';
         } else {
           document.getElementById('loader-text-status').innerHTML = 'Almost there...';
@@ -143,10 +143,10 @@ function startDesktopMode() {
 // new window to render pgAdmin4 page.
 function launchPgAdminWindow() {
   // Start Page URL
-  var start_page_url = 'http://127.0.0.1:' + server_port + '/';
+  var startPageUrl = 'http://127.0.0.1:' + serverPort + '/';
 
   // Create and launch new window and open pgAdmin url
-  nw.Window.open(start_page_url, {
+  nw.Window.open(startPageUrl, {
     'icon': '../assets/pgAdmin4.png',
     'frame': true,
     'width': 1300,
@@ -157,14 +157,14 @@ function launchPgAdminWindow() {
     'min_height': 200,
     'focus': true,
     'show': false,
-  }, (new_win)=> {
-    new_win.on('close', function() {
+  }, (pgadminWindow)=> {
+    pgadminWindow.on('close', function() {
       // Clenup
       cleanup();
 
       // Closing the window
-      new_win.close(true);
-      new_win = null;
+      pgadminWindow.close(true);
+      pgadminWindow = null;
 
       // Quit Application
       nw.App.quit();
@@ -172,29 +172,29 @@ function launchPgAdminWindow() {
 
     // set up handler for new-win-policy event.
     // Set the width and height for the new window.
-    new_win.on('new-win-policy', function(frame, url, policy) {
+    pgadminWindow.on('new-win-policy', function(frame, url, policy) {
       policy.setNewWindowManifest({
         'width': 1300,
         'height': 900,
       });
     });
 
-    new_win.on('loaded', function() {
+    pgadminWindow.on('loaded', function() {
       // Enable menu items
-      enableMenu(main_win);
+      enableMenu(splashWindow);
 
       // Hide the splash screen
-      main_win.hide();
+      splashWindow.hide();
 
       /* Make the new window opener to null as it is
        * nothing but a splash screen. We will have to make it null,
        * so that open in new browser tab will work.
        */
-      new_win.window.opener = null;
+      pgadminWindow.window.opener = null;
 
       // Show new window
-      new_win.show();
-      new_win.focus();
+      pgadminWindow.show();
+      pgadminWindow.focus();
     });
   });
 }
@@ -203,12 +203,12 @@ function launchPgAdminWindow() {
 // remove the log files.
 function cleanup() {
   // Remove the server log file on exit
-  misc.removeLogFile(misc.server_log_file);
+  misc.removeLogFile();
 
   // Killing pgAdmin4 server process if application quits
-  if (pgadmin_server_process != null) {
+  if (pgadminServerProcess != null) {
     try {
-      process.kill(pgadmin_server_process.pid);
+      process.kill(pgadminServerProcess.pid);
     }
     catch (e) {
       console.warn('Failed to kill server process.');
@@ -217,10 +217,10 @@ function cleanup() {
 }
 
 // This function is used to enable the configure and view log menu
-function enableMenu(current_win) {
-  for (var outerIndex = 0; outerIndex < current_win.menu.items.length; outerIndex++) {
-    if (current_win.menu.items[outerIndex].label == 'View') {
-      var outer_obj = current_win.menu.items[outerIndex];
+function enableMenu(currWindow) {
+  for (var outerIndex = 0; outerIndex < currWindow.menu.items.length; outerIndex++) {
+    if (currWindow.menu.items[outerIndex].label == 'View') {
+      var outer_obj = currWindow.menu.items[outerIndex];
       for (var innerIndex = 0; innerIndex < outer_obj.submenu.items.length; innerIndex++) {
         if (outer_obj.submenu.items[innerIndex].label == 'Configure...' || outer_obj.submenu.items[innerIndex].label == 'View log...') {
           outer_obj.submenu.items[innerIndex].enabled = true;
@@ -232,21 +232,24 @@ function enableMenu(current_win) {
 
 // Get the gui object of NW.js
 var gui = require('nw.gui');
-var main_win = gui.Window.get();
+var splashWindow = gui.Window.get();
 
 // Always clear the cache before starting the application.
 nw.App.clearCache();
 
-main_win.on('loaded', function() {
-  var main_menu = new nw.Menu({ type: 'menubar' });
+splashWindow.on('loaded', function() {
+  // Initialize the ConfigureStore
+  misc.ConfigureStore.init();
+
+  var mainMenu = new nw.Menu({ type: 'menubar' });
   if (platform() == 'darwin') {
-    main_menu.createMacBuiltin('pgAdmin 4');
+    mainMenu.createMacBuiltin('pgAdmin 4');
 
     // Create a new menu
-    var view_menu = new nw.Menu();
+    var viewMenu = new nw.Menu();
 
     // Append Configure menu.
-    view_menu.append(new nw.MenuItem({
+    viewMenu.append(new nw.MenuItem({
       label: 'Configure...',
       enabled: false,
       click: function() {
@@ -259,16 +262,12 @@ main_win.on('loaded', function() {
           'resizable': false,
           'focus': true,
           'show': true,
-        }, (config_win)=> {
-          config_win.on('loaded', function() {
-            console.warn('Configure Window Loaded.');
-          });
         });
       },
     }));
 
     // Append View log menu.
-    view_menu.append(new nw.MenuItem({
+    viewMenu.append(new nw.MenuItem({
       label: 'View log...',
       enabled: false,
       click: function() {
@@ -286,14 +285,14 @@ main_win.on('loaded', function() {
     }));
 
     // Append separator.
-    view_menu.append(new nw.MenuItem({ type: 'separator' }));
+    viewMenu.append(new nw.MenuItem({ type: 'separator' }));
 
-    main_menu.insert(new nw.MenuItem({
+    mainMenu.insert(new nw.MenuItem({
       label: 'View',
-      submenu: view_menu,
+      submenu: viewMenu,
     }), 1);
 
-    nw.Window.get().menu = main_menu;
+    nw.Window.get().menu = mainMenu;
   } else {
     console.warn('Windows and Linux Menu.');
   }
@@ -302,7 +301,7 @@ main_win.on('loaded', function() {
   startDesktopMode();
 });
 
-main_win.on('close', function() {
+splashWindow.on('close', function() {
   cleanup();
 
   // Quit Application
