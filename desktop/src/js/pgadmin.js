@@ -10,43 +10,12 @@
 const axios = require('axios');
 const misc = require('../js/misc.js');
 
-const DEFAULT_PORT = 5050;
-
 var pythonPath = '../../Workspace-3.8/bin/python';
 var pgadminFile = '../web/pgAdmin4.py';
 
 var pgadminServerProcess = null;
 var spawn = require('child_process').spawn;
-var serverPort = DEFAULT_PORT;
-
-// This function is used to get the random available TCP port
-function getAvailablePort(fixedPort) {
-  var net = require('net');
-  var srv = net.createServer();
-  var port = 0;
-
-  if (fixedPort) {
-    port = fixedPort;
-  }
-
-  srv.listen(port, function() {
-    serverPort = srv.address().port;
-    srv.close();
-  });
-
-  srv.on('error', (e) => {
-    if (e.code === 'EADDRINUSE') {
-      console.warn('Port already in use.');
-      setTimeout(() => {
-        srv.close();
-      }, 1000);
-    }
-  });
-}
-
-// get the available TCP port
-serverPort = getAvailablePort();
-var serverCheckUrl = 'http://127.0.0.1:' + serverPort + '/misc/ping';
+var serverPort = 5050;
 
 // This functions is used to start the pgAdmin4 server by spawning a
 // separate process.
@@ -55,16 +24,12 @@ function startDesktopMode() {
   if (pgadminServerProcess != null)
     return;
 
-  if (serverPort == 0) {
-    serverPort = DEFAULT_PORT;
-  }
-
   // Set the environment variable so that pgAdmn 4 server
   // start listening on that port.
   process.env.PGADMIN_INT_PORT = serverPort;
-  serverCheckUrl = 'http://127.0.0.1:' + serverPort + '/misc/ping';
+  var serverCheckUrl = 'http://127.0.0.1:' + serverPort + '/misc/ping';
 
-  document.getElementById('loader-text-status').innerHTML = 'Starting pgAdmin server....';
+  document.getElementById('loader-text-status').innerHTML = 'Starting pgAdmin 4....';
 
   if (platform() == 'win32') {
     pythonPath = '../../Workspace-3.8/Scripts/python.exe';
@@ -87,7 +52,7 @@ function startDesktopMode() {
 
   // This function is used to ping the pgAdmin4 server whether it
   // it is started or not.
-  function pingServer() {
+  function pingServer(serverCheckUrl) {
     return axios.get(serverCheckUrl);
   }
 
@@ -100,8 +65,8 @@ function startDesktopMode() {
 
   // ping pgAdmin server every 1 second.
   var intervalID = setInterval(function() {
-    pingServer().then(() => {
-      document.getElementById('loader-text-status').innerHTML = 'pgAdmin server started';
+    pingServer(serverCheckUrl).then(() => {
+      document.getElementById('loader-text-status').innerHTML = 'pgAdmin 4 started';
       clearInterval(intervalID);
       launchPgAdminWindow();
     }).catch(() => {
@@ -133,7 +98,7 @@ function startDesktopMode() {
           document.getElementById('loader-text-status').innerHTML = 'Almost there...';
         }
       } else {
-        document.getElementById('loader-text-status').innerHTML = 'Waiting for pgAdmin server to start...';
+        document.getElementById('loader-text-status').innerHTML = 'Waiting for pgAdmin 4 to start...';
       }
     });
   }, 1000);
@@ -297,8 +262,27 @@ splashWindow.on('loaded', function() {
     console.warn('Windows and Linux Menu.');
   }
 
-  //Start the pgAdmin in Desktop mode.
-  startDesktopMode();
+  var port = 0;
+  var fixedPortCheck = misc.ConfigureStore.get('fixedPort', false);
+  if (fixedPortCheck) {
+    port = misc.ConfigureStore.get('portNo');
+  }
+
+  // get the available TCP port
+  misc.getAvailablePort(port)
+    .then((pythonApplicationPort) => {
+      serverPort = pythonApplicationPort;
+      //Start the pgAdmin in Desktop mode.
+      startDesktopMode();
+    })
+    .catch((errCode) => {
+      if (fixedPortCheck && errCode == 'EADDRINUSE') {
+        alert('The specified fixed port is already in use. Please provide any other valid port.');
+        enableMenu(splashWindow);
+      } else {
+        alert(errCode);
+      }
+    });
 });
 
 splashWindow.on('close', function() {

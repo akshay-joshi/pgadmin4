@@ -9,6 +9,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const net = require('net');
 const {platform, homedir} = require('os');
 
 // This function is used to get the app data path
@@ -34,6 +35,25 @@ const getAppDataPath = () => {
   }
 
   return appDataPath;
+};
+
+// This function is used to get the random available TCP port
+// if fixedPort is set to 0. Else check whether port is in used or not.
+const getAvailablePort = (fixedPort) => {
+  return new Promise(function(resolve, reject) {
+    const server = net.createServer();
+
+    server.on('error', (e) => {
+      reject(e.code);
+    });
+
+    server.listen(fixedPort, function() {
+      var serverPort = server.address().port;
+      server.close(() => {
+        resolve(serverPort);
+      });
+    });
+  });
 };
 
 // Get the app data folder path 
@@ -142,6 +162,7 @@ module.exports = {
   readServerLog: readServerLog,
   writeServerLog: writeServerLog,
   removeLogFile: removeLogFile,
+  getAvailablePort: getAvailablePort,
   serverLogFile: serverLogFile,
   ConfigureStore: ConfigureStore,
 };

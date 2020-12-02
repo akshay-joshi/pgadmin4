@@ -13,8 +13,40 @@ const misc = require('../js/misc.js');
 var gui = require('nw.gui');
 var configWindow = gui.Window.get();
 
+function checkConfiguration() {
+  if (document.getElementById('fixedPortCheck').checked) {
+    var fixedPort = parseInt(document.getElementById('portNo').value);
+    // get the available TCP port
+    misc.getAvailablePort(fixedPort)
+      .then(() => {
+        saveConfiguration();
+      })
+      .catch((errCode) => {
+        if (errCode == 'EADDRINUSE') {
+          alert('The specified fixed port is already in use. Please provide any other valid port.');
+        } else {
+          alert(errCode);
+        }
+      });
+  } else {
+    saveConfiguration();
+  }
+}
+
 function saveConfiguration() {
-  console.warn('Saved Configuration');
+  misc.ConfigureStore.set('fixedPort', document.getElementById('fixedPortCheck').checked);
+  misc.ConfigureStore.set('portNo', parseInt(document.getElementById('portNo').value));
+  misc.ConfigureStore.set('connectionTimeout', parseInt(document.getElementById('timeOut').value));
+
+  misc.ConfigureStore.saveConfig();
+
+  document.getElementById('status-text').innerHTML = 'Configuration Saved';
+
+  if (confirm('The pgAdmin 4 must be restarted for changes to take effect. Do you want to quit the application?') == true) {
+    // Quit Application
+    nw.App.quit();
+  }
+  configWindow.close();
 }
 
 function onCheckChange() {
@@ -41,6 +73,7 @@ function enableDisableSaveButton() {
 }
 
 configWindow.on('loaded', function() {
+  document.getElementById('status-text').innerHTML = '';
   // Get the config data from the file.
   var configData = misc.ConfigureStore.getConfigData();
 
@@ -56,7 +89,7 @@ configWindow.on('loaded', function() {
   document.getElementById('timeOut').value = configData['connectionTimeout'];
 
   // Add event listeners
-  document.getElementById('btnSave').addEventListener('click', saveConfiguration);
+  document.getElementById('btnSave').addEventListener('click', checkConfiguration);
   document.getElementById('fixedPortCheck').addEventListener('change', onCheckChange);
   document.getElementById('portNo').addEventListener('change', enableDisableSaveButton);
   document.getElementById('timeOut').addEventListener('change', enableDisableSaveButton);
