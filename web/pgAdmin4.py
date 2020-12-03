@@ -28,8 +28,8 @@ if sys.path[0] != os.path.dirname(os.path.realpath(__file__)):
     sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 
 # Grab the SERVER_MODE if it's been set by the runtime
-if 'SERVER_MODE' in globals():
-    builtins.SERVER_MODE = globals()['SERVER_MODE']
+if 'SERVER_MODE' in os.environ:
+    builtins.SERVER_MODE = os.environ['SERVER_MODE']
 else:
     builtins.SERVER_MODE = None
 
@@ -112,20 +112,14 @@ app.logger.debug(
 # Flask default.
 app.PGADMIN_RUNTIME = False
 config.EFFECTIVE_SERVER_PORT = None
-if 'PGADMIN_INT_PORT' in globals():
-    app.logger.debug(
-        'Running under the desktop runtime, port: %s',
-        globals()['PGADMIN_INT_PORT']
-    )
-    config.EFFECTIVE_SERVER_PORT = int(globals()['PGADMIN_INT_PORT'])
-    app.PGADMIN_RUNTIME = True
-elif 'PGADMIN_INT_PORT' in os.environ:
+if 'PGADMIN_INT_PORT' in os.environ:
     port = os.environ['PGADMIN_INT_PORT']
     app.logger.debug(
-        'Not running under the desktop runtime, port: %s',
+        'Running under the desktop runtime, port: %s',
         port
     )
     config.EFFECTIVE_SERVER_PORT = int(port)
+    app.PGADMIN_RUNTIME = True
 else:
     app.logger.debug(
         'Not running under the desktop runtime, port: %s',
@@ -134,12 +128,11 @@ else:
     config.EFFECTIVE_SERVER_PORT = config.DEFAULT_SERVER_PORT
 
 # Set the key if appropriate
-if 'PGADMIN_INT_KEY' in globals():
-    app.PGADMIN_INT_KEY = globals()['PGADMIN_INT_KEY']
+if 'PGADMIN_INT_KEY' in os.environ:
+    app.PGADMIN_INT_KEY = os.environ['PGADMIN_INT_KEY']
     app.logger.debug("Desktop security key: %s" % app.PGADMIN_INT_KEY)
 else:
     app.PGADMIN_INT_KEY = ''
-
 
 ##########################################################################
 # The entry point

@@ -5,8 +5,8 @@
 }
 
 #status-text {
-  color: darkgreen;
   font-size: medium;
+  align-self: center;
 }
 
 #server_log_label {

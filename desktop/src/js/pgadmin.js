@@ -8,14 +8,30 @@
 //////////////////////////////////////////////////////////////
 
 const axios = require('axios');
+const path = require('path');
 const misc = require('../js/misc.js');
+const spawn = require('child_process').spawn;
 
 var pythonPath = '../../Workspace-3.8/bin/python';
 var pgadminFile = '../web/pgAdmin4.py';
 
 var pgadminServerProcess = null;
-var spawn = require('child_process').spawn;
+var startPageUrl = null;
+var serverCheckUrl = null;
+
 var serverPort = 5050;
+
+// This function is used to create UUID
+function createUUID(){
+  var dt = new Date().getTime();
+  var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = (dt + Math.random()*16)%16 | 0;
+      dt = Math.floor(dt/16);
+      return (c=='x' ? r :(r&0x3|0x8)).toString(16);
+  });
+
+  return uuid;
+}
 
 // This functions is used to start the pgAdmin4 server by spawning a
 // separate process.
@@ -24,18 +40,30 @@ function startDesktopMode() {
   if (pgadminServerProcess != null)
     return;
 
+  var UUID = createUUID();
   // Set the environment variable so that pgAdmn 4 server
   // start listening on that port.
   process.env.PGADMIN_INT_PORT = serverPort;
-  var serverCheckUrl = 'http://127.0.0.1:' + serverPort + '/misc/ping';
+  process.env.PGADMIN_INT_KEY = UUID;
+  process.env.SERVER_MODE = false;
 
-  document.getElementById('loader-text-status').innerHTML = 'Starting pgAdmin 4....';
+  // Start Page URL
+  startPageUrl = 'http://127.0.0.1:' + serverPort + '/?key=' + UUID;
+  serverCheckUrl = 'http://127.0.0.1:' + serverPort + '/misc/ping?key=' + UUID;
+
+  document.getElementById('loader-text-status').innerHTML = 'Starting pgAdmin 4...';
 
   if (platform() == 'win32') {
     pythonPath = '../../Workspace-3.8/Scripts/python.exe';
     pythonPath = pythonPath.replace(/\//g, '\\\\');
     pgadminFile = pgadminFile.replace(/\//g, '\\\\');
   }
+
+  // Write Python Path, pgAdmin file path and command in log file.
+  var command = path.resolve(pythonPath) + ' ' + path.resolve(pgadminFile);
+  misc.writeServerLog('PYTHON_PATH: "' + path.resolve(pythonPath) + '"');
+  misc.writeServerLog('PGADMIN_FILE: "' + path.resolve(pgadminFile) + '"');
+  misc.writeServerLog('PGADMIN_COMMAND: "' + command + '"');
 
   // Spawn the process to start pgAdmin4 server.
   pgadminServerProcess = spawn(pythonPath, [pgadminFile]);
@@ -52,7 +80,7 @@ function startDesktopMode() {
 
   // This function is used to ping the pgAdmin4 server whether it
   // it is started or not.
-  function pingServer(serverCheckUrl) {
+  function pingServer() {
     return axios.get(serverCheckUrl);
   }
 
@@ -65,7 +93,7 @@ function startDesktopMode() {
 
   // ping pgAdmin server every 1 second.
   var intervalID = setInterval(function() {
-    pingServer(serverCheckUrl).then(() => {
+    pingServer().then(() => {
       document.getElementById('loader-text-status').innerHTML = 'pgAdmin 4 started';
       clearInterval(intervalID);
       launchPgAdminWindow();
@@ -107,9 +135,6 @@ function startDesktopMode() {
 // This function is used to hide the splash screen and create/launch
 // new window to render pgAdmin4 page.
 function launchPgAdminWindow() {
-  // Start Page URL
-  var startPageUrl = 'http://127.0.0.1:' + serverPort + '/';
-
   // Create and launch new window and open pgAdmin url
   nw.Window.open(startPageUrl, {
     'icon': '../assets/pgAdmin4.png',
@@ -222,7 +247,7 @@ splashWindow.on('loaded', function() {
         nw.Window.open('src/html/configure.html', {
           'frame': true,
           'width': 600,
-          'height': 356,
+          'height': 420,
           'position': 'center',
           'resizable': false,
           'focus': true,
