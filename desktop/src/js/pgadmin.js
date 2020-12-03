@@ -84,20 +84,27 @@ function startDesktopMode() {
     return axios.get(serverCheckUrl);
   }
 
-  // TODO : Get the "ConnectionTimeout" from configuration.
   var connectionTimeout = misc.ConfigureStore.get('connectionTimeout', 90) * 1000;
   var currentTime = (new Date).getTime();
   var endTime =  currentTime + connectionTimeout;
   var midTime1 = currentTime + (connectionTimeout/2);
   var midTime2 = currentTime + (connectionTimeout*2/3);
+  var pingInProgress = false;
 
   // ping pgAdmin server every 1 second.
   var intervalID = setInterval(function() {
+    // If ping request is already send and response is not
+    // received no need to send another request.
+    if (pingInProgress)
+      return;
+
     pingServer().then(() => {
+      pingInProgress = false;
       document.getElementById('loader-text-status').innerHTML = 'pgAdmin 4 started';
       clearInterval(intervalID);
       launchPgAdminWindow();
     }).catch(() => {
+      pingInProgress = false;
       var curTime = (new Date).getTime();
       // if the connection timeout has lapsed then throw an error
       // and stop pinging the server.
@@ -129,6 +136,8 @@ function startDesktopMode() {
         document.getElementById('loader-text-status').innerHTML = 'Waiting for pgAdmin 4 to start...';
       }
     });
+
+    pingInProgress = true;
   }, 1000);
 }
 
@@ -164,8 +173,11 @@ function launchPgAdminWindow() {
     // Set the width and height for the new window.
     pgadminWindow.on('new-win-policy', function(frame, url, policy) {
       policy.setNewWindowManifest({
+        'icon': '../assets/pgAdmin4.png',
+        'frame': true,
         'width': 1300,
         'height': 900,
+        'position': 'center',
       });
     });
 
@@ -208,6 +220,9 @@ function cleanup() {
 
 // This function is used to enable the configure and view log menu
 function enableMenu(currWindow) {
+  if (Object.keys(currWindow.menu).length <= 0 || Object.keys(currWindow.menu.items).length)
+    return;
+
   for (var outerIndex = 0; outerIndex < currWindow.menu.items.length; outerIndex++) {
     if (currWindow.menu.items[outerIndex].label == 'View') {
       var outer_obj = currWindow.menu.items[outerIndex];
