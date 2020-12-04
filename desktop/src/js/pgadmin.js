@@ -18,6 +18,7 @@ var pgadminFile = '../web/pgAdmin4.py';
 var pgadminServerProcess = null;
 var startPageUrl = null;
 var serverCheckUrl = null;
+var trayObject = null;
 
 var serverPort = 5050;
 
@@ -25,9 +26,9 @@ var serverPort = 5050;
 function createUUID(){
   var dt = new Date().getTime();
   var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      var r = (dt + Math.random()*16)%16 | 0;
-      dt = Math.floor(dt/16);
-      return (c=='x' ? r :(r&0x3|0x8)).toString(16);
+    var r = (dt + Math.random()*16)%16 | 0;
+    dt = Math.floor(dt/16);
+    return (c=='x' ? r :(r&0x3|0x8)).toString(16);
   });
 
   return uuid;
@@ -146,7 +147,7 @@ function startDesktopMode() {
 function launchPgAdminWindow() {
   // Create and launch new window and open pgAdmin url
   nw.Window.open(startPageUrl, {
-    'icon': '../assets/pgAdmin4.png',
+    'icon': '../../assets/pgAdmin4.png',
     'frame': true,
     'width': 1300,
     'height': 900,
@@ -173,7 +174,7 @@ function launchPgAdminWindow() {
     // Set the width and height for the new window.
     pgadminWindow.on('new-win-policy', function(frame, url, policy) {
       policy.setNewWindowManifest({
-        'icon': '../assets/pgAdmin4.png',
+        'icon': '../../assets/pgAdmin4.png',
         'frame': true,
         'width': 1300,
         'height': 900,
@@ -220,19 +221,74 @@ function cleanup() {
 
 // This function is used to enable the configure and view log menu
 function enableMenu(currWindow) {
-  if (Object.keys(currWindow.menu).length <= 0 || Object.keys(currWindow.menu.items).length)
-    return;
+  if (platform() == 'darwin') {
+    if (Object.keys(currWindow.menu).length <= 0 || Object.keys(currWindow.menu.items).length <=0)
+      return;
 
-  for (var outerIndex = 0; outerIndex < currWindow.menu.items.length; outerIndex++) {
-    if (currWindow.menu.items[outerIndex].label == 'View') {
-      var outer_obj = currWindow.menu.items[outerIndex];
-      for (var innerIndex = 0; innerIndex < outer_obj.submenu.items.length; innerIndex++) {
-        if (outer_obj.submenu.items[innerIndex].label == 'Configure...' || outer_obj.submenu.items[innerIndex].label == 'View log...') {
-          outer_obj.submenu.items[innerIndex].enabled = true;
+    for (var outerIndex = 0; outerIndex < currWindow.menu.items.length; outerIndex++) {
+      if (currWindow.menu.items[outerIndex].label == 'View') {
+        var outer_obj = currWindow.menu.items[outerIndex];
+        for (var innerIndex = 0; innerIndex < outer_obj.submenu.items.length; innerIndex++) {
+          if (outer_obj.submenu.items[innerIndex].label == 'Configure...' || outer_obj.submenu.items[innerIndex].label == 'View log...') {
+            outer_obj.submenu.items[innerIndex].enabled = true;
+          }
         }
       }
     }
+  } else {
+    if (Object.keys(trayObject.menu).length <= 0 || Object.keys(trayObject.menu.items).length <= 0)
+      return;
+
+    for (var index = 0; index < trayObject.menu.items.length; index++) {
+      trayObject.menu.items[index].enabled = true;
+    }
   }
+}
+
+function createViewMenu() {
+  // Create a new menu
+  var viewMenu = new nw.Menu();
+
+  // Append Configure menu.
+  viewMenu.append(new nw.MenuItem({
+    label: 'Configure...',
+    enabled: false,
+    click: function() {
+      // Create and launch new window and open pgAdmin url
+      nw.Window.open('src/html/configure.html', {
+        'frame': true,
+        'width': 600,
+        'height': 420,
+        'position': 'center',
+        'resizable': false,
+        'focus': true,
+        'show': true,
+      });
+    },
+  }));
+
+  // Append View log menu.
+  viewMenu.append(new nw.MenuItem({
+    label: 'View log...',
+    enabled: false,
+    click: function() {
+      // Create and launch new window and open pgAdmin url
+      nw.Window.open('src/html/view_log.html', {
+        'frame': true,
+        'width': 790,
+        'height': 425,
+        'position': 'center',
+        'resizable': false,
+        'focus': true,
+        'show': true,
+      });
+    },
+  }));
+
+  // Append separator.
+  viewMenu.append(new nw.MenuItem({ type: 'separator' }));
+
+  return viewMenu;
 }
 
 // Get the gui object of NW.js
@@ -246,52 +302,12 @@ splashWindow.on('loaded', function() {
   // Initialize the ConfigureStore
   misc.ConfigureStore.init();
 
-  var mainMenu = new nw.Menu({ type: 'menubar' });
+  // Create view menu
+  var viewMenu = createViewMenu();
+
   if (platform() == 'darwin') {
+    var mainMenu = new nw.Menu({ type: 'menubar' });
     mainMenu.createMacBuiltin('pgAdmin 4');
-
-    // Create a new menu
-    var viewMenu = new nw.Menu();
-
-    // Append Configure menu.
-    viewMenu.append(new nw.MenuItem({
-      label: 'Configure...',
-      enabled: false,
-      click: function() {
-        // Create and launch new window and open pgAdmin url
-        nw.Window.open('src/html/configure.html', {
-          'frame': true,
-          'width': 600,
-          'height': 420,
-          'position': 'center',
-          'resizable': false,
-          'focus': true,
-          'show': true,
-        });
-      },
-    }));
-
-    // Append View log menu.
-    viewMenu.append(new nw.MenuItem({
-      label: 'View log...',
-      enabled: false,
-      click: function() {
-        // Create and launch new window and open pgAdmin url
-        nw.Window.open('src/html/view_log.html', {
-          'frame': true,
-          'width': 790,
-          'height': 425,
-          'position': 'center',
-          'resizable': false,
-          'focus': true,
-          'show': true,
-        });
-      },
-    }));
-
-    // Append separator.
-    viewMenu.append(new nw.MenuItem({ type: 'separator' }));
-
     mainMenu.insert(new nw.MenuItem({
       label: 'View',
       submenu: viewMenu,
@@ -299,7 +315,24 @@ splashWindow.on('loaded', function() {
 
     nw.Window.get().menu = mainMenu;
   } else {
-    console.warn('Windows and Linux Menu.');
+    viewMenu.append(new nw.MenuItem({
+      label: 'Shut down server ',
+      enabled: true,
+      click: function() {
+        cleanup();
+        // Quit Application
+        nw.App.quit();
+      },
+    }));
+
+    // Create a tray menu
+    trayObject = new gui.Tray({
+      title: 'pgAdmin 4',
+      tooltip: 'pgAdmin 4 is running',
+      icon: '../../assets/pgAdmin4.png',
+    });
+
+    trayObject.menu = viewMenu;
   }
 
   var port = 0;

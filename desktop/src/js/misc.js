@@ -79,7 +79,7 @@ const readServerLog = () => {
 
 // This function is used to write the data into the log file
 const writeServerLog = (data) => {
-  data += '\n';
+  data = data + '\n';
   if (fs.existsSync(serverLogFile)) {
     fs.writeFileSync(serverLogFile, data, {flag: 'a+'});
   } else {
