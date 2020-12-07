@@ -317,7 +317,7 @@ splashWindow.on('loaded', function() {
   } else {
     viewMenu.append(new nw.MenuItem({
       label: 'Shut down server ',
-      enabled: true,
+      enabled: false,
       click: function() {
         cleanup();
         // Quit Application
@@ -326,7 +326,7 @@ splashWindow.on('loaded', function() {
     }));
 
     // Create a tray menu
-    trayObject = new gui.Tray({
+    trayObject = new nw.Tray({
       title: 'pgAdmin 4',
       tooltip: 'pgAdmin 4 is running',
       icon: '../../assets/pgAdmin4.png',
