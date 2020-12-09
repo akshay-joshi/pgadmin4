@@ -1,5 +1,6 @@
 import os
 import json
+import uuid
 
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -21,6 +22,8 @@ def delete_function(self, utils):
 
 def create_function(self, utils):
     self.test_data['pronamespace'] = self.schema_id
+    self.test_data['name'] = self.test_data['name'] + str(uuid.uuid4())[1:8]
+
     function_url = 'browser/function/obj/{0}/{1}/{2}/{3}/'.format(
         str(utils.SERVER_GROUP), str(self.server_id), str(self.db_id),
         str(self.schema_id))
@@ -59,10 +62,20 @@ def add_extension(self, utils):
         "version": "1.1"
     }
     try:
-        response = self.tester.post(
-            extension_url,
-            data=json.dumps(extension_data),
-            content_type='application/json')
+        connection = utils.get_db_connection(self.db_name,
+                                             self.server['username'],
+                                             self.server['db_password'],
+                                             self.server['host'],
+                                             self.server['port'],
+                                             self.server['sslmode'])
+        pg_cursor = connection.cursor()
+        # Create pldbgapi extension if not exist.
+        pg_cursor.execute('''CREATE EXTENSION IF NOT EXISTS
+        "%s" WITH SCHEMA "%s" VERSION
+        "%s" ''' % ('pldbgapi', self.schema_name, '1.1')
+        )
+
+        connection.commit()
     except Exception as e:
         print('Unable to create "pldbgapi" extension.')
 
