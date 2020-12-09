@@ -18,7 +18,6 @@ var pgadminFile = '../web/pgAdmin4.py';
 var pgadminServerProcess = null;
 var startPageUrl = null;
 var serverCheckUrl = null;
-var trayObject = null;
 
 var serverPort = 5050;
 
@@ -125,9 +124,6 @@ function startDesktopMode() {
       }
 
       if (curTime > midTime1) {
-        // Enable menu items
-        enableMenu(splashWindow);
-
         if(curTime < midTime2) {
           document.getElementById('loader-text-status').innerHTML = 'Taking longer than usual...';
         } else {
@@ -183,9 +179,6 @@ function launchPgAdminWindow() {
     });
 
     pgadminWindow.on('loaded', function() {
-      // Enable menu items
-      enableMenu(splashWindow);
-
       // Hide the splash screen
       splashWindow.hide();
 
@@ -219,78 +212,6 @@ function cleanup() {
   }
 }
 
-// This function is used to enable the configure and view log menu
-function enableMenu(currWindow) {
-  if (platform() == 'darwin') {
-    if (Object.keys(currWindow.menu).length <= 0 || Object.keys(currWindow.menu.items).length <=0)
-      return;
-
-    for (var outerIndex = 0; outerIndex < currWindow.menu.items.length; outerIndex++) {
-      if (currWindow.menu.items[outerIndex].label == 'View') {
-        var outer_obj = currWindow.menu.items[outerIndex];
-        for (var innerIndex = 0; innerIndex < outer_obj.submenu.items.length; innerIndex++) {
-          if (outer_obj.submenu.items[innerIndex].label == 'Configure...' || outer_obj.submenu.items[innerIndex].label == 'View log...') {
-            outer_obj.submenu.items[innerIndex].enabled = true;
-          }
-        }
-      }
-    }
-  } else {
-    if (Object.keys(trayObject.menu).length <= 0 || Object.keys(trayObject.menu.items).length <= 0)
-      return;
-
-    for (var index = 0; index < trayObject.menu.items.length; index++) {
-      trayObject.menu.items[index].enabled = true;
-    }
-  }
-}
-
-function createViewMenu() {
-  // Create a new menu
-  var viewMenu = new nw.Menu();
-
-  // Append Configure menu.
-  viewMenu.append(new nw.MenuItem({
-    label: 'Configure...',
-    enabled: false,
-    click: function() {
-      // Create and launch new window and open pgAdmin url
-      nw.Window.open('src/html/configure.html', {
-        'frame': true,
-        'width': 600,
-        'height': 420,
-        'position': 'center',
-        'resizable': false,
-        'focus': true,
-        'show': true,
-      });
-    },
-  }));
-
-  // Append View log menu.
-  viewMenu.append(new nw.MenuItem({
-    label: 'View log...',
-    enabled: false,
-    click: function() {
-      // Create and launch new window and open pgAdmin url
-      nw.Window.open('src/html/view_log.html', {
-        'frame': true,
-        'width': 790,
-        'height': 425,
-        'position': 'center',
-        'resizable': false,
-        'focus': true,
-        'show': true,
-      });
-    },
-  }));
-
-  // Append separator.
-  viewMenu.append(new nw.MenuItem({ type: 'separator' }));
-
-  return viewMenu;
-}
-
 // Get the gui object of NW.js
 var gui = require('nw.gui');
 var splashWindow = gui.Window.get();
@@ -301,39 +222,6 @@ nw.App.clearCache();
 splashWindow.on('loaded', function() {
   // Initialize the ConfigureStore
   misc.ConfigureStore.init();
-
-  // Create view menu
-  var viewMenu = createViewMenu();
-
-  if (platform() == 'darwin') {
-    var mainMenu = new nw.Menu({ type: 'menubar' });
-    mainMenu.createMacBuiltin('pgAdmin 4');
-    mainMenu.insert(new nw.MenuItem({
-      label: 'View',
-      submenu: viewMenu,
-    }), 1);
-
-    nw.Window.get().menu = mainMenu;
-  } else {
-    viewMenu.append(new nw.MenuItem({
-      label: 'Shut down server ',
-      enabled: false,
-      click: function() {
-        cleanup();
-        // Quit Application
-        nw.App.quit();
-      },
-    }));
-
-    // Create a tray menu
-    trayObject = new nw.Tray({
-      title: 'pgAdmin 4',
-      tooltip: 'pgAdmin 4 is running',
-      icon: '../../assets/pgAdmin4.png',
-    });
-
-    trayObject.menu = viewMenu;
-  }
 
   var port = 0;
   var fixedPortCheck = misc.ConfigureStore.get('fixedPort', false);
@@ -351,7 +239,6 @@ splashWindow.on('loaded', function() {
     .catch((errCode) => {
       if (fixedPortCheck && errCode == 'EADDRINUSE') {
         alert('The specified fixed port is already in use. Please provide any other valid port.');
-        enableMenu(splashWindow);
       } else {
         alert(errCode);
       }
