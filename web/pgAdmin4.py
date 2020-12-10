@@ -119,7 +119,6 @@ if 'PGADMIN_INT_PORT' in os.environ:
         port
     )
     config.EFFECTIVE_SERVER_PORT = int(port)
-    app.PGADMIN_RUNTIME = True
 else:
     app.logger.debug(
         'Not running under the desktop runtime, port: %s',
@@ -131,8 +130,10 @@ else:
 if 'PGADMIN_INT_KEY' in os.environ:
     app.PGADMIN_INT_KEY = os.environ['PGADMIN_INT_KEY']
     app.logger.debug("Desktop security key: %s" % app.PGADMIN_INT_KEY)
+    app.PGADMIN_RUNTIME = True
 else:
     app.PGADMIN_INT_KEY = ''
+
 
 ##########################################################################
 # The entry point

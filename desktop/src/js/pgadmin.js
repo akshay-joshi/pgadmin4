@@ -14,6 +14,7 @@ const spawn = require('child_process').spawn;
 
 var pythonPath = '../../Workspace-3.8/bin/python';
 var pgadminFile = '../web/pgAdmin4.py';
+var configFile = '../web/config.py';
 
 var pgadminServerProcess = null;
 var startPageUrl = null;
@@ -61,9 +62,10 @@ function startDesktopMode() {
 
   // Write Python Path, pgAdmin file path and command in log file.
   var command = path.resolve(pythonPath) + ' ' + path.resolve(pgadminFile);
-  misc.writeServerLog('PYTHON_PATH: "' + path.resolve(pythonPath) + '"');
-  misc.writeServerLog('PGADMIN_FILE: "' + path.resolve(pgadminFile) + '"');
-  misc.writeServerLog('PGADMIN_COMMAND: "' + command + '"');
+  misc.writeServerLog('Python Path: "' + path.resolve(pythonPath) + '"');
+  misc.writeServerLog('pgAdmin Config File Path: "' + path.resolve(configFile) + '"');
+  misc.writeServerLog('Webapp Path: "' + path.resolve(pgadminFile) + '"');
+  misc.writeServerLog('pgAdmin Command: "' + command + '"');
 
   // Spawn the process to start pgAdmin4 server.
   pgadminServerProcess = spawn(pythonPath, [pgadminFile]);
@@ -75,7 +77,31 @@ function startDesktopMode() {
 
   pgadminServerProcess.stderr.setEncoding('utf8');
   pgadminServerProcess.stderr.on('data', (chunk) => {
-    misc.writeServerLog(chunk);
+    if (chunk.indexOf('Runtime Open Configuration') > -1) {
+      // Create and launch new window and open pgAdmin url
+      nw.Window.open('src/html/configure.html', {
+        'frame': true,
+        'width': 600,
+        'height': 420,
+        'position': 'center',
+        'resizable': false,
+        'focus': true,
+        'show': true,
+      });
+    } else if (chunk.indexOf('Runtime Open View Log') > -1) {
+      // Create and launch new window and open pgAdmin url
+      nw.Window.open('src/html/view_log.html', {
+        'frame': true,
+        'width': 790,
+        'height': 425,
+        'position': 'center',
+        'resizable': false,
+        'focus': true,
+        'show': true,
+      });
+    } else {
+      misc.writeServerLog(chunk);
+    }
   });
 
   // This function is used to ping the pgAdmin4 server whether it
@@ -142,6 +168,8 @@ function startDesktopMode() {
 // new window to render pgAdmin4 page.
 function launchPgAdminWindow() {
   // Create and launch new window and open pgAdmin url
+  misc.writeServerLog('Application Server URL: ' + startPageUrl);
+
   nw.Window.open(startPageUrl, {
     'icon': '../../assets/pgAdmin4.png',
     'frame': true,
