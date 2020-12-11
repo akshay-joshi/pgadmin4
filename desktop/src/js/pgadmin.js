@@ -127,6 +127,9 @@ function startDesktopMode() {
     pingServer().then(() => {
       pingInProgress = false;
       document.getElementById('loader-text-status').innerHTML = 'pgAdmin 4 started';
+      // Set the pgAdmin process object to misc
+      misc.setProcessObject(pgadminServerProcess);
+
       clearInterval(intervalID);
       launchPgAdminWindow();
     }).catch(() => {
@@ -141,7 +144,7 @@ function startDesktopMode() {
         nw.Window.open('src/html/server_error.html', {
           'frame': true,
           'width': 790,
-          'height': 385,
+          'height': 430,
           'position': 'center',
           'resizable': false,
           'focus': true,
@@ -183,15 +186,11 @@ function launchPgAdminWindow() {
     'show': false,
   }, (pgadminWindow)=> {
     pgadminWindow.on('close', function() {
-      // Clenup
-      cleanup();
-
       // Closing the window
       pgadminWindow.close(true);
       pgadminWindow = null;
 
-      // Quit Application
-      nw.App.quit();
+      misc.cleanupAndQuitApp();
     });
 
     // set up handler for new-win-policy event.
@@ -223,23 +222,6 @@ function launchPgAdminWindow() {
   });
 }
 
-// This function is used to kill the server process and
-// remove the log files.
-function cleanup() {
-  // Remove the server log file on exit
-  misc.removeLogFile();
-
-  // Killing pgAdmin4 server process if application quits
-  if (pgadminServerProcess != null) {
-    try {
-      process.kill(pgadminServerProcess.pid);
-    }
-    catch (e) {
-      console.warn('Failed to kill server process.');
-    }
-  }
-}
-
 // Get the gui object of NW.js
 var gui = require('nw.gui');
 var splashWindow = gui.Window.get();
@@ -251,31 +233,29 @@ splashWindow.on('loaded', function() {
   // Initialize the ConfigureStore
   misc.ConfigureStore.init();
 
-  var port = 0;
   var fixedPortCheck = misc.ConfigureStore.get('fixedPort', false);
   if (fixedPortCheck) {
-    port = misc.ConfigureStore.get('portNo');
+    serverPort = misc.ConfigureStore.get('portNo');
+    //Start the pgAdmin in Desktop mode.
+    startDesktopMode();
+  } else {
+    // get the available TCP port by sending port no to 0.
+    misc.getAvailablePort(0)
+      .then((pythonApplicationPort) => {
+        serverPort = pythonApplicationPort;
+        //Start the pgAdmin in Desktop mode.
+        startDesktopMode();
+      })
+      .catch((errCode) => {
+        if (fixedPortCheck && errCode == 'EADDRINUSE') {
+          alert('The specified fixed port is already in use. Please provide any other valid port.');
+        } else {
+          alert(errCode);
+        }
+      });
   }
-
-  // get the available TCP port
-  misc.getAvailablePort(port)
-    .then((pythonApplicationPort) => {
-      serverPort = pythonApplicationPort;
-      //Start the pgAdmin in Desktop mode.
-      startDesktopMode();
-    })
-    .catch((errCode) => {
-      if (fixedPortCheck && errCode == 'EADDRINUSE') {
-        alert('The specified fixed port is already in use. Please provide any other valid port.');
-      } else {
-        alert(errCode);
-      }
-    });
 });
 
 splashWindow.on('close', function() {
-  cleanup();
-
-  // Quit Application
-  nw.App.quit();
+  misc.cleanupAndQuitApp();
 });

@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const net = require('net');
 const {platform, homedir} = require('os');
+var pgadminServerProcess = null;
 
 // This function is used to get the app data path
 // based on the platform.
@@ -94,6 +95,31 @@ const removeLogFile = () => {
   }
 };
 
+// This function used to set the object of pgAdmin server process.
+const setProcessObject = (processObject) => {
+  pgadminServerProcess = processObject;
+};
+
+// This function is used to kill the server process, remove the log files
+// and quit the application.
+const cleanupAndQuitApp = () => {
+  // Remove the server log file on exit
+  removeLogFile();
+
+  // Killing pgAdmin4 server process if application quits
+  if (pgadminServerProcess != null) {
+    try {
+      process.kill(pgadminServerProcess.pid);
+    }
+    catch (e) {
+      console.warn('Failed to kill server process.');
+    }
+  }
+
+  // Quit Application
+  nw.App.quit();
+};
+
 var ConfigureStore = {
   fileName: configFileName,
   jsonData: {},
@@ -164,6 +190,8 @@ module.exports = {
   writeServerLog: writeServerLog,
   removeLogFile: removeLogFile,
   getAvailablePort: getAvailablePort,
+  setProcessObject: setProcessObject,
+  cleanupAndQuitApp: cleanupAndQuitApp,
   serverLogFile: serverLogFile,
   ConfigureStore: ConfigureStore,
 };

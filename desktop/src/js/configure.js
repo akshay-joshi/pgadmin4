@@ -43,8 +43,7 @@ function saveConfiguration() {
   document.getElementById('status-text').innerHTML = 'Configuration Saved';
 
   if (confirm('The pgAdmin 4 must be restarted for changes to take effect. Do you want to quit the application?') == true) {
-    // Quit Application
-    nw.App.quit();
+    misc.cleanupAndQuitApp();
   }
   configWindow.close();
 }
