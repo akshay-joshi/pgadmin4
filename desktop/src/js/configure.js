@@ -21,12 +21,8 @@ function checkConfiguration() {
       .then(() => {
         saveConfiguration();
       })
-      .catch((errCode) => {
-        if (errCode == 'EADDRINUSE') {
-          alert('The specified fixed port is already in use. Please provide any other valid port.');
-        } else {
-          alert(errCode);
-        }
+      .catch(() => {
+        alert('The specified fixed port is already in use. Please provide any other valid port.');
       });
   } else {
     saveConfiguration();
@@ -42,7 +38,7 @@ function saveConfiguration() {
 
   document.getElementById('status-text').innerHTML = 'Configuration Saved';
 
-  if (confirm('The pgAdmin 4 must be restarted for changes to take effect. Do you want to quit the application?') == true) {
+  if (confirm('The pgAdmin 4 must be restarted for changes to take effect.\n\n Do you want to quit the application?') == true) {
     misc.cleanupAndQuitApp();
   }
   configWindow.close();

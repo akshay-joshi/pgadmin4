@@ -44,15 +44,16 @@ const getAvailablePort = (fixedPort) => {
   return new Promise(function(resolve, reject) {
     const server = net.createServer();
 
+    server.listen(fixedPort, '127.0.0.1');
+
     server.on('error', (e) => {
       reject(e.code);
     });
 
-    server.listen(fixedPort, function() {
+    server.on('listening', () => {
       var serverPort = server.address().port;
-      server.close(() => {
-        resolve(serverPort);
-      });
+      server.close();
+      resolve(serverPort);
     });
   });
 };
