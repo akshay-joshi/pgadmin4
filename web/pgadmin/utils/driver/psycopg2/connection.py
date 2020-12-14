@@ -728,42 +728,57 @@ WHERE db.datname = current_database()""")
         if self.async_ == 1:
             self._wait(cur.connection)
 
-    def execute_on_server_as_csv(self,
-                                 query, params=None,
-                                 formatted_exception_msg=False,
-                                 records=2000):
+    def execute_on_server_as_csv(self, params=None,
+                                 formatted_exception_msg=False, records=2000):
         """
         To fetch query result and generate CSV output
 
         Args:
-            query: SQL
             params: Additional parameters
             formatted_exception_msg: For exception
             records: Number of initial records
         Returns:
             Generator response
         """
-        status, cur = self.__cursor()
-        self.row_count = 0
+        cur = self.__async_cursor
+        if not cur:
+            return False, self.CURSOR_NOT_FOUND
 
-        if not status:
-            return False, str(cur)
-        query_id = random.randint(1, 9999999)
+        if self.conn.isexecuting():
+            return False, gettext(
+                "Asynchronous query execution/operation underway."
+            )
 
+        encoding = self.python_encoding
+        query = None
+        try:
+            query = str(cur.query, encoding) \
+                if cur and cur.query is not None else None
+        except Exception:
+            current_app.logger.warning('Error encoding query')
+            pass
+
+        dsn = self.conn.get_dsn_parameters()
         current_app.logger.log(
             25,
-            "Execute (with server cursor) for server #{server_id} - "
+            "Execute (with server cursor) by {pga_user} on "
+            "{db_user}@{db_host}/{db_name} #{server_id} -  "
             "{conn_id} (Query-id: {query_id}):\n{query}".format(
+                pga_user=current_user.email,
+                db_user=dsn['user'],
+                db_host=dsn['host'],
+                db_name=dsn['dbname'],
                 server_id=self.manager.sid,
                 conn_id=self.conn_id,
                 query=query,
-                query_id=query_id
+                query_id=self.__async_query_id
             )
         )
         try:
             # Unregistering type casting for large size data types.
             unregister_numeric_typecasters(self.conn)
-            self.__internal_blocking_execute(cur, query, params)
+            if self.async_ == 1:
+                self._wait(cur.connection)
         except psycopg2.Error as pe:
             cur.close()
             errmsg = self._formatted_exception_msg(pe, formatted_exception_msg)
@@ -775,7 +790,7 @@ WHERE db.datname = current_database()""")
                     server_id=self.manager.sid,
                     conn_id=self.conn_id,
                     errmsg=errmsg,
-                    query_id=query_id
+                    query_id=self.__async_query_id
                 )
             )
             return False, errmsg
@@ -809,13 +824,12 @@ WHERE db.datname = current_database()""")
 
             return results
 
-        def gen(quote='strings', quote_char="'", field_separator=',',
-                replace_nulls_with=None):
+        def gen(trans_obj, quote='strings', quote_char="'",
+                field_separator=',', replace_nulls_with=None):
 
+            cur.scroll(0, mode='absolute')
             results = cur.fetchmany(records)
             if not results:
-                if not cur.closed:
-                    cur.close()
                 yield gettext('The query executed did not return any data.')
                 return
 
@@ -857,8 +871,6 @@ WHERE db.datname = current_database()""")
                 results = cur.fetchmany(records)
 
                 if not results:
-                    if not cur.closed:
-                        cur.close()
                     break
                 res_io = StringIO()
 
@@ -874,6 +886,17 @@ WHERE db.datname = current_database()""")
                     results = handle_null_values(results, replace_nulls_with)
                 csv_writer.writerows(results)
                 yield res_io.getvalue()
+
+            try:
+                # try to reset the cursor scroll back to where it was,
+                # bypass error, if cannot scroll back
+                rows_fetched_from = trans_obj.get_fetched_row_cnt()
+                cur.scroll(rows_fetched_from, mode='absolute')
+            except psycopg2.Error:
+                # bypassing the error as cursor tried to scroll on the
+                # specified position, but end of records found
+                pass
+
         # Registering back type caster for large size data types to string
         # which was unregistered at starting
         register_string_typecasters(self.conn)
@@ -888,10 +911,16 @@ WHERE db.datname = current_database()""")
             return False, str(cur)
         query_id = random.randint(1, 9999999)
 
+        dsn = self.conn.get_dsn_parameters()
         current_app.logger.log(
             25,
-            "Execute (scalar) for server #{server_id} - {conn_id} (Query-id: "
-            "{query_id}):\n{query}".format(
+            "Execute (scalar) by {pga_user} on "
+            "{db_user}@{db_host}/{db_name} #{server_id} - "
+            "{conn_id} (Query-id: {query_id}):\n{query}".format(
+                pga_user=current_user.email,
+                db_user=dsn['user'],
+                db_host=dsn['host'],
+                db_name=dsn['dbname'],
                 server_id=self.manager.sid,
                 conn_id=self.conn_id,
                 query=query,
@@ -1029,10 +1058,16 @@ WHERE db.datname = current_database()""")
             return False, str(cur)
         query_id = random.randint(1, 9999999)
 
+        dsn = self.conn.get_dsn_parameters()
         current_app.logger.log(
             25,
-            "Execute (void) for server #{server_id} - {conn_id} (Query-id: "
-            "{query_id}):\n{query}".format(
+            "Execute (void) by {pga_user} on "
+            "{db_user}@{db_host}/{db_name} #{server_id} - "
+            "{conn_id} (Query-id: {query_id}):\n{query}".format(
+                pga_user=current_user.email,
+                db_user=dsn['user'],
+                db_host=dsn['host'],
+                db_name=dsn['dbname'],
                 server_id=self.manager.sid,
                 conn_id=self.conn_id,
                 query=query,
@@ -1112,10 +1147,16 @@ WHERE db.datname = current_database()""")
             return False, str(cur)
 
         query_id = random.randint(1, 9999999)
+        dsn = self.conn.get_dsn_parameters()
         current_app.logger.log(
             25,
-            "Execute (2darray) for server #{server_id} - {conn_id} "
-            "(Query-id: {query_id}):\n{query}".format(
+            "Execute (2darray) by {pga_user} on "
+            "{db_user}@{db_host}/{db_name} #{server_id} - "
+            "{conn_id} (Query-id: {query_id}):\n{query}".format(
+                pga_user=current_user.email,
+                db_user=dsn['user'],
+                db_host=dsn['host'],
+                db_name=dsn['dbname'],
                 server_id=self.manager.sid,
                 conn_id=self.conn_id,
                 query=query,
@@ -1165,10 +1206,16 @@ WHERE db.datname = current_database()""")
         if not status:
             return False, str(cur)
         query_id = random.randint(1, 9999999)
+        dsn = self.conn.get_dsn_parameters()
         current_app.logger.log(
             25,
-            "Execute (dict) for server #{server_id} - {conn_id} (Query-id: "
-            "{query_id}):\n{query}".format(
+            "Execute (dict) by {pga_user} on "
+            "{db_user}@{db_host}/{db_name} #{server_id} - "
+            "{conn_id} (Query-id: {query_id}):\n{query}".format(
+                pga_user=current_user.email,
+                db_user=dsn['user'],
+                db_host=dsn['host'],
+                db_name=dsn['dbname'],
                 server_id=self.manager.sid,
                 conn_id=self.conn_id,
                 query=query,
@@ -1224,6 +1271,7 @@ WHERE db.datname = current_database()""")
         Args:
           records: no of records to fetch. use -1 to fetchall.
           formatted_exception_msg:
+          for_download: if True, will fetch all records and reset the cursor
 
         Returns:
 
