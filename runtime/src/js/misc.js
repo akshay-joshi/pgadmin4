@@ -14,29 +14,60 @@ const {platform, homedir} = require('os');
 var pgadminServerProcess = null;
 var pgAdminWindowObject = null;
 
-// This function is used to get the app data path
+// This function is used to get the [roaming] app data path
 // based on the platform.
 const getAppDataPath = () => {
   var appDataPath = '';
   switch (platform()) {
   case 'win32':
-    appDataPath = path.join(homedir(), 'AppData', 'Local');
+    appDataPath = path.join(process.env.APPDATA, 'pgadmin');
     break;
   case 'darwin':
-    appDataPath = path.join(homedir(), 'Library', 'Application Support');
+    // FIXME
+    appDataPath = path.join(homedir(), 'Library', 'Application Support', 'pgadmin');
     break;
   case 'linux':
-    appDataPath = path.join(homedir(), '.local', 'share');
+    // FIXME
+    appDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
     break;
   default:
     if (platform().startsWith('win')) {
-      appDataPath = path.join(homedir(), 'AppData', 'Local');
+      appDataPath = path.join(process.send.APPDATA, 'pgadmin');
     } else {
-      appDataPath = path.join(homedir(), '.local', 'share');
+      // FIXME
+      appDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
     }
   }
 
   return appDataPath;
+};
+
+// This function is used to get the [local] app data path
+// based on the platform.
+const getLocalAppDataPath = () => {
+  var localAppDataPath = '';
+  switch (platform()) {
+  case 'win32':
+    localAppDataPath = path.join(process.env.LOCALAPPDATA, 'pgadmin');
+    break;
+  case 'darwin':
+    // FIXME
+    localAppDataPath = path.join(homedir(), 'Library', 'Application Support', 'pgadmin');
+    break;
+  case 'linux':
+    // FIXME
+    localAppDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
+    break;
+  default:
+    if (platform().startsWith('win')) {
+      localAppDataPath = path.join(process.send.LOCALAPPDATA, 'pgadmin');
+    } else {
+      // FIXME
+      localAppDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
+    }
+  }
+
+  return localAppDataPath;
 };
 
 // This function is used to get the random available TCP port
@@ -61,8 +92,8 @@ const getAvailablePort = (fixedPort) => {
 
 // Get the app data folder path 
 const currentTime = (new Date()).getTime();
-const serverLogFile = path.join(getAppDataPath(), 'pgadmin4.' + currentTime.toString() + '.log');
-const configFileName = path.join(homedir(), '.pgadmin', 'pgadmin4_config.json');
+const serverLogFile = path.join(getLocalAppDataPath(), 'pgadmin4.' + currentTime.toString() + '.log');
+const configFileName = path.join(getAppDataPath(), 'runtime_config.json');
 const DEFAULT_CONFIG_DATA = {'fixedPort': false, 'portNo': 5050, 'connectionTimeout': 90};
 
 // This function is used to read the file and return the content
