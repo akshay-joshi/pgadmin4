@@ -12,6 +12,7 @@ const path = require('path');
 const net = require('net');
 const {platform, homedir} = require('os');
 var pgadminServerProcess = null;
+var pgAdminWindowObject = null;
 
 // This function is used to get the app data path
 // based on the platform.
@@ -101,6 +102,21 @@ const setProcessObject = (processObject) => {
   pgadminServerProcess = processObject;
 };
 
+// This function used to set the object of pgAdmin window.
+const setPgAdminWindowObject = (windowObject) => {
+  pgAdminWindowObject = windowObject;
+};
+
+// This function is used to get the server log file.
+const getServerLogFile = () => {
+  return serverLogFile;
+};
+
+// This function is used to get the runtime config file.
+const getRunTimeConfigFile = () => {
+  return configFileName;
+};
+
 // This function is used to kill the server process, remove the log files
 // and quit the application.
 const cleanupAndQuitApp = () => {
@@ -117,8 +133,28 @@ const cleanupAndQuitApp = () => {
     }
   }
 
-  // Quit Application
-  nw.App.quit();
+  if (pgAdminWindowObject != null) {
+    // Close the window.
+    pgAdminWindowObject.close(true);
+
+    // Remove all the cookies.
+    pgAdminWindowObject.cookies.getAll({}, function(cookies) {
+      try {
+        cookies.forEach(function(cookie) {
+          pgAdminWindowObject.cookies.remove({url: 'http://' + cookie.domain, name: cookie.name});
+        });
+      } catch (error) {
+        console.warn('Failed to remove cookies.');
+      } finally {
+        pgAdminWindowObject = null;
+        // Quit Application
+        nw.App.quit();
+      }
+    });
+  } else {
+    // Quit Application
+    nw.App.quit();
+  }
 };
 
 var ConfigureStore = {
@@ -193,6 +229,8 @@ module.exports = {
   getAvailablePort: getAvailablePort,
   setProcessObject: setProcessObject,
   cleanupAndQuitApp: cleanupAndQuitApp,
-  serverLogFile: serverLogFile,
+  getServerLogFile: getServerLogFile,
+  getRunTimeConfigFile: getRunTimeConfigFile,
+  setPgAdminWindowObject: setPgAdminWindowObject,
   ConfigureStore: ConfigureStore,
 };

@@ -15,7 +15,7 @@ var logWindow = gui.Window.get();
 
 logWindow.on('loaded', function() {
   document.getElementById('status-text').innerHTML = '';
-  document.getElementById('server_log_label').innerHTML = 'Server Log: ' + '(' + misc.serverLogFile + ')';
+  document.getElementById('server_log_label').innerHTML = 'Server Log: ' + '(' + misc.getServerLogFile() + ')';
   document.getElementById('server_log').innerHTML = misc.readServerLog();
   document.getElementById('btnReload').addEventListener('click', function() {
     document.getElementById('server_log').innerHTML = 'Loading logs...';

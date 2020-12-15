@@ -63,7 +63,8 @@ function startDesktopMode() {
   // Write Python Path, pgAdmin file path and command in log file.
   var command = path.resolve(pythonPath) + ' ' + path.resolve(pgadminFile);
   misc.writeServerLog('Python Path: "' + path.resolve(pythonPath) + '"');
-  misc.writeServerLog('pgAdmin Config File Path: "' + path.resolve(configFile) + '"');
+  misc.writeServerLog('Runtime Config File: "' + path.resolve(misc.getRunTimeConfigFile()) + '"');
+  misc.writeServerLog('pgAdmin Config File: "' + path.resolve(configFile) + '"');
   misc.writeServerLog('Webapp Path: "' + path.resolve(pgadminFile) + '"');
   misc.writeServerLog('pgAdmin Command: "' + command + '"');
 
@@ -185,11 +186,10 @@ function launchPgAdminWindow() {
     'focus': true,
     'show': false,
   }, (pgadminWindow)=> {
-    pgadminWindow.on('close', function() {
-      // Closing the window
-      pgadminWindow.close(true);
-      pgadminWindow = null;
+    // Set pgAdmin4 Windows Object
+    misc.setPgAdminWindowObject(pgadminWindow);
 
+    pgadminWindow.on('close', function() {
       misc.cleanupAndQuitApp();
     });
 
