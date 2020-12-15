@@ -31,7 +31,7 @@ const getAppDataPath = () => {
     break;
   default:
     if (platform().startsWith('win')) {
-      appDataPath = path.join(process.send.APPDATA, 'pgadmin');
+      appDataPath = path.join(process.env.APPDATA, 'pgadmin');
     } else {
       // FIXME: $XDG_CONFIG_HOME or $HOME/.config if the former isn't set
       appDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
@@ -58,7 +58,7 @@ const getLocalAppDataPath = () => {
     break;
   default:
     if (platform().startsWith('win')) {
-      localAppDataPath = path.join(process.send.LOCALAPPDATA, 'pgadmin');
+      localAppDataPath = path.join(process.env.LOCALAPPDATA, 'pgadmin');
     } else {
       // FIXME: $XDG_DATA_HOME or $HOME/.local/share if the former isn't set
       localAppDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
