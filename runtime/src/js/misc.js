@@ -26,15 +26,21 @@ const getAppDataPath = () => {
     appDataPath = path.join(homedir(), 'Library', 'Preferences', 'pgadmin');
     break;
   case 'linux':
-    // FIXME: $XDG_CONFIG_HOME or $HOME/.config if the former isn't set
-    appDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
+    if ("XDG_CONFIG_HOME" in process.env) {
+      appDataPath = path.join(process.env.XDG_CONFIG_HOME, 'pgadmin');
+    } else {
+      appDataPath = path.join(homedir(), '.config', 'pgadmin');
+    }
     break;
   default:
     if (platform().startsWith('win')) {
       appDataPath = path.join(process.env.APPDATA, 'pgadmin');
     } else {
-      // FIXME: $XDG_CONFIG_HOME or $HOME/.config if the former isn't set
-      appDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
+      if ("XDG_CONFIG_HOME" in process.env) {
+        appDataPath = path.join(process.env.XDG_CONFIG_HOME, 'pgadmin');
+      } else {
+        appDataPath = path.join(homedir(), '.config', 'pgadmin');
+      }
     }
   }
 
@@ -53,15 +59,21 @@ const getLocalAppDataPath = () => {
     localAppDataPath = path.join(homedir(), 'Library', 'Application Support', 'pgadmin');
     break;
   case 'linux': 
-    // FIXME: $XDG_DATA_HOME or $HOME/.local/share if the former isn't set
-    localAppDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
+    if ("XDG_DATA_HOME" in process.env) {
+      appDataPath = path.join(process.env.XDG_DATA_HOME, 'pgadmin');
+    } else {
+      appDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
+    }
     break;
   default:
     if (platform().startsWith('win')) {
       localAppDataPath = path.join(process.env.LOCALAPPDATA, 'pgadmin');
     } else {
-      // FIXME: $XDG_DATA_HOME or $HOME/.local/share if the former isn't set
-      localAppDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
+      if ("XDG_DATA_HOME" in process.env) {
+        appDataPath = path.join(process.env.XDG_DATA_HOME, 'pgadmin');
+      } else {
+        appDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
+      }
     }
   }
 
