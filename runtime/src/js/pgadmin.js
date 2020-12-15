@@ -8,19 +8,33 @@
 //////////////////////////////////////////////////////////////
 
 const axios = require('axios');
+const fs = require('fs');
 const path = require('path');
 const misc = require('../js/misc.js');
 const spawn = require('child_process').spawn;
-
-var pythonPath = '../../Workspace-3.8/bin/python';
-var pgadminFile = '../web/pgAdmin4.py';
-var configFile = '../web/config.py';
 
 var pgadminServerProcess = null;
 var startPageUrl = null;
 var serverCheckUrl = null;
 
 var serverPort = 5050;
+
+// Paths to the rest of the app
+// FIXME: Set these to per-platform paths that will work in an installation layout
+var pythonPath = '../../Workspace-3.8/bin/python';
+var pgadminFile = '../web/pgAdmin4.py';
+var configFile = '../web/config.py';
+
+// Override the paths above, if a developer needs to
+if (fs.existsSync('dev_config.json')) {
+  try {
+    dev_config = JSON.parse(fs.readFileSync('dev_config.json'));  
+    pythonPath = dev_config['pythonPath']
+    pgadminFile = dev_config['pgadminFile']
+  } catch (error) {
+    // Meh. 
+  }
+}
 
 // This function is used to create UUID
 function createUUID() {
