@@ -28,8 +28,11 @@ if sys.path[0] != os.path.dirname(os.path.realpath(__file__)):
     sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 
 # Grab the SERVER_MODE if it's been set by the runtime
-if 'SERVER_MODE' in os.environ:
-    builtins.SERVER_MODE = os.environ['SERVER_MODE']
+if 'PGADMIN_SERVER_MODE' in os.environ:
+    if os.environ['PGADMIN_SERVER_MODE'] == 'OFF':
+        builtins.SERVER_MODE = False
+    else:
+        builtins.SERVER_MODE = True
 else:
     builtins.SERVER_MODE = None
 
@@ -111,6 +114,10 @@ app.logger.debug(
 # runtime if we're running in desktop mode, otherwise we'll just use the
 # Flask default.
 app.PGADMIN_RUNTIME = False
+app.logger.debug(
+    'Server mode: %s, config server mode: %s',
+    SERVER_MODE, config.SERVER_MODE
+)
 config.EFFECTIVE_SERVER_PORT = None
 if 'PGADMIN_INT_PORT' in os.environ:
     port = os.environ['PGADMIN_INT_PORT']

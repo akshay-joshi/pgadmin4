@@ -47,19 +47,13 @@ function startDesktopMode() {
   // start listening on that port.
   process.env.PGADMIN_INT_PORT = serverPort;
   process.env.PGADMIN_INT_KEY = UUID;
-  process.env.SERVER_MODE = false;
+  process.env.PGADMIN_SERVER_MODE = 'OFF';
 
   // Start Page URL
   startPageUrl = 'http://127.0.0.1:' + serverPort + '/?key=' + UUID;
   serverCheckUrl = 'http://127.0.0.1:' + serverPort + '/misc/ping?key=' + UUID;
 
   document.getElementById('loader-text-status').innerHTML = 'Starting pgAdmin 4...';
-
-  if (platform() == 'win32') {
-    pythonPath = '../../Workspace-3.8/Scripts/python.exe';
-    pythonPath = pythonPath.replace(/\//g, '\\\\');
-    pgadminFile = pgadminFile.replace(/\//g, '\\\\');
-  }
 
   // Write Python Path, pgAdmin file path and command in log file.
   var command = path.resolve(pythonPath) + ' ' + path.resolve(pgadminFile);
