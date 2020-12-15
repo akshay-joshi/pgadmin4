@@ -15,7 +15,7 @@ var pgadminServerProcess = null;
 var pgAdminWindowObject = null;
 
 // This function is used to get the [roaming] app data path
-// based on the platform.
+// based on the platform. Use this for config etc.
 const getAppDataPath = () => {
   var appDataPath = '';
   switch (platform()) {
@@ -23,18 +23,17 @@ const getAppDataPath = () => {
     appDataPath = path.join(process.env.APPDATA, 'pgadmin');
     break;
   case 'darwin':
-    // FIXME
-    appDataPath = path.join(homedir(), 'Library', 'Application Support', 'pgadmin');
+    appDataPath = path.join(homedir(), 'Library', 'Preferences', 'pgadmin');
     break;
   case 'linux':
-    // FIXME
+    // FIXME: $XDG_CONFIG_HOME or $HOME/.config if the former isn't set
     appDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
     break;
   default:
     if (platform().startsWith('win')) {
       appDataPath = path.join(process.send.APPDATA, 'pgadmin');
     } else {
-      // FIXME
+      // FIXME: $XDG_CONFIG_HOME or $HOME/.config if the former isn't set
       appDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
     }
   }
@@ -43,7 +42,7 @@ const getAppDataPath = () => {
 };
 
 // This function is used to get the [local] app data path
-// based on the platform.
+// based on the platform. Use this for logs etc.
 const getLocalAppDataPath = () => {
   var localAppDataPath = '';
   switch (platform()) {
@@ -51,18 +50,17 @@ const getLocalAppDataPath = () => {
     localAppDataPath = path.join(process.env.LOCALAPPDATA, 'pgadmin');
     break;
   case 'darwin':
-    // FIXME
     localAppDataPath = path.join(homedir(), 'Library', 'Application Support', 'pgadmin');
     break;
-  case 'linux':
-    // FIXME
+  case 'linux': 
+    // FIXME: $XDG_DATA_HOME or $HOME/.local/share if the former isn't set
     localAppDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
     break;
   default:
     if (platform().startsWith('win')) {
       localAppDataPath = path.join(process.send.LOCALAPPDATA, 'pgadmin');
     } else {
-      // FIXME
+      // FIXME: $XDG_DATA_HOME or $HOME/.local/share if the former isn't set
       localAppDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
     }
   }
