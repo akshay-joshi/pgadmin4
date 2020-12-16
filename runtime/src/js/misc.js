@@ -14,6 +14,39 @@ const {platform, homedir} = require('os');
 var pgadminServerProcess = null;
 var pgAdminWindowObject = null;
 
+// This function is used to check whether directory is present or not
+// if not present then create it recursively
+const createDir = (dirName) => {
+  if (!fs.existsSync(dirName)) {
+    fs.mkdirSync(dirName, {recursive: true});
+  }
+};
+
+// This function is used to get the python executable path
+// based on the platform. Use this for deployment.
+const getPythonPath = () => {
+  var pythonPath = '';
+  switch (platform()) {
+  case 'win32':
+    pythonPath = '../python/python.exe';
+    break;
+  case 'darwin':
+    pythonPath = '../Frameworks/Python.framework/Versions/Current/bin/python3';
+    break;
+  case 'linux':
+    pythonPath = '../venv/bin/python3';
+    break;
+  default:
+    if (platform().startsWith('win')) {
+      pythonPath = '../python/python.exe';
+    } else {
+      pythonPath = '../venv/bin/python3';
+    }
+  }
+
+  return pythonPath;
+};
+
 // This function is used to get the [roaming] app data path
 // based on the platform. Use this for config etc.
 const getAppDataPath = () => {
@@ -43,6 +76,9 @@ const getAppDataPath = () => {
       }
     }
   }
+
+  // Create directory if not exists
+  createDir(appDataPath);
 
   return appDataPath;
 };
@@ -76,6 +112,9 @@ const getLocalAppDataPath = () => {
       }
     }
   }
+
+  // Create directory if not exists
+  createDir(localAppDataPath);
 
   return localAppDataPath;
 };
@@ -266,8 +305,8 @@ var ConfigureStore = {
 module.exports = {
   readServerLog: readServerLog,
   writeServerLog: writeServerLog,
-  removeLogFile: removeLogFile,
   getAvailablePort: getAvailablePort,
+  getPythonPath: getPythonPath,
   setProcessObject: setProcessObject,
   cleanupAndQuitApp: cleanupAndQuitApp,
   getServerLogFile: getServerLogFile,

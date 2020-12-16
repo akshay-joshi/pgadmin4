@@ -20,8 +20,7 @@ var serverCheckUrl = null;
 var serverPort = 5050;
 
 // Paths to the rest of the app
-// FIXME: Set these to per-platform paths that will work in an installation layout
-var pythonPath = '../../Workspace-3.8/bin/python';
+var pythonPath = misc.getPythonPath();
 var pgadminFile = '../web/pgAdmin4.py';
 var configFile = '../web/config.py';
 
@@ -79,6 +78,11 @@ function startDesktopMode() {
 
   // Spawn the process to start pgAdmin4 server.
   pgadminServerProcess = spawn(pythonPath, [pgadminFile]);
+  pgadminServerProcess.on('error', function(err) {
+    // Log the error into the log file if process failed to launch
+    misc.writeServerLog('Failed to lauch pgAdmin4 with below error:');
+    misc.writeServerLog(err);
+  });
 
   pgadminServerProcess.stdout.setEncoding('utf8');
   pgadminServerProcess.stdout.on('data', (chunk) => {
