@@ -28,9 +28,9 @@ var configFile = '../web/config.py';
 // Override the paths above, if a developer needs to
 if (fs.existsSync('dev_config.json')) {
   try {
-    dev_config = JSON.parse(fs.readFileSync('dev_config.json'));  
-    pythonPath = dev_config['pythonPath']
-    pgadminFile = dev_config['pgadminFile']
+    var dev_config = JSON.parse(fs.readFileSync('dev_config.json'));
+    pythonPath = dev_config['pythonPath'];
+    pgadminFile = dev_config['pgadminFile'];
   } catch (error) {
     // Meh. 
   }
@@ -52,7 +52,7 @@ function createUUID() {
 // separate process.
 function startDesktopMode() {
   // Return if pgadmin server process is already spawned
-  // Added check for debugging purpouse.
+  // Added check for debugging purpose.
   if (pgadminServerProcess != null)
     return;
 

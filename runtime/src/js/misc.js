@@ -26,7 +26,7 @@ const getAppDataPath = () => {
     appDataPath = path.join(homedir(), 'Library', 'Preferences', 'pgadmin');
     break;
   case 'linux':
-    if ("XDG_CONFIG_HOME" in process.env) {
+    if ('XDG_CONFIG_HOME' in process.env) {
       appDataPath = path.join(process.env.XDG_CONFIG_HOME, 'pgadmin');
     } else {
       appDataPath = path.join(homedir(), '.config', 'pgadmin');
@@ -36,7 +36,7 @@ const getAppDataPath = () => {
     if (platform().startsWith('win')) {
       appDataPath = path.join(process.env.APPDATA, 'pgadmin');
     } else {
-      if ("XDG_CONFIG_HOME" in process.env) {
+      if ('XDG_CONFIG_HOME' in process.env) {
         appDataPath = path.join(process.env.XDG_CONFIG_HOME, 'pgadmin');
       } else {
         appDataPath = path.join(homedir(), '.config', 'pgadmin');
@@ -59,20 +59,20 @@ const getLocalAppDataPath = () => {
     localAppDataPath = path.join(homedir(), 'Library', 'Application Support', 'pgadmin');
     break;
   case 'linux': 
-    if ("XDG_DATA_HOME" in process.env) {
-      appDataPath = path.join(process.env.XDG_DATA_HOME, 'pgadmin');
+    if ('XDG_DATA_HOME' in process.env) {
+      localAppDataPath = path.join(process.env.XDG_DATA_HOME, 'pgadmin');
     } else {
-      appDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
+      localAppDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
     }
     break;
   default:
     if (platform().startsWith('win')) {
       localAppDataPath = path.join(process.env.LOCALAPPDATA, 'pgadmin');
     } else {
-      if ("XDG_DATA_HOME" in process.env) {
-        appDataPath = path.join(process.env.XDG_DATA_HOME, 'pgadmin');
+      if ('XDG_DATA_HOME' in process.env) {
+        localAppDataPath = path.join(process.env.XDG_DATA_HOME, 'pgadmin');
       } else {
-        appDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
+        localAppDataPath = path.join(homedir(), '.local', 'share', 'pgadmin');
       }
     }
   }
