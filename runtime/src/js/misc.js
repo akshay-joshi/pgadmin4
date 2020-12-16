@@ -31,7 +31,7 @@ const getPythonPath = () => {
     pythonPath = '../python/python.exe';
     break;
   case 'darwin':
-    pythonPath = '../Frameworks/Python.framework/Versions/Current/bin/python3';
+    pythonPath = '../../Frameworks/Python.framework/Versions/Current/bin/python3';
     break;
   case 'linux':
     pythonPath = '../venv/bin/python3';
