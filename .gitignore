@@ -19,6 +19,7 @@
 /redhat-build
 /src-build
 /win-build
+/win-temp
 _build
 /build-*
 pgadmin4.log
