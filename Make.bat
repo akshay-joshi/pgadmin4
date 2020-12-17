@@ -244,8 +244,10 @@ REM Main build sequence Ends
     CD "%BUILDROOT%\runtime\"
     CALL yarn install --production=true || EXIT /B 1
 
-    XCOPY /S /I /E /H /Y "%WD%\runtime\node_modules\nw\nwjs\*" "%BUILDROOT%\runtime" > nul || EXIT /B 1
-    RD /Q /S "%BUILDROOT%\runtime\node_modules\nw" 1> nul 2>&1
+    ECHO "Downloading NWjs to %TMPDIR%...
+    CALL yarn --cwd "%TMPDIR%" add nw || EXIT /B
+
+    XCOPY /S /I /E /H /Y "%TMPDIR%\node_modules\nw\nwjs\*" "%BUILDROOT%\runtime" > nul || EXIT /B 1
     MOVE "%BUILDROOT%\runtime\nw.exe" "%BUILDROOT%\runtime\pgAdmin4.exe"
     REM TODO: Fix icon
 
