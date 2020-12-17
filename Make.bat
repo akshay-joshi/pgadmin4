@@ -168,8 +168,8 @@ REM Main build sequence Ends
     ECHO Staging Python...
     MKDIR "%BUILDROOT%\python\Lib" || EXIT /B 1
 
-    ECHO Downloading embeeded Python...
-    REM Get the python embedable and extract it to %BUILDROOT%\python
+    ECHO Downloading embedded Python...
+    REM Get the python embeddable and extract it to %BUILDROOT%\python
     CD "%TMPDIR%
     %PGADMIN_PYTHON_DIR%\python -c "import sys; from urllib.request import urlretrieve; urlretrieve('https://www.python.org/ftp/python/' + sys.version.split(' ')[0] + '/python-' + sys.version.split(' ')[0] + '-embed-amd64.zip', 'python-embedded.zip')" || EXIT /B 1
     %PGADMIN_PYTHON_DIR%\python -c "import zipfile; z = zipfile.ZipFile('python-embedded.zip', 'r'); z.extractall('../win-build/python/')" || EXIT /B 1
