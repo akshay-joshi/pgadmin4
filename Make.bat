@@ -192,19 +192,18 @@ REM Main build sequence Ends
     IF NOT EXIST "%BUILDROOT%"  MKDIR "%BUILDROOT%"
     MKDIR "%BUILDROOT%\runtime"
 
-    CD "%WD%\web"
-
-    ECHO Installing javascript dependencies...
-    CALL yarn install || EXIT /B 1
-
-    ECHO Bundling javascript...
-    CALL yarn run bundle || EXIT /B 1
-
     ECHO Removing webpack caches...
     RD /Q /S "%WD%\web\pgadmin\static\js\generated\.cache" 1> nul 2>&1
 
     ECHO Copying web directory...
     XCOPY /S /I /E /H /Y "%WD%\web" "%BUILDROOT%\web" > nul || EXIT /B 1
+
+    ECHO Installing javascript dependencies...
+    CD "%BUILDROOT%\web"
+    CALL yarn install --production=true || EXIT /B 1
+
+    ECHO Bundling javascript...
+    CALL yarn run bundle || EXIT /B 1
 
     ECHO Cleaning up unnecessary .pyc and .pyo files...
     FOR /R "%BUILDROOT%\web" %%f in (*.pyc *.pyo) do DEL /q "%%f" 1> nul 2>&1
@@ -237,15 +236,14 @@ REM Main build sequence Ends
     CALL "%TMPDIR%\venv\Scripts\python.exe" build_code_snippet.py || EXIT /B 1
     CALL "%TMPDIR%\venv\Scripts\sphinx-build.exe"   "%WD%\docs\en_US" "%BUILDROOT%\docs\en_US\html" || EXIT /B 1
 
-    ECHO Assembling runtime environment...
-    CD "%WD%\runtime"
-    CALL yarn install || EXIT /B 1
-
-    ECHO Staging pgAdmin4.exe...
+    ECHO Staging runtime components...
     XCOPY /S /I /E /H /Y "%WD%\runtime\assets" "%BUILDROOT%\runtime\assets" > nul || EXIT /B 1
     XCOPY /S /I /E /H /Y "%WD%\runtime\src" "%BUILDROOT%\runtime\src" > nul || EXIT /B 1
-    XCOPY /S /I /E /H /Y "%WD%\runtime\node_modules" "%BUILDROOT%\runtime\node_modules" > nul || EXIT /B 1
+
     COPY "%WD%\runtime\package.json" "%BUILDROOT%\runtime\" > nul || EXIT /B 1
+    CD "%BUILDROOT%\runtime\"
+    CALL yarn install --production=true || EXIT /B 1
+
     XCOPY /S /I /E /H /Y "%WD%\runtime\node_modules\nw\nwjs\*" "%BUILDROOT%\runtime" > nul || EXIT /B 1
     RD /Q /S "%BUILDROOT%\runtime\node_modules\nw" 1> nul 2>&1
     MOVE "%BUILDROOT%\runtime\nw.exe" "%BUILDROOT%\runtime\pgAdmin4.exe"
