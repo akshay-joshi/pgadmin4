@@ -200,7 +200,7 @@ REM Main build sequence Ends
 
     ECHO Installing javascript dependencies...
     CD "%BUILDROOT%\web"
-    CALL yarn install --production=true || EXIT /B 1
+    CALL yarn install || EXIT /B 1
 
     ECHO Bundling javascript...
     CALL yarn run bundle || EXIT /B 1
