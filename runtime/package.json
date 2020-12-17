@@ -19,11 +19,11 @@
   },
   "dependencies": {
     "axios": "^0.21.0",
-    "bootstrap": "^4.5.3",
-    "nw": "^0.50.1"
+    "bootstrap": "^4.5.3"
   },
   "devDependencies": {
-    "eslint": "^6.3.0"
+    "eslint": "^6.3.0",
+    "nw": "^0.50.2"
   },
   "scripts": {
     "linter": "yarn eslint --no-eslintrc -c .eslintrc.js --ext .js ."
