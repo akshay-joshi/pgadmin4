@@ -244,12 +244,15 @@ REM Main build sequence Ends
     CD "%BUILDROOT%\runtime\"
     CALL yarn install --production=true || EXIT /B 1
 
-    ECHO "Downloading NWjs to %TMPDIR%...
+    ECHO Downloading NWjs to %TMPDIR%...
     CALL yarn --cwd "%TMPDIR%" add nw || EXIT /B
 
     XCOPY /S /I /E /H /Y "%TMPDIR%\node_modules\nw\nwjs\*" "%BUILDROOT%\runtime" > nul || EXIT /B 1
     MOVE "%BUILDROOT%\runtime\nw.exe" "%BUILDROOT%\runtime\pgAdmin4.exe"
-    REM TODO: Fix icon
+
+    ECHO Replacing executable icon...
+    CALL yarn --cwd "%TMPDIR%" add winresourcer || EXIT /B
+    "%TMPDIR%\node_modules\winresourcer\bin\Resourcer.exe" -op:upd -src:"%BUILDROOT%\runtime\pgAdmin4.exe" -type:Icongroup -name:IDR_MAINFRAME -file:"%WD%\pkg\win32\Resources\pgAdmin4.ico"
 
     ECHO Staging PostgreSQL components...
     COPY "%PGADMIN_POSTGRES_DIR%\bin\libpq.dll" "%BUILDROOT%\runtime" > nul || EXIT /B 1
