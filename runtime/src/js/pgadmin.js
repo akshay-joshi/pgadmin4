@@ -186,12 +186,14 @@ function startDesktopMode() {
 function launchPgAdminWindow() {
   // Create and launch new window and open pgAdmin url
   misc.writeServerLog('Application Server URL: ' + startPageUrl);
+  var winWidth = misc.ConfigureStore.get('windowWidth', 1300);
+  var winHeight = misc.ConfigureStore.get('windowHeight', 900);
 
   nw.Window.open(startPageUrl, {
     'icon': '../../assets/pgAdmin4.png',
     'frame': true,
-    'width': 1300,
-    'height': 900,
+    'width': winWidth,
+    'height': winHeight,
     'position': 'center',
     'resizable': true,
     'min_width': 400,
@@ -212,8 +214,8 @@ function launchPgAdminWindow() {
       policy.setNewWindowManifest({
         'icon': '../../assets/pgAdmin4.png',
         'frame': true,
-        'width': 1300,
-        'height': 900,
+        'width': winWidth,
+        'height': winHeight,
         'position': 'center',
       });
     });
@@ -231,6 +233,23 @@ function launchPgAdminWindow() {
       // Show new window
       pgadminWindow.show();
       pgadminWindow.focus();
+    });
+
+    pgadminWindow.on('resize', function(width, height) {
+      // Set the width and height for the new window on resize.
+      pgadminWindow.on('new-win-policy', function(frame, url, policy) {
+        policy.setNewWindowManifest({
+          'icon': '../../assets/pgAdmin4.png',
+          'frame': true,
+          'width': width,
+          'height': height,
+          'position': 'center',
+        });
+      });
+
+      misc.ConfigureStore.set('windowWidth', width);
+      misc.ConfigureStore.set('windowHeight', height);
+      misc.ConfigureStore.saveConfig();
     });
   });
 }
