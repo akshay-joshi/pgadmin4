@@ -2,7 +2,7 @@
 //
 // pgAdmin 4 - PostgreSQL Tools
 //
-// Copyright (C) 2013 - 2020, The pgAdmin Development Team
+// Copyright (C) 2013 - 2021, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
 //
 //////////////////////////////////////////////////////////////
@@ -88,8 +88,12 @@ function(
           applies: ['object', 'context'], callback: 'detach_partition',
           priority: 2, label: gettext('Detach Partition'),
           icon: 'fa fa-remove',
-        },
-        ]);
+        },{
+          name: 'count_table_rows', node: 'partition', module: pgBrowser.Nodes['table'],
+          applies: ['object', 'context'], callback: 'count_table_rows',
+          category: 'Count', priority: 2, label: gettext('Count Rows'),
+          enable: true,
+        }]);
       },
       generate_url: function(item, type, d, with_id, info) {
         if (_.indexOf([

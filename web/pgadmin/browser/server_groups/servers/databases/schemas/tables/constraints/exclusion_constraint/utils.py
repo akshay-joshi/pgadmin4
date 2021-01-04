@@ -2,7 +2,7 @@
 #
 # pgAdmin 4 - PostgreSQL Tools
 #
-# Copyright (C) 2013 - 2020, The pgAdmin Development Team
+# Copyright (C) 2013 - 2021, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
 #
 ##########################################################################
@@ -79,7 +79,8 @@ def _get_columns(res):
                         "order": order,
                         "nulls_order": nulls_order,
                         "operator": row['oprname'],
-                        "col_type": row['datatype']
+                        "col_type": row['datatype'],
+                        "is_exp": row['is_exp']
                         })
     return columns
 
@@ -126,6 +127,9 @@ def get_exclusion_constraints(conn, did, tid, exid=None, template_path=None):
                 return status, internal_server_error(errormsg=res)
 
             ex['include'] = [col['colname'] for col in res['rows']]
+
+        if ex.get('amname', '') == "":
+            ex['amname'] = 'btree'
 
     return True, result['rows']
 

@@ -3,7 +3,7 @@
 #
 # pgAdmin 4 - PostgreSQL Tools
 #
-# Copyright (C) 2013 - 2020, The pgAdmin Development Team
+# Copyright (C) 2013 - 2021, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
 #
 ##########################################################################
@@ -209,6 +209,11 @@ class TestDownloadCSV(BaseTestGenerator):
             else:
                 # when TX id is invalid
                 self.assertEqual(response.status_code, 500)
+
+        # Close query tool
+        url = '/datagrid/close/{0}'.format(self.trans_id)
+        response = self.tester.delete(url)
+        self.assertEqual(response.status_code, 200)
 
         database_utils.disconnect_database(self, self._sid, self._did)
 
