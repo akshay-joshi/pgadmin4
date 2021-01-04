@@ -2,7 +2,7 @@
 //
 // pgAdmin 4 - PostgreSQL Tools
 //
-// Copyright (C) 2013 - 2020, The pgAdmin Development Team
+// Copyright (C) 2013 - 2021, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
 //
 //////////////////////////////////////////////////////////////
@@ -94,7 +94,7 @@ const getLocalAppDataPath = () => {
   case 'darwin':
     localAppDataPath = path.join(homedir(), 'Library', 'Application Support', 'pgadmin');
     break;
-  case 'linux': 
+  case 'linux':
     if ('XDG_DATA_HOME' in process.env) {
       localAppDataPath = path.join(process.env.XDG_DATA_HOME, 'pgadmin');
     } else {
@@ -139,7 +139,7 @@ const getAvailablePort = (fixedPort) => {
   });
 };
 
-// Get the app data folder path 
+// Get the app data folder path
 const currentTime = (new Date()).getTime();
 const serverLogFile = path.join(getLocalAppDataPath(), 'pgadmin4.' + currentTime.toString() + '.log');
 const configFileName = path.join(getAppDataPath(), 'runtime_config.json');
@@ -257,7 +257,7 @@ var ConfigureStore = {
   readConfig: function() {
     if (fs.existsSync(this.fileName)) {
       try {
-        this.jsonData = JSON.parse(fs.readFileSync(this.fileName));  
+        this.jsonData = JSON.parse(fs.readFileSync(this.fileName));
       } catch (error) {
         /* If the file is not present or invalid JSON data in file */
         this.jsonData = {};
@@ -298,7 +298,7 @@ var ConfigureStore = {
         this.jsonData[key] = value;
       }
     }
-  }, 
+  },
 };
 
 

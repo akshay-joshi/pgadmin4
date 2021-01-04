@@ -2,7 +2,7 @@
 //
 // pgAdmin 4 - PostgreSQL Tools
 //
-// Copyright (C) 2013 - 2020, The pgAdmin Development Team
+// Copyright (C) 2013 - 2021, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
 //
 //////////////////////////////////////////////////////////////
@@ -78,7 +78,7 @@ configWindow.on('loaded', function() {
     document.getElementById('portNo').disabled = false;
   } else {
     document.getElementById('fixedPortCheck').checked = false;
-    document.getElementById('portNo').disabled = true; 
+    document.getElementById('portNo').disabled = true;
   }
   document.getElementById('portNo').value = configData['portNo'];
   document.getElementById('timeOut').value = configData['connectionTimeout'];
