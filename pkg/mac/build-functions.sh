@@ -70,6 +70,7 @@ _build_docs() {
     # that we're going to ship.
     "${BUNDLE_DIR}/Contents/Frameworks/Python.framework/Versions/Current/bin/python3" -m venv "${BUILD_ROOT}/venv"
     source "${BUILD_ROOT}/venv/bin/activate"
+    pip3 install --upgrade pip
     pip3 install -r "${SOURCE_DIR}/requirements.txt"
     pip3 install sphinx
 
@@ -86,13 +87,13 @@ _build_docs() {
 }
 
 _fixup_imports() {
-	  local todo todo_old fw_relpath lib lib_bn prefix
+	  local TODO TODO_OLD FW_RELPATH LIB LIB_BN
 
 	  echo "Fixing imports on the core appbundle..."
 	  pushd "$1" > /dev/null
 
 	  # Find all the files that may need tweaks
-	  todo=$(file `find . -perm +0111 -type f` | \
+	  TODO=$(file `find . -perm +0111 -type f` | \
 	      grep -v "Frameworks/Python.framework" | \
 	      grep -v "Frameworks/nwjs" | \
 	      grep -E "Mach-O 64-bit" | \
@@ -100,62 +101,62 @@ _fixup_imports() {
 	      uniq)
 
     # Add anything in the site-packages Python directory
-    todo+=$(file `find ./Contents/Frameworks/Python.framework/Versions/Current/lib/python*/site-packages -perm +0111 -type f` | \
+    TODO+=$(file `find ./Contents/Frameworks/Python.framework/Versions/Current/lib/python*/site-packages -perm +0111 -type f` | \
         grep -E "Mach-O 64-bit" | \
         awk -F ':| ' '{ORS=" "; print $1}' | \
         uniq)
 
-	  echo "Found executables: $todo"
-	  while test "$todo" != ""; do
-		    todo_old=$todo ;
-		    todo="" ;
-		    for todo_obj in $todo_old; do
-			      echo "Post-processing: $todo_obj"
+	  echo "Found executables: ${TODO}"
+	  while test "${TODO}" != ""; do
+		    TODO_OLD=${TODO} ;
+		    TODO="" ;
+		    for TODO_OBJ in ${TODO_OLD}; do
+			      echo "Post-processing: ${TODO_OBJ}"
 
-			      # Figure out the relative path from todo_obj to Contents/Frameworks
-			      fw_relpath=$(echo "$todo_obj" | \
+			      # Figure out the relative path from ${TODO_OBJ} to Contents/Frameworks
+			      FW_RELPATH=$(echo "${TODO_OBJ}" | \
 				        sed -n 's|^\(\.//*\)\(\([^/][^/]*/\)*\)[^/][^/]*$|\2|gp' | \
 				        sed -n 's|[^/][^/]*/|../|gp' \
 			          )"Contents/Frameworks"
 
-      			# Find all libraries $todo_obj depends on, but skip system libraries
-	  	    	for lib in $(
-		    	    	otool -L $todo_obj | \
+      			# Find all libraries ${TODO_OBJ} depends on, but skip system libraries
+	  	    	for LIB in $(
+		    	    	otool -L ${TODO_OBJ} | \
 	    		    	sed -n 's|^.*[[:space:]]\([^[:space:]]*\.dylib\).*$|\1|p' | \
 	    		    	egrep -v '^(/usr/lib)|(/System)|@executable_path' \
 		  	    ); do
 		  	        # Copy in any required dependencies
-			    	    lib_bn="$(basename "$lib")" ;
-				        if ! test -f "Contents/Frameworks/$lib_bn"; then
-                    target_file=""
-					          target_path=""
-					          echo "Adding symlink: $lib_bn (because of: $todo_obj)"
-					          cp -R "$lib" "Contents/Frameworks/$lib_bn"
-					          if ! test -L "Contents/Frameworks/$lib_bn"; then
-						            chmod 755 "Contents/Frameworks/$lib_bn"
+			    	    LIB_BN="$(basename "${LIB}")" ;
+				        if ! test -f "Contents/Frameworks/${LIB_BN}"; then
+                    TARGET_FILE=""
+					          TARGET_PATH=""
+					          echo "Adding symlink: ${LIB_BN} (because of: ${TODO_OBJ})"
+					          cp -R "${LIB}" "Contents/Frameworks/${LIB_BN}"
+					          if ! test -L "Contents/Frameworks/${LIB_BN}"; then
+						            chmod 755 "Contents/Frameworks/${LIB_BN}"
 					          else
-						            target_file=$(readlink "$lib")
-						            target_path=$(dirname "$lib")/$target_file
-					              echo "Adding symlink target: $target_path"
-		     				        cp "$target_path" "Contents/Frameworks/$target_file"
-				    		        chmod 755 "Contents/Frameworks/$target_file"
+						            TARGET_FILE=$(readlink "${LIB}")
+						            TARGET_PATH=$(dirname "${LIB}")/${TARGET_FILE}
+					              echo "Adding symlink target: ${TARGET_PATH}"
+		     				        cp "${TARGET_PATH}" "Contents/Frameworks/${TARGET_FILE}"
+				    		        chmod 755 "Contents/Frameworks/${TARGET_FILE}"
 					          fi
-				       	    echo "Rewriting ID in Contents/Frameworks/$lib_bn to $lib_bn"
+				       	    echo "Rewriting ID in Contents/Frameworks/${LIB_BN} to ${LIB_BN}"
                     install_name_tool \
-                        -id "$lib_bn" \
-                        "Contents/Frameworks/$lib_bn" || exit 1
-					          todo="$todo ./Contents/Frameworks/$lib_bn"
+                        -id "${LIB_BN}" \
+                        "Contents/Frameworks/${LIB_BN}" || exit 1
+					          TODO="${TODO} ./Contents/Frameworks/${LIB_BN}"
 				        fi
 				        # Rewrite the dependency paths
-				        echo "Rewriting library $lib to @loader_path/$fw_relpath/$lib_bn in $todo_obj"
+				        echo "Rewriting library ${LIB} to @loader_path/${FW_RELPATH}/${LIB_BN} in ${TODO_OBJ}"
 				        install_name_tool -change \
-					          "$lib" \
-					          "@loader_path/$fw_relpath/$lib_bn" \
-					          "$todo_obj" || exit 1
+					          "${LIB}" \
+					          "@loader_path/${FW_RELPATH}/${LIB_BN}" \
+					          "${TODO_OBJ}" || exit 1
                 install_name_tool -change \
-                    "$target_path" \
-                    "@loader_path/$fw_relpath/$target_file" \
-                    "$todo_obj" || exit 1
+                    "${TARGET_PATH}" \
+                    "@loader_path/${FW_RELPATH}/${TARGET_FILE}" \
+                    "${TODO_OBJ}" || exit 1
 			      done
 		    done
 	  done
