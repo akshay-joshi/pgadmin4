@@ -176,14 +176,28 @@ _complete_bundle() {
     cp "${PGADMIN_POSTGRES_DIR}/bin/pg_restore" "${BUNDLE_DIR}/Contents/SharedSupport/"
     cp "${PGADMIN_POSTGRES_DIR}/bin/psql" "${BUNDLE_DIR}/Contents/SharedSupport/"
     
-    # Create the plist
-    sed -i '' 's/<string>nwjs<\/string>/<string>pgAdmin 4<\/string>/g' "${BUNDLE_DIR}/Contents/Info.plist"
+    # Update the plist
+    cp Info.plist.in "${BUNDLE_DIR}/Contents/Info.plist"
+    sed -i '' "s/%APPNAME%/${APP_NAME}/g" "${BUNDLE_DIR}/Contents/Info.plist"
+    sed -i '' "s/%APPVER%/${APP_LONG_VERSION}/g" "${BUNDLE_DIR}/Contents/Info.plist"
+    sed -i '' "s/%APPID%/org.pgadmin.pgadmin4/g" "${BUNDLE_DIR}/Contents/Info.plist"
+    for FILE in "${BUNDLE_DIR}"/Contents/Resources/*.lproj/InfoPlist.strings; do
+        sed -i '' 's/CFBundleGetInfoString =.*/CFBundleGetInfoString = "Copyright (C) 2013 - 2021, The pgAdmin Development Team";/g' "${FILE}"
+        sed -i '' 's/NSHumanReadableCopyright =.*/NSHumanReadableCopyright = "Copyright (C) 2013 - 2021, The pgAdmin Development Team";/g' "${FILE}"
+        echo CFBundleDisplayName = \"${APP_NAME}\"\; >> "${FILE}"
+    done
+
+    # PkgInfo
+    echo APPLPGA4 > "${BUNDLE_DIR}/Contents/PkgInfo"
 
     # Icon
     cp pgAdmin4.icns "${BUNDLE_DIR}/Contents/Resources/app.icns"
 
     # Rename the executable
-    mv "${BUNDLE_DIR}/Contents/MacOS/nwjs" "${BUNDLE_DIR}/Contents/MacOS/pgAdmin 4"
+    mv "${BUNDLE_DIR}/Contents/MacOS/nwjs" "${BUNDLE_DIR}/Contents/MacOS/${APP_NAME}"
+
+    # Rename the app in package.json so the menu looks as it should
+    sed -i '' 's/"name": "pgadmin4"/"name": "${APP_NAME}"/g' "${BUNDLE_DIR}/Contents/Resources/app.nw/package.json"
 
     # Import the dependencies, and rewrite any library references
 		_fixup_imports "${BUNDLE_DIR}"
@@ -271,31 +285,25 @@ _codesign_bundle() {
 _create_dmg() {
     # move to the directory where we want to create the DMG
     test -d ${DIST_ROOT} || mkdir ${DIST_ROOT}
-    cd ${DIST_ROOT}
 
-    DMG_LICENCE=./../pkg/mac/licence.rtf
-    DMG_VOLUME_NAME=${APP_NAME}
-    DMG_NAME=`echo ${DMG_VOLUME_NAME} | sed 's/ //g' | awk '{print tolower($0)}'`
-    DMG_IMAGE=${DMG_NAME}-${APP_LONG_VERSION}.dmg
+    echo "Checking out create-dmg..."
+    git clone https://github.com/create-dmg/create-dmg.git "${BUILD_ROOT}/create-dmg"
 
-    DMG_DIR=./${DMG_IMAGE}.src
-
-    if test -e "${DMG_DIR}"; then
-        echo "Directory ${DMG_DIR} already exists. Please delete it manually." >&2
-        exit 1
-    fi
-
-    rm -f "${DMG_IMAGE}"
-    mkdir "${DMG_DIR}"
-
-    cp -R "${BUNDLE_DIR}" "${DMG_DIR}"
-
-    echo "Creating image..."
-    hdiutil create -quiet -srcfolder "$DMG_DIR" -fs HFS+ -format UDZO -volname "${DMG_VOLUME_NAME}" -ov "${DMG_IMAGE}"
-    rm -rf "${DMG_DIR}"
-
-    echo Attaching License to image...
-    python ${SCRIPT_DIR}/dmg-license.py "${DMG_IMAGE}" "${DMG_LICENCE}" -c bz2
+    "${BUILD_ROOT}/create-dmg/create-dmg" \
+        --volname "${APP_NAME} v${APP_LONG_VERSION}" \
+        --volicon "${SCRIPT_DIR}/pgAdmin4.icns" \
+        --eula "${SCRIPT_DIR}/licence.rtf" \
+        --background "${SCRIPT_DIR}/dmg-background.png" \
+        --app-drop-link 600 220 \
+        --icon "${APP_NAME}.app" 200 220 \
+        --window-pos 200 120 \
+        --window-size 800 400 \
+        --hide-extension "${APP_NAME}.app" \
+        --add-file .DS_Store "${SCRIPT_DIR}/dmg.DS_Store" 5 5 \
+        --skip-jenkins \
+        --no-internet-enable \
+        "${DIST_ROOT}/$(echo ${APP_NAME} | sed 's/ //g' | awk '{print tolower($0)}')-${APP_LONG_VERSION}.dmg" \
+        "${BUNDLE_DIR}"
 }
 
 _codesign_dmg() {
