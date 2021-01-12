@@ -253,17 +253,22 @@ _codesign_binaries() {
         echo "Developer Bundle Identifier not found in codesign.conf" >&2
     fi
 
+    # Create the entitlements file
+    cp "${SCRIPT_DIR}/entitlements.plist.in" "${BUILD_ROOT}/entitlements.plist"
+    TEAM_ID=$(echo ${DEVELOPER_ID} | awk -F"[()]" '{print $2}')
+    sed -i '' "s/%TEAMID%/${TEAM_ID}/g" "${BUILD_ROOT}/entitlements.plist"
+
     echo Signing ${BUNDLE_DIR} binaries...
     IFS=$'\n'
     for i in $(find "${BUNDLE_DIR}" -type f -perm +111 -exec file "{}" \; | grep -v "(for architecture" | grep -E "Mach-O executable|Mach-O 64-bit executable|Mach-O 64-bit bundle" | awk -F":" '{print $1}' | uniq)
     do
-        codesign --deep --force --verify --verbose --timestamp --preserve-metadata=entitlements --options runtime -i "${DEVELOPER_BUNDLE_ID}" --sign "${DEVELOPER_ID}" "$i"
+        codesign --deep --force --verify --verbose --timestamp --options runtime --entitlements "${BUILD_ROOT}/entitlements.plist" -i "${DEVELOPER_BUNDLE_ID}" --sign "${DEVELOPER_ID}" "$i"
     done
 
     echo Signing ${BUNDLE_DIR} libraries...
     for i in $(find "${BUNDLE_DIR}" -type f -name "*.dylib*")
     do
-        codesign --deep --force --verify --verbose --timestamp --preserve-metadata=entitlements --options runtime -i "${DEVELOPER_BUNDLE_ID}" --sign "${DEVELOPER_ID}" "$i"
+        codesign --deep --force --verify --verbose --timestamp --options runtime --entitlements "${BUILD_ROOT}/entitlements.plist" -i "${DEVELOPER_BUNDLE_ID}" --sign "${DEVELOPER_ID}" "$i"
     done
 }
 
@@ -274,12 +279,7 @@ _codesign_bundle() {
 
     # Sign the .app
     echo Signing ${BUNDLE_DIR}...
-    codesign --deep --force --verify --verbose --timestamp --options runtime -i "${DEVELOPER_BUNDLE_ID}" --sign "${DEVELOPER_ID}" "${BUNDLE_DIR}"
-
-    # Verify it worked
-    echo Verifying the signature...
-    codesign --verify --verbose --deep --force "${BUNDLE_DIR}"
-    echo ${BUNDLE_DIR} successfully signed.
+    codesign --deep --force --verify --verbose --timestamp --options runtime --entitlements "${BUILD_ROOT}/entitlements.plist" -i "${DEVELOPER_BUNDLE_ID}" --sign "${DEVELOPER_ID}" "${BUNDLE_DIR}"
 }
 
 _create_dmg() {
@@ -312,21 +312,7 @@ _codesign_dmg() {
         return
     fi
 
-    DMG_VOLUME_NAME=${APP_NAME}
-    DMG_NAME=`echo ${DMG_VOLUME_NAME} | sed 's/ //g' | awk '{print tolower($0)}'`
-    DMG_IMAGE=${DIST_ROOT}/${DMG_NAME}-${APP_LONG_VERSION}.dmg
-
-    if ! test -f "${DMG_IMAGE}" ; then
-        echo "${DMG_IMAGE} is no disk image!" >&2
-        exit 1
-    fi
-
     # Sign the .app
-    echo Signing ${DMG_IMAGE}...
-    codesign --deep --force --verify --verbose --timestamp --options runtime -i "${DEVELOPER_BUNDLE_ID}" --sign "${DEVELOPER_ID}" "${DMG_IMAGE}"
-
-    # Verify it worked
-    echo Verifying the signature...
-    codesign --verify --verbose --force "${DMG_IMAGE}"
-    echo ${DMG_IMAGE} successfully signed.
+    echo Signing disk image...
+    codesign --force --verify --verbose --timestamp --options runtime -i "${DEVELOPER_BUNDLE_ID}" --sign "${DEVELOPER_ID}" "${DIST_ROOT}/$(echo ${APP_NAME} | sed 's/ //g' | awk '{print tolower($0)}')-${APP_LONG_VERSION}.dmg"
 }
