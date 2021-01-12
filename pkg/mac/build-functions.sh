@@ -197,7 +197,7 @@ _complete_bundle() {
     mv "${BUNDLE_DIR}/Contents/MacOS/nwjs" "${BUNDLE_DIR}/Contents/MacOS/${APP_NAME}"
 
     # Rename the app in package.json so the menu looks as it should
-    sed -i '' 's/"name": "pgadmin4"/"name": "${APP_NAME}"/g' "${BUNDLE_DIR}/Contents/Resources/app.nw/package.json"
+    sed -i '' "s/\"name\": \"pgadmin4\"/\"name\": \"${APP_NAME}\"/g" "${BUNDLE_DIR}/Contents/Resources/app.nw/package.json"
 
     # Import the dependencies, and rewrite any library references
 		_fixup_imports "${BUNDLE_DIR}"
