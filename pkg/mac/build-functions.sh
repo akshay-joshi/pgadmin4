@@ -300,6 +300,7 @@ _create_dmg() {
         --window-size 800 400 \
         --hide-extension "${APP_NAME}.app" \
         --add-file .DS_Store "${SCRIPT_DIR}/dmg.DS_Store" 5 5 \
+        --format UDBZ \
         --skip-jenkins \
         --no-internet-enable \
         "${DIST_ROOT}/$(echo ${APP_NAME} | sed 's/ //g' | awk '{print tolower($0)}')-${APP_LONG_VERSION}.dmg" \
