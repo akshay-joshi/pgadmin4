@@ -158,7 +158,7 @@ REM Main build sequence Ends
 
     ECHO Installing dependencies...
     CALL pip install --upgrade pip
-    CALL pip install -r "%WD%\requirements.txt" || EXIT /B 1
+    CALL pip install --only-binary=cryptography -r "%WD%\requirements.txt" || EXIT /B 1
 
     CD %WD%
     EXIT /B 0
@@ -179,8 +179,8 @@ REM Main build sequence Ends
     REM OpenSSL binaries from Shining Light Productions, which use non-standard
     REM naming (specifically, missing the -x64 suffix). Modules we add will use
     REM our OpenSSL build.
-    COPY "%PGADMIN_POSTGRES_DIR%\bin\libcrypto-1_1-x64.dll" "%BUILDROOT%\python" > nul || EXIT /B 1
-    COPY "%PGADMIN_POSTGRES_DIR%\bin\libssl-1_1-x64.dll" "%BUILDROOT%\python" > nul || EXIT /B 1
+    REM COPY "%PGADMIN_POSTGRES_DIR%\bin\libcrypto-1_1-x64.dll" "%BUILDROOT%\python" > nul || EXIT /B 1
+    REM COPY "%PGADMIN_POSTGRES_DIR%\bin\libssl-1_1-x64.dll" "%BUILDROOT%\python" > nul || EXIT /B 1
 
     ECHO Copying site-packages...
     XCOPY /S /I /E /H /Y "%TMPDIR%\venv\Lib\site-packages" "%BUILDROOT%\python\Lib\site-packages" > nul || EXIT /B 1
