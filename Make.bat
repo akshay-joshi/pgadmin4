@@ -174,14 +174,6 @@ REM Main build sequence Ends
     %PGADMIN_PYTHON_DIR%\python -c "import sys; from urllib.request import urlretrieve; urlretrieve('https://www.python.org/ftp/python/' + sys.version.split(' ')[0] + '/python-' + sys.version.split(' ')[0] + '-embed-amd64.zip', 'python-embedded.zip')" || EXIT /B 1
     %PGADMIN_PYTHON_DIR%\python -c "import zipfile; z = zipfile.ZipFile('python-embedded.zip', 'r'); z.extractall('../win-build/python/')" || EXIT /B 1
 
-    REM Make sure that the required OpenSSL DLLs are present for Python.
-    REM This is required because the Python embeddable package seems to use the
-    REM OpenSSL binaries from Shining Light Productions, which use non-standard
-    REM naming (specifically, missing the -x64 suffix). Modules we add will use
-    REM our OpenSSL build.
-    REM COPY "%PGADMIN_POSTGRES_DIR%\bin\libcrypto-1_1-x64.dll" "%BUILDROOT%\python" > nul || EXIT /B 1
-    REM COPY "%PGADMIN_POSTGRES_DIR%\bin\libssl-1_1-x64.dll" "%BUILDROOT%\python" > nul || EXIT /B 1
-
     ECHO Copying site-packages...
     XCOPY /S /I /E /H /Y "%TMPDIR%\venv\Lib\site-packages" "%BUILDROOT%\python\Lib\site-packages" > nul || EXIT /B 1
 
