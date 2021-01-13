@@ -285,7 +285,7 @@ _create_dmg() {
     git clone https://github.com/create-dmg/create-dmg.git "${BUILD_ROOT}/create-dmg"
 
     "${BUILD_ROOT}/create-dmg/create-dmg" \
-        --volname "${APP_NAME} v${APP_LONG_VERSION}" \
+        --volname "${APP_NAME}" \
         --volicon "${SCRIPT_DIR}/pgAdmin4.icns" \
         --eula "${SCRIPT_DIR}/licence.rtf" \
         --background "${SCRIPT_DIR}/dmg-background.png" \
