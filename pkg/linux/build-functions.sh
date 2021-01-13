@@ -53,7 +53,8 @@ _create_python_virtualenv() {
     python3 -m venv venv
     source venv/bin/activate
 
-    # Make sure we have the wheel package present
+    # Make sure we have the wheel package present, as well as the latest pip
+    pip3 install --upgrade pip
     pip3 install wheel
 
     # Install the requirements
@@ -105,19 +106,23 @@ _create_python_virtualenv() {
 }
 
 _build_runtime() {
-    echo "Building the desktop runtime..."
-    cd ${SOURCEDIR}/runtime
-    if [ -f Makefile ]; then
-        make clean
-    fi
-    if hash qmake-qt5 2>/dev/null; then
-        PGADMIN_PYTHON_DIR=/usr qmake-qt5
-    else
-        PGADMIN_PYTHON_DIR=/usr qmake
-    fi
-    make
+    echo "Assembling the desktop runtime..."
+    
+    # Get a fresh copy of nwjs
+    yarn --cwd "${BUILDROOT}" add nw
+
+    # Copy nwjs into the staging directory
     mkdir -p "${DESKTOPROOT}/usr/${APP_NAME}/bin"
-    cp pgAdmin4 "${DESKTOPROOT}/usr/${APP_NAME}/bin/pgadmin4"
+    cp -r "${BUILDROOT}/node_modules/nw/nwjs/*" "${DESKTOPROOT}/usr/${APP_NAME}/bin"
+    mv "${BUILDROOT}/node_modules/nw/nwjs/nw" "${DESKTOPROOT}/usr/${APP_NAME}/bin/${APP_NAME}"
+
+    cp -r "${SOURCEDIR}/runtime/assets" "${DESKTOPROOT}/bin/assets"
+    cp -r "${SOURCEDIR}/runtime/src" "${DESKTOPROOT}/bin/src"
+
+    cp "${SOURCEDIR}/runtime/package.json" "${DESKTOPROOT}/bin/"
+    yarn --cwd "${DESKTOPROOT}/bin" install --production=true
+
+    # Create the icon
     mkdir -p "${DESKTOPROOT}/usr/${APP_NAME}/share"
     cp pgAdmin4.ico "${DESKTOPROOT}/usr/${APP_NAME}/share/pgadmin4.ico"
     mkdir -p "${DESKTOPROOT}/usr/share/applications"
