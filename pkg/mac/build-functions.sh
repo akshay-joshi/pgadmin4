@@ -202,11 +202,6 @@ _complete_bundle() {
     # Import the dependencies, and rewrite any library references
 		_fixup_imports "${BUNDLE_DIR}"
 
-		# Fix the imports in psycopg2
-		pushd "${BUNDLE_DIR}" > /dev/null
-		PSYCOPG2_LIB=$(find . -name _psycopg.cpython*)
-		popd > /dev/null
-
     # Build node modules
     pushd "${SOURCE_DIR}/web" > /dev/null
         yarn install
