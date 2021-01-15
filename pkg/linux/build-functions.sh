@@ -108,25 +108,25 @@ _create_python_virtualenv() {
 _build_runtime() {
     echo "Assembling the desktop runtime..."
     
-    # Get a fresh copy of nwjs
-    yarn --cwd "${BUILDROOT}" add nw
+    # Get a fresh copy of nwjs.
+    yarn add --cwd "${BUILDROOT}" nw
 
     # Copy nwjs into the staging directory
     mkdir -p "${DESKTOPROOT}/usr/${APP_NAME}/bin"
-    cp -r "${BUILDROOT}/node_modules/nw/nwjs/*" "${DESKTOPROOT}/usr/${APP_NAME}/bin"
-    mv "${BUILDROOT}/node_modules/nw/nwjs/nw" "${DESKTOPROOT}/usr/${APP_NAME}/bin/${APP_NAME}"
+    cp -r "${BUILDROOT}/node_modules/nw/nwjs"/* "${DESKTOPROOT}/usr/${APP_NAME}/bin"
+    mv "${DESKTOPROOT}/usr/${APP_NAME}/bin/nw" "${DESKTOPROOT}/usr/${APP_NAME}/bin/${APP_NAME}"
 
-    cp -r "${SOURCEDIR}/runtime/assets" "${DESKTOPROOT}/bin/assets"
-    cp -r "${SOURCEDIR}/runtime/src" "${DESKTOPROOT}/bin/src"
+    cp -r "${SOURCEDIR}/runtime/assets" "${DESKTOPROOT}/usr/${APP_NAME}/bin/assets"
+    cp -r "${SOURCEDIR}/runtime/src" "${DESKTOPROOT}/usr/${APP_NAME}/bin/src"
 
-    cp "${SOURCEDIR}/runtime/package.json" "${DESKTOPROOT}/bin/"
-    yarn --cwd "${DESKTOPROOT}/bin" install --production=true
+    cp "${SOURCEDIR}/runtime/package.json" "${DESKTOPROOT}/usr/${APP_NAME}/bin/"
+    yarn --cwd "${DESKTOPROOT}/usr/${APP_NAME}/bin" install --production=true
 
     # Create the icon
     mkdir -p "${DESKTOPROOT}/usr/${APP_NAME}/share"
-    cp pgAdmin4.ico "${DESKTOPROOT}/usr/${APP_NAME}/share/pgadmin4.ico"
+    cp "${SOURCEDIR}/pkg/linux/pgAdmin4.ico" "${DESKTOPROOT}/usr/${APP_NAME}/share/pgadmin4.ico"
     mkdir -p "${DESKTOPROOT}/usr/share/applications"
-    cp ../pkg/linux/pgadmin4.desktop "${DESKTOPROOT}/usr/share/applications"
+    cp "${SOURCEDIR}/pkg/linux/pgadmin4.desktop" "${DESKTOPROOT}/usr/share/applications"
 }
 
 _build_docs() {
