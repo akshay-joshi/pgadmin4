@@ -286,7 +286,7 @@ _create_dmg() {
 
     "${BUILD_ROOT}/create-dmg/create-dmg" \
         --volname "${APP_NAME}" \
-        --volicon "${SCRIPT_DIR}/pgAdmin4.icns" \
+        --volicon "${SCRIPT_DIR}/dmg-icon.icns" \
         --eula "${SCRIPT_DIR}/licence.rtf" \
         --background "${SCRIPT_DIR}/dmg-background.png" \
         --app-drop-link 600 220 \
