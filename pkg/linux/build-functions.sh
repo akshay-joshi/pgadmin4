@@ -123,8 +123,17 @@ _build_runtime() {
     yarn --cwd "${DESKTOPROOT}/usr/${APP_NAME}/bin" install --production=true
 
     # Create the icon
-    mkdir -p "${DESKTOPROOT}/usr/${APP_NAME}/share"
-    cp "${SOURCEDIR}/pkg/linux/pgAdmin4.ico" "${DESKTOPROOT}/usr/${APP_NAME}/share/pgadmin4.ico"
+    mkdir -p "${DESKTOPROOT}/usr/share/icons/hicolor/128x128/apps/"
+    cp "${SOURCEDIR}/pkg/linux/pgadmin4-128x128.png" "${DESKTOPROOT}/usr/share/icons/hicolor/128x128/apps/${APP_NAME}.png"
+    mkdir -p "${DESKTOPROOT}/usr/share/icons/hicolor/64x64/apps/"
+    cp "${SOURCEDIR}/pkg/linux/pgadmin4-64x64.png" "${DESKTOPROOT}/usr/share/icons/hicolor/64x64/apps/${APP_NAME}.png"
+    mkdir -p "${DESKTOPROOT}/usr/share/icons/hicolor/48x48/apps/"
+    cp "${SOURCEDIR}/pkg/linux/pgadmin4-48x48.png" "${DESKTOPROOT}/usr/share/icons/hicolor/48x48/apps/${APP_NAME}.png"
+    mkdir -p "${DESKTOPROOT}/usr/share/icons/hicolor/32x32/apps/"
+    cp "${SOURCEDIR}/pkg/linux/pgadmin4-32x32.png" "${DESKTOPROOT}/usr/share/icons/hicolor/32x32/apps/${APP_NAME}.png"
+    mkdir -p "${DESKTOPROOT}/usr/share/icons/hicolor/16x16/apps/"
+    cp "${SOURCEDIR}/pkg/linux/pgadmin4-16x16.png" "${DESKTOPROOT}/usr/share/icons/hicolor/16x16/apps/${APP_NAME}.png"
+
     mkdir -p "${DESKTOPROOT}/usr/share/applications"
     cp "${SOURCEDIR}/pkg/linux/pgadmin4.desktop" "${DESKTOPROOT}/usr/share/applications"
 }
