@@ -109,11 +109,35 @@ _build_runtime() {
     echo "Assembling the desktop runtime..."
     
     # Get a fresh copy of nwjs.
-    yarn add --cwd "${BUILDROOT}" nw
+    # NOTE: The nw download servers seem to be very unreliable, so at the moment we're using wget
+    #       in a retry loop as Yarn/Npm don't seem to like that.
+
+    # YARN:
+    # yarn add --cwd "${BUILDROOT}" nw
+    # YARN END
+
+    # WGET:
+    NW_VERSION=$(yarn info nw | grep latest | awk -F "'" '{ print $2}')
+    pushd "${BUILDROOT}" > /dev/null
+        while true;do
+            wget https://dl.nwjs.io/v${NW_VERSION}/nwjs-v${NW_VERSION}-linux-x64.tar.gz && break
+            rm nwjs-v${NW_VERSION}-linux-x64.tar.gz
+        done
+        tar -zxvf nwjs-v${NW_VERSION}-linux-x64.tar.gz
+    popd > /dev/null
+    # WGET END
 
     # Copy nwjs into the staging directory
     mkdir -p "${DESKTOPROOT}/usr/${APP_NAME}/bin"
-    cp -r "${BUILDROOT}/node_modules/nw/nwjs"/* "${DESKTOPROOT}/usr/${APP_NAME}/bin"
+
+    # YARN:
+    # cp -r "${BUILDROOT}/node_modules/nw/nwjs"/* "${DESKTOPROOT}/usr/${APP_NAME}/bin"
+    #  YARN END
+
+    # WGET:
+    cp -r "${BUILDROOT}/nwjs-v${NW_VERSION}-linux-x64"/* "${DESKTOPROOT}/usr/${APP_NAME}/bin"
+    # WGET END
+
     mv "${DESKTOPROOT}/usr/${APP_NAME}/bin/nw" "${DESKTOPROOT}/usr/${APP_NAME}/bin/${APP_NAME}"
 
     cp -r "${SOURCEDIR}/runtime/assets" "${DESKTOPROOT}/usr/${APP_NAME}/bin/assets"
