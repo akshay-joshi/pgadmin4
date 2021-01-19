@@ -1465,6 +1465,10 @@ define([
               collection: collection,
               node_info: self.model.node_info,
             });
+
+            if(data.beforeAdd) {
+              m = data.beforeAdd.apply(self, [m]);
+            }
             collection.add(m);
 
             var idx = collection.indexOf(m),
@@ -2820,6 +2824,7 @@ define([
         placeholder: 'YYYY-MM-DD HH:mm:ss Z',
         extraClasses: [],
         helpMessage: null,
+        setMinDate: true,
       },
       events: {
         'blur input': 'onChange',
@@ -3008,6 +3013,18 @@ define([
             data.value = null;
           }
 
+          var dateSettings = {};
+          if (!data.setMinDate) {
+            dateSettings = {
+              'date': data.value,
+            };
+          } else {
+            dateSettings = {
+              'date': data.value,
+              'minDate': data.value,
+            };
+          }
+
           this.$el.find('input').first().datetimepicker(
             _.extend({
               keyBinds: {
@@ -3044,10 +3061,7 @@ define([
                   }
                 },
               },
-            }, this.defaults.options, this.field.get('options'), {
-              'date': data.value,
-              'minDate': data.value,
-            })
+            }, this.defaults.options, this.field.get('options'), dateSettings)
           );
         }
         this.updateInvalid();

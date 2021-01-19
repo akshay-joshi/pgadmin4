@@ -29,7 +29,7 @@ from flask_security.recoverable import reset_password_token_status, \
     generate_reset_password_token, update_password
 from flask_security.signals import reset_password_instructions_sent
 from flask_security.utils import config_value, do_flash, get_url, \
-    get_message, slash_url_suffix, login_user, send_mail
+    get_message, slash_url_suffix, login_user, send_mail, logout_user
 from flask_security.views import _security, _commit, _ctx
 from werkzeug.datastructures import MultiDict
 
@@ -47,7 +47,8 @@ from pgadmin.utils.master_password import validate_master_password, \
     set_masterpass_check_text, cleanup_master_password, get_crypt_key, \
     set_crypt_key, process_masterpass_disabled
 from pgadmin.model import User
-from pgadmin.utils.constants import MIMETYPE_APP_JS, PGADMIN_NODE
+from pgadmin.utils.constants import MIMETYPE_APP_JS, PGADMIN_NODE,\
+    INTERNAL, KERBEROS
 
 try:
     from flask_security.views import default_render_json
@@ -566,6 +567,12 @@ class BrowserPluginModule(PgAdminModule):
 
 
 def _get_logout_url():
+    if config.SERVER_MODE and\
+            session['_auth_source_manager_obj']['current_source'] == \
+            KERBEROS:
+        return '{0}?next={1}'.format(url_for(
+            'authenticate.kerberos_logout'), url_for(BROWSER_INDEX))
+
     return '{0}?next={1}'.format(
         url_for('security.logout'), url_for(BROWSER_INDEX))
 
@@ -691,12 +698,17 @@ def index():
     auth_only_internal = False
     auth_source = []
 
+    session['allow_save_password'] = True
+
     if config.SERVER_MODE:
         if len(config.AUTHENTICATION_SOURCES) == 1\
-                and 'internal' in config.AUTHENTICATION_SOURCES:
+                and INTERNAL in config.AUTHENTICATION_SOURCES:
             auth_only_internal = True
         auth_source = session['_auth_source_manager_obj'][
             'source_friendly_name']
+
+        if session['_auth_source_manager_obj']['current_source'] == KERBEROS:
+            session['allow_save_password'] = False
 
     response = Response(render_template(
         MODULE_NAME + "/index.html",
@@ -794,6 +806,7 @@ def utils():
             editor_insert_pair_brackets=insert_pair_brackets,
             editor_indent_with_tabs=editor_indent_with_tabs,
             app_name=config.APP_NAME,
+            app_version_int=config.APP_VERSION_INT,
             pg_libpq_version=pg_libpq_version,
             support_ssh_tunnel=config.SUPPORT_SSH_TUNNEL,
             logout_url=_get_logout_url()
@@ -1135,7 +1148,7 @@ if hasattr(config, 'SECURITY_RECOVERABLE') and config.SECURITY_RECOVERABLE:
             # Check the Authentication source of the User
             user = User.query.filter_by(
                 email=form.data['email'],
-                auth_source=current_app.PGADMIN_DEFAULT_AUTH_SOURCE
+                auth_source=INTERNAL
             ).first()
 
             if user is None:

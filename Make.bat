@@ -144,7 +144,7 @@ REM Main build sequence Ends
 :CREATE_VIRTUAL_ENV
     ECHO Creating virtual environment...
     IF NOT EXIST "%TMPDIR%"  MKDIR "%TMPDIR%"
-    
+
     CD "%TMPDIR%"
 
     REM Note that we must use virtualenv.exe here, as the venv module doesn't allow python.exe to relocate.
