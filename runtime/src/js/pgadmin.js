@@ -261,6 +261,13 @@ var splashWindow = gui.Window.get();
 // Always clear the cache before starting the application.
 nw.App.clearCache();
 
+// Create Mac Builtin Menu
+if (platform() == 'darwin') {
+  var macMenu = new  gui.Menu({type: 'menubar'});
+  macMenu.createMacBuiltin('pgAdmin 4');
+  gui.Window.get().menu = macMenu;
+}
+
 splashWindow.on('loaded', function() {
   // Initialize the ConfigureStore
   misc.ConfigureStore.init();
