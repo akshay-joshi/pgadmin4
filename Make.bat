@@ -185,8 +185,15 @@ REM Main build sequence Ends
     ECHO Copying site-packages...
     XCOPY /S /I /E /H /Y "%TMPDIR%\venv\Lib\site-packages" "%BUILDROOT%\python\Lib\site-packages" > nul || EXIT /B 1
 
-    REM NOTE: There is intentionally no space after "site" in the line below, to preventPython barfing if there's one in the file
+    REM NOTE: There is intentionally no space after "site" in the line below, to prevent Python barfing if there's one in the file
     ECHO import site>> "%BUILDROOT%\python\python%PYTHON_MAJOR%%PYTHON_MINOR%._pth"
+
+    ECHO Staging Kerberos components...
+    COPY "%PGADMIN_KRB5_DIR%\bin\kinit.exe" "%BUILDROOT%\python" > nul || EXIT /B 1
+    COPY "%PGADMIN_KRB5_DIR%\bin\krb5_64.dll" "%BUILDROOT%\python" > nul || EXIT /B 1
+    COPY "%PGADMIN_KRB5_DIR%\bin\comerr64.dll" "%BUILDROOT%\python" > nul || EXIT /B 1
+    COPY "%PGADMIN_KRB5_DIR%\bin\k5sprt64.dll" "%BUILDROOT%\python" > nul || EXIT /B 1
+    COPY "%PGADMIN_KRB5_DIR%\bin\gssapi64.dll" "%BUILDROOT%\python" > nul || EXIT /B 1
 
     ECHO Cleaning up unnecessary .pyc and .pyo files...
     FOR /R "%BUILDROOT%\python" %%f in (*.pyc *.pyo) do DEL /q "%%f" 1> nul 2>&1
@@ -261,14 +268,6 @@ REM Main build sequence Ends
     ECHO Replacing executable icon...
     CALL yarn --cwd "%TMPDIR%" add winresourcer || EXIT /B
     "%TMPDIR%\node_modules\winresourcer\bin\Resourcer.exe" -op:upd -src:"%BUILDROOT%\runtime\pgAdmin4.exe" -type:Icongroup -name:IDR_MAINFRAME -file:"%WD%\pkg\win32\Resources\pgAdmin4.ico"
-
-    ECHO Staging Kerberos components...
-    COPY "%PGADMIN_KRB5_DIR%\bin\kinit.exe" "%BUILDROOT%\runtime" > nul || EXIT /B 1
-    COPY "%PGADMIN_KRB5_DIR%\bin\krb5_64.dll" "%BUILDROOT%\runtime" > nul || EXIT /B 1
-    COPY "%PGADMIN_KRB5_DIR%\bin\comerr64.dll" "%BUILDROOT%\runtime" > nul || EXIT /B 1
-    COPY "%PGADMIN_KRB5_DIR%\bin\k5sprt64.dll" "%BUILDROOT%\runtime" > nul || EXIT /B 1
-    COPY "%PGADMIN_KRB5_DIR%\bin\gssapi64.dll" "%BUILDROOT%\runtime" > nul || EXIT /B 1
-
 
     ECHO Staging PostgreSQL components...
     COPY "%PGADMIN_POSTGRES_DIR%\bin\libpq.dll" "%BUILDROOT%\runtime" > nul || EXIT /B 1
