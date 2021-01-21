@@ -22,6 +22,7 @@ server:
 * PostgreSQL 10: */usr/local/pgsql-10*
 * PostgreSQL 11: */usr/local/pgsql-11*
 * PostgreSQL 12: */usr/local/pgsql-12*
+* PostgreSQL 13: */usr/local/pgsql-13*
 
 The most recent version of the utilities is used by default; this may be
 changed in the :ref:`preferences`.
@@ -40,6 +41,20 @@ to login to pgAdmin. This variable is required and must be set at launch time.
 
 This is the password used when setting up the initial administrator account to
 login to pgAdmin. This variable is required and must be set at launch time.
+
+**PGADMIN_DISABLE_POSTFIX**
+
+*Default: <null>*
+
+If left unset, a Postfix server will be started to deliver password reset
+emails.
+
+If set to any value, the Postfix server will not be started, and pgAdmin will
+need to be configured to use an external mail server using the *PGADMIN_CONFIG_*
+options below.
+
+This option is useful if you're running in an environment that prevents the use
+of sudo to start Postfix, or if you wish to use an external mail server.
 
 **PGADMIN_ENABLE_TLS**
 

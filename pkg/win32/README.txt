@@ -59,7 +59,29 @@ files in C:\Program Files\Common Files\SSL. This is the default directory used
 for the OPENSSLDIR, and should not be changed to a directory that un-privileged
 users could potentially write to.
 
-4) Download the PostgreSQL source code, unpack and build it:
+4) Download the MIT Kerberos source code, unpack and build it:
+
+In a *32bit* Visual Studio 2017 command prompt:
+
+mkdir C:\build64\krb5
+cd krb5-1.18.3\src
+set KRB_INSTALL_DIR=C:\build64\krb5
+nmake -f Makefile.in prep-windows
+
+Optionally, if you want 32bit binaries as well as 64bit:
+
+nmake NODEBUG=1
+nmake install NODEBUG=1
+
+In a *64bit* Visual Studio 2017 command prompt:
+
+cd krb5-1.18.3\src
+set PATH=%PATH%;"%WindowsSdkVerBinPath%"\x86
+set KRB_INSTALL_DIR=C:\build64\krb5
+nmake NODEBUG=1
+nmake install NODEBUG=1
+
+5) Download the PostgreSQL source code, unpack and build it:
 
 wget https://ftp.postgresql.org/pub/source/v12.3/postgresql-12.3.tar.bz2
 tar -zxvf postgresql-12.3.tar.gz

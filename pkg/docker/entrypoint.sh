@@ -8,7 +8,7 @@ if [ `wc -m /pgadmin4/config_distro.py | awk '{ print $1 }'` = "0" ]; then
     cat << EOF > /pgadmin4/config_distro.py
 HELP_PATH = '../../docs'
 DEFAULT_BINARY_PATHS = {
-        'pg': '/usr/local/pgsql-12'
+        'pg': '/usr/local/pgsql-13'
 }
 EOF
 
@@ -48,7 +48,9 @@ if [ ! -f /var/lib/pgadmin/pgadmin4.db ]; then
 fi
 
 # Start Postfix to handle password resets etc.
-sudo /usr/sbin/postfix start
+if [ -z ${PGADMIN_DISABLE_POSTFIX} ]; then
+    sudo /usr/sbin/postfix start
+fi
 
 # Get the session timeout from the pgAdmin config. We'll use this (in seconds)
 # to define the Gunicorn worker timeout
