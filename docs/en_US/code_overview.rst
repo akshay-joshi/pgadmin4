@@ -12,8 +12,8 @@ a web application, which is written using NWjs (Node Webkit).
 Runtime
 *******
 
-The runtime is essentially based on NWjs having integrated browser and server
-which gave a much more "normal" application feel. Source code found in the
+The runtime is based on NWjs which integrates a browser and the Python server
+creating a standalone application. The source code can be found in the
 **/runtime** directory in the source tree.
 
 Web Application
