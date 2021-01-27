@@ -158,7 +158,6 @@ need to set them:
 
 SET "PGADMIN_POSTGRES_DIR=C:\Program Files\PostgreSQL\13"
 SET "PGADMIN_PYTHON_DIR=C:\Python39"
-SET "PGADMIN_QT_DIR=C:\Qt\5.14.2\msvc2017_64"
 SET "PGADMIN_INNOTOOL_DIR=C:\Program Files (x86)\Inno Setup 6"
 SET "PGADMIN_SIGNTOOL_DIR=C:\Program Files (x86)\Windows Kits\10\bin\10.0.17763.0\x64"
 SET "PGADMIN_VCREDIST_DIR=C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Redist\MSVC\14.16.27012"

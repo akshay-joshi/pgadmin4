@@ -174,7 +174,7 @@ def main():
         )
         sys.stdout.flush()
     else:
-        # For unknown reason the Qt runtime does not pass the environment
+        # For unknown reason the runtime does not pass the environment
         # variables (i.e. PYTHONHOME, and PYTHONPATH), to the Python
         # sub-processes, leading to failures executing background processes.
         #
