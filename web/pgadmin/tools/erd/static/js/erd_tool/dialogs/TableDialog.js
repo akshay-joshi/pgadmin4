@@ -50,7 +50,7 @@ export default class TableDialog {
     return 'entity_dialog';
   }
 
-  getDataModel(attributes, colTypes, schemas, sVersion) {
+  getDataModel(attributes, isNew, allTables, colTypes, schemas, sVersion) {
     let dialogObj = this;
     let columnsModel = this.pgBrowser.DataModel.extend({
       idAttribute: 'attnum',
@@ -695,6 +695,14 @@ export default class TableDialog {
           this.errorModel.set('name', msg);
           return msg;
         }
+
+        /* Check existing table names */
+        let sameNameCount = _.filter(allTables, (table)=>table[0]==schema&&table[1]==name).length;
+        if(isNew && this.sessAttrs['name'] && sameNameCount > 0 || isNew && sameNameCount > 0) {
+          msg = gettext('Table name already exists.');
+          this.errorModel.set('name', msg);
+          return msg;
+        }
         this.errorModel.unset('name');
         if (
           _.isUndefined(schema) || _.isNull(schema) ||
@@ -705,6 +713,8 @@ export default class TableDialog {
           return msg;
         }
         this.errorModel.unset('schema');
+
+
         return null;
       },
     });
@@ -731,9 +741,9 @@ export default class TableDialog {
     return Alertify[dialogName];
   }
 
-  show(title, attributes, colTypes, schemas, sVersion, callback) {
+  show(title, attributes, isNew, allTables, colTypes, schemas, sVersion, callback) {
     let dialogTitle = title || gettext('Unknown');
     const dialog = this.createOrGetDialog('table_dialog');
-    dialog(dialogTitle, this.getDataModel(attributes, colTypes, schemas, sVersion), callback).resizeTo(this.pgBrowser.stdW.md, this.pgBrowser.stdH.md);
+    dialog(dialogTitle, this.getDataModel(attributes, isNew, allTables, colTypes, schemas, sVersion), callback).resizeTo(this.pgBrowser.stdW.md, this.pgBrowser.stdH.md);
   }
 }
