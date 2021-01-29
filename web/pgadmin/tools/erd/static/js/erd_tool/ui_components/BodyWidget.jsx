@@ -158,6 +158,7 @@ export default class BodyWidget extends React.Component {
       [this.state.preferences.save_project, this.onSaveDiagram],
       [this.state.preferences.save_project_as, this.onSaveAsDiagram],
       [this.state.preferences.generate_sql, this.onSQLClick],
+      [this.state.preferences.download_image, this.onImageClick],
       [this.state.preferences.add_table, this.onAddNewNode],
       [this.state.preferences.edit_table, this.onEditNode],
       [this.state.preferences.clone_table, this.onCloneNode],
@@ -541,6 +542,35 @@ export default class BodyWidget extends React.Component {
     this.canvasEle.style.width = this.canvasEle.scrollWidth + 'px';
     this.canvasEle.style.height = this.canvasEle.scrollHeight + 'px';
 
+    /* html2canvas ignores CSS styles, set the CSS styles to inline */
+    const setSvgInlineStyles = (targetElem) => {
+      const transformProperties = [
+          'fill',
+          'color',
+          'font-size',
+          'stroke',
+          'font'
+      ];
+      let svgElems = Array.from(targetElem.getElementsByTagName("svg"));
+      for (let svgElement of svgElems) {
+          svgElement.setAttribute('width', svgElement.clientWidth);
+          svgElement.setAttribute('height', svgElement.clientHeight);
+          recurseElementChildren(svgElement);
+      }
+      function recurseElementChildren(node) {
+          if (!node.style)
+              return;
+
+          let styles = getComputedStyle(node);
+          for (let transformProperty of transformProperties) {
+              node.style[transformProperty] = styles[transformProperty];
+          }
+          for (let child of Array.from(node.childNodes)) {
+              recurseElementChildren(child);
+          }
+      }
+    }
+
     html2canvas(this.canvasEle, {
       width: this.canvasEle.scrollWidth + 10,
       height: this.canvasEle.scrollHeight + 10,
@@ -549,16 +579,25 @@ export default class BodyWidget extends React.Component {
       useCORS: true,
       allowTaint: true,
       backgroundColor: window.getComputedStyle(this.canvasEle).backgroundColor,
+      onclone: (clonedEle)=>{
+        setSvgInlineStyles(clonedEle);
+        return clonedEle;
+      },
     }).then((canvas)=>{
       let link = document.createElement('a');
       link.setAttribute('href', canvas.toDataURL('image/png'));
       link.setAttribute('download', this.getCurrentProjectName() + '.png');
       link.click();
+      link.remove();
     }).catch((err)=>{
       console.error(err);
+      let msg = gettext('Unknown error. Check console logs');
+      if(err.name) {
+        msg = `${err.name}: ${err.message}`;
+      }
       this.props.alertify.alert()
         .set('title', gettext('Error'))
-        .set('message', err).show();
+        .set('message', msg).show();
     }).then(()=>{
       /* Revert back to the original CSS styles */
       this.canvasEle.classList.remove('html2canvas-reset');
@@ -738,8 +777,8 @@ export default class BodyWidget extends React.Component {
         <ButtonGroup>
           <IconButton id="save-sql" icon="fa fa-file-code" onClick={this.onSQLClick} title={gettext('Generate SQL')}
             shortcut={this.state.preferences.generate_sql}/>
-          <IconButton id="save-image" icon="fa fa-file-image" onClick={this.onImageClick} title={gettext('Generate SQL')}
-            shortcut={this.state.preferences.generate_sql}/>
+          <IconButton id="save-image" icon="fa fa-file-image" onClick={this.onImageClick} title={gettext('Download image')}
+            shortcut={this.state.preferences.download_image}/>
         </ButtonGroup>
         <ButtonGroup>
           <IconButton id="add-node" icon="fa fa-plus-square" onClick={this.onAddNewNode} title={gettext('Add table')}
