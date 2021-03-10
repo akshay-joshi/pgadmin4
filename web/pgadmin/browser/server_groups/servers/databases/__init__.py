@@ -192,7 +192,7 @@ class DatabaseView(PGChildNodeView):
                     # If connection to database is not allowed then
                     # provide generic connection
                     if kwargs['did'] in self.manager.db_info:
-
+                        self._db = self.manager.db_info[kwargs['did']]
                         self.datlastsysoid, self.datistemplate, \
                             datallowconn = \
                             get_attributes_from_db_info(self.manager, kwargs)
@@ -298,7 +298,7 @@ class DatabaseView(PGChildNodeView):
                 connected = True
                 can_drop = can_dis_conn = False
             else:
-                conn = self.manager.connection(dbname, did=row['did'])
+                conn = self.manager.connection(database=dbname, did=row['did'])
                 connected = conn.connected()
                 can_drop = can_dis_conn = True
 
@@ -343,7 +343,7 @@ class DatabaseView(PGChildNodeView):
         SQL = render_template(
             "/".join([self.template_path, self._NODES_SQL]),
             last_system_oid=0,
-            show_system_objects=self.blueprint.show_system_objects,
+            show_system_objects=True,
         )
         status, rset = self.conn.execute_dict(SQL)
 
@@ -375,7 +375,7 @@ class DatabaseView(PGChildNodeView):
             if self.manager.db == db:
                 connected = True
             else:
-                conn = self.manager.connection(row['name'])
+                conn = self.manager.connection(database=row['name'])
                 connected = conn.connected()
             icon_css_class = "pg-icon-database"
             if not connected:

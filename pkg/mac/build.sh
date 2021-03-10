@@ -23,9 +23,22 @@ if [ ! -f ${SCRIPT_DIR}/codesign.conf ]; then
     echo "******************************************************************"
     echo
     CODESIGN=0
-    sleep 5
+    sleep 2
 else
     source ${SCRIPT_DIR}/codesign.conf
+fi
+
+NOTARIZE=1
+if [ ! -f ${SCRIPT_DIR}/notarization.conf ]; then
+    echo
+    echo "******************************************************************"
+    echo "* pkg/mac/notarization.conf not found. NOT notarizing the package."
+    echo "******************************************************************"
+    echo
+    NOTARIZE=0
+    sleep 2
+else
+    source ${SCRIPT_DIR}/notarization.conf
 fi
 
 if [ "x${PGADMIN_POSTGRES_DIR}" == "x" ]; then
@@ -34,8 +47,8 @@ if [ "x${PGADMIN_POSTGRES_DIR}" == "x" ]; then
 fi
 
 if [ "x${PGADMIN_PYTHON_VERSION}" == "x" ]; then
-    echo "PGADMIN_PYTHON_VERSION not set. Setting it to the default: 3.9.0"
-    export PGADMIN_PYTHON_VERSION=3.9.0
+    echo "PGADMIN_PYTHON_VERSION not set. Setting it to the default: 3.9.2"
+    export PGADMIN_PYTHON_VERSION=3.9.2
 fi
 
 source ${SCRIPT_DIR}/build-functions.sh
@@ -50,3 +63,4 @@ _codesign_binaries
 _codesign_bundle
 _create_dmg
 _codesign_dmg
+_notarize_pkg

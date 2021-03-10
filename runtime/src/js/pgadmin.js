@@ -204,7 +204,7 @@ function launchPgAdminWindow() {
     // Set pgAdmin4 Windows Object
     misc.setPgAdminWindowObject(pgadminWindow);
 
-    pgadminWindow.on('close', function() {
+    pgadminWindow.on('closed', function() {
       misc.cleanupAndQuitApp();
     });
 
@@ -265,7 +265,7 @@ nw.App.clearCache();
 if (platform() == 'darwin') {
   var macMenu = new  gui.Menu({type: 'menubar'});
   macMenu.createMacBuiltin('pgAdmin 4');
-  gui.Window.get().menu = macMenu;
+  splashWindow.menu = macMenu;
 }
 
 splashWindow.on('loaded', function() {
@@ -286,7 +286,7 @@ splashWindow.on('loaded', function() {
         startDesktopMode();
       })
       .catch((errCode) => {
-        if (fixedPortCheck && errCode == 'EADDRINUSE') {
+        if (errCode == 'EADDRINUSE') {
           alert('The specified fixed port is already in use. Please provide any other valid port.');
         } else {
           alert(errCode);

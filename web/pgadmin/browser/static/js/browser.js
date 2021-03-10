@@ -251,8 +251,9 @@ define('pgadmin.browser', [
         title: gettext('Statistics'),
         icon: '',
         width: 500,
-        isCloseable: false,
-        isPrivate: true,
+        isCloseable: true,
+        isPrivate: false,
+        canHide: true,
         content: '<div class="negative-space p-2"><div role="status" class="pg-panel-message pg-panel-statistics-message">' + select_object_msg + '</div><div class="pg-panel-statistics-container d-none"></div></div>',
         events: panelEvents,
       }),
@@ -272,8 +273,9 @@ define('pgadmin.browser', [
         title: gettext('Dependencies'),
         icon: '',
         width: 500,
-        isCloseable: false,
-        isPrivate: true,
+        isCloseable: true,
+        isPrivate: false,
+        canHide: true,
         content: '<div class="negative-space p-2"><div role="status" class="pg-panel-message pg-panel-depends-message">' + select_object_msg + '</div><div class="pg-panel-dependencies-container d-none"></div></div>',
         events: panelEvents,
       }),
@@ -283,8 +285,9 @@ define('pgadmin.browser', [
         title: gettext('Dependents'),
         icon: '',
         width: 500,
-        isCloseable: false,
-        isPrivate: true,
+        isCloseable: true,
+        isPrivate: false,
+        canHide: true,
         content: '<div class="negative-space p-2"><div role="status" class="pg-panel-message pg-panel-depends-message">' + select_object_msg + '</div><div class="pg-panel-dependents-container d-none"></div></div>',
         events: panelEvents,
       }),
@@ -875,6 +878,10 @@ define('pgadmin.browser', [
         var $mnu = navbar.children(o.id).first(),
           $dropdown = $mnu.children('.dropdown-menu').first();
         $dropdown.empty();
+        if(o.menu == 'help'){
+          $dropdown.append('<div id="quick-search-component"></div>');
+          $dropdown.append('<div class="menu-groups"><span class="fa fa-list" style="font-weight:900 !important;"></span> &nbsp;SUGGESTED SITES</div>');
+        }
 
         if (pgAdmin.Browser.MenuCreator(
           obj.Nodes, $dropdown, obj.menus[o.menu], obj.menu_categories
@@ -902,6 +909,7 @@ define('pgadmin.browser', [
       } else if(type == 'dialog_help') {
         window.open(url, 'pgadmin_help');
       }
+      $('#live-search-field').focus();
     },
     _findTreeChildNode: function(_i, _d, _o) {
       var loaded = _o.t.wasLoad(_i),
@@ -2224,6 +2232,8 @@ define('pgadmin.browser', [
   if (pgBrowser.utils.useSpaces == 'True') {
     pgAdmin.Browser.editor_shortcut_keys.Tab = 'insertSoftTab';
   }
-
+  setTimeout(function(){
+    $('#mnu_about').closest('li').before('<li class="dropdown-divider"></li>');
+  }, 100);
   return pgAdmin.Browser;
 });

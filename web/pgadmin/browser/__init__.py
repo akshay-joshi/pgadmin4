@@ -18,6 +18,7 @@ from socket import error as SOCKETErrorException
 from urllib.request import urlopen
 
 import six
+import time
 from flask import current_app, render_template, url_for, make_response, \
     flash, Response, request, after_this_request, redirect, session
 from flask_babelex import gettext
@@ -35,7 +36,7 @@ from werkzeug.datastructures import MultiDict
 
 import config
 from pgadmin import current_blueprint
-from pgadmin.settings import get_setting
+from pgadmin.settings import get_setting, store_setting
 from pgadmin.utils import PgAdminModule
 from pgadmin.utils.ajax import make_json_response
 from pgadmin.utils.csrf import pgCSRFProtect
@@ -553,7 +554,7 @@ class BrowserPluginModule(PgAdminModule):
         Sets the browser_preference, show_system_objects, show_node preference
         objects for this submodule.
         """
-        # Add the node informaton for browser, not in respective node
+        # Add the node information for browser, not in respective node
         # preferences
         self.browser_preference = blueprint.preference
         self.pref_show_system_objects = blueprint.preference.preference(
@@ -674,7 +675,7 @@ def index():
             base_url=None
         )
 
-    # Check the browser is a support version
+    # Check the browser is a supported version
     # NOTE: If the checks here are updated, make sure the supported versions
     # at https://www.pgadmin.org/faq/#11 are updated to match!
     if config.CHECK_SUPPORTED_BROWSER:
@@ -693,7 +694,11 @@ def index():
     # Get the current version info from the website, and flash a message if
     # the user is out of date, and the check is enabled.
     if config.UPGRADE_CHECK_ENABLED:
-        check_browser_upgrade()
+        last_check = get_setting('LastUpdateCheck', default='0')
+        today = time.strftime('%Y%m%d')
+        if int(last_check) < int(today):
+            check_browser_upgrade()
+            store_setting('LastUpdateCheck', today)
 
     auth_only_internal = False
     auth_source = []
@@ -936,14 +941,14 @@ def set_master_password():
     if not config.SERVER_MODE and config.MASTER_PASSWORD_REQUIRED:
 
         # if master pass is set previously
-        if current_user.masterpass_check is not None:
-            if data.get('button_click') and \
-                    not validate_master_password(data.get('password')):
-                return form_master_password_response(
-                    existing=True,
-                    present=False,
-                    errmsg=gettext("Incorrect master password")
-                )
+        if current_user.masterpass_check is not None and \
+            data.get('button_click') and \
+                not validate_master_password(data.get('password')):
+            return form_master_password_response(
+                existing=True,
+                present=False,
+                errmsg=gettext("Incorrect master password")
+            )
 
         if data != '' and data.get('password', '') != '':
 

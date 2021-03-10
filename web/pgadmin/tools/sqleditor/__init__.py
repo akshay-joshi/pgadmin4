@@ -453,7 +453,9 @@ def poll(trans_id):
                         # Using characters %, (, ) in the argument names is not
                         # supported in psycopg2
                         col_info['pgadmin_alias'] = \
-                            re.sub("[%()]+", "|", col_name)
+                            re.sub("[%()]+", "|", col_name).\
+                            encode('unicode_escape').decode('utf-8')
+
                     session_obj['columns_info'] = columns
 
                 # status of async_fetchmany_2darray is True and result is none
@@ -593,7 +595,8 @@ def fetch_pg_types(columns_info, trans_obj):
     # to execute another query otherwise we'll lose query result.
 
     manager = get_driver(PG_DEFAULT_DRIVER).connection_manager(trans_obj.sid)
-    default_conn = manager.connection(did=trans_obj.did)
+    default_conn = manager.connection(conn_id=trans_obj.conn_id,
+                                      did=trans_obj.did)
 
     # Connect to the Server if not connected.
     res = []
@@ -606,8 +609,8 @@ def fetch_pg_types(columns_info, trans_obj):
 
     if oids:
         status, res = default_conn.execute_dict(
-            "SELECT oid, format_type(oid, NULL) AS typname FROM pg_type "
-            "WHERE oid IN %s ORDER BY oid;", [tuple(oids)]
+            "SELECT oid, pg_catalog.format_type(oid, NULL) AS typname FROM "
+            "pg_catalog.pg_type WHERE oid IN %s ORDER BY oid;", [tuple(oids)]
         )
 
         if not status:

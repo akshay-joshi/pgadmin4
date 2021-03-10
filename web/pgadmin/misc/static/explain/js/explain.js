@@ -1209,8 +1209,8 @@ define('pgadmin.misc.explain', [
     // Assumption container is a jQuery object
     DrawJSONPlan: function(container, plan, isDownload, _ctx) {
       let self = this;
-      require.ensure(['snapsvg'], function(require) {
-        var module = require('snapsvg');
+      require.ensure(['snap.svg'], function(require) {
+        var module = require('snap.svg');
         initSnap(module);
         self.goForDraw(container, plan, isDownload, _ctx);
       }, function(error){
@@ -1474,7 +1474,7 @@ define('pgadmin.misc.explain', [
             ctx.totalDownloadedNodes++;
             if (!ctx.isDownloaded && ctx.totalNodes === ctx.totalDownloadedNodes) {
               ctx.isDownloaded = true;
-              var s = Snap('.pgadmin-explain-container svg');
+              s = Snap('.pgadmin-explain-container svg');
               var today  = new Date();
               var filename = 'explain_plan_' + today.getTime() + '.svg';
               svgDownloader.downloadSVG(s.toString(), filename);

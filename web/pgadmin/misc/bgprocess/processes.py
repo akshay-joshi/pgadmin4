@@ -249,16 +249,19 @@ class BatchProcess(object):
         executor = file_quote(os.path.join(
             os.path.dirname(u_encode(__file__)), 'process_executor.py'
         ))
-        paths = os.environ['PATH'].split(os.pathsep)
 
-        current_app.logger.info(
-            "Process Executor: Operating System Path %s",
-            str(paths)
-        )
+        if os.name == 'nt':
+            paths = os.environ['PATH'].split(os.pathsep)
 
-        interpreter = self.get_interpreter(paths)
+            current_app.logger.info(
+                "Process Executor: Operating System Path %s",
+                str(paths)
+            )
 
-        p = None
+            interpreter = self.get_interpreter(paths)
+        else:
+            interpreter = sys.executable
+
         cmd = [
             interpreter if interpreter is not None else 'python',
             executor, self.cmd
@@ -308,7 +311,7 @@ class BatchProcess(object):
             # if in debug mode, wait for process to complete and
             # get the stdout and stderr of popen.
             if config.CONSOLE_LOG_LEVEL <= logging.DEBUG:
-                output, error = self.get_process_output(cmd, env)
+                p = self.get_process_output(cmd, env)
             else:
                 p = Popen(
                     cmd, close_fds=True, stdout=None, stderr=None, stdin=None,
@@ -361,7 +364,7 @@ class BatchProcess(object):
         current_app.logger.debug(
             'Process Watcher Err:{0}'.format(errors))
 
-        return output, errors
+        return p
 
     def preexec_function(self):
         import signal
@@ -376,63 +379,51 @@ class BatchProcess(object):
         :param paths:
         :return:
         """
-        if os.name == 'nt':
-            paths.insert(0, os.path.join(u_encode(sys.prefix), 'Scripts'))
-            paths.insert(0, u_encode(sys.prefix))
+        paths.insert(0, os.path.join(u_encode(sys.prefix), 'Scripts'))
+        paths.insert(0, u_encode(sys.prefix))
 
-            interpreter = self.which('pythonw.exe', paths)
+        interpreter = self.which('pythonw.exe', paths)
+        if interpreter is None:
+            interpreter = self.which('python.exe', paths)
+
+        current_app.logger.info(
+            "Process Executor: Interpreter value in path: %s",
+            str(interpreter)
+        )
+        if interpreter is None and current_app.PGADMIN_RUNTIME:
+            # We've faced an issue with Windows 2008 R2 (x86) regarding,
+            # not honouring the environment variables set under the Qt
+            # (e.g. runtime), and also setting PYTHONHOME same as
+            # sys.executable (i.e. pgAdmin4.exe).
+            #
+            # As we know, we're running it under the runtime, we can assume
+            # that 'venv' directory will be available outside of 'bin'
+            # directory.
+            #
+            # We would try out luck to find python executable based on that
+            # assumptions.
+            bin_path = os.path.dirname(sys.executable)
+
+            venv = os.path.realpath(
+                os.path.join(bin_path, '..\\venv')
+            )
+
+            interpreter = self.which('pythonw.exe', [venv])
             if interpreter is None:
-                interpreter = self.which('python.exe', paths)
+                interpreter = self.which('python.exe', [venv])
 
             current_app.logger.info(
-                "Process Executor: Interpreter value in path: %s",
-                str(interpreter)
+                "Process Executor: Interpreter value in virtual "
+                "environment: %s", str(interpreter)
             )
-            if interpreter is None and current_app.PGADMIN_RUNTIME:
-                # We've faced an issue with Windows 2008 R2 (x86) regarding,
-                # not honouring the environment variables set under the Qt
-                # (e.g. runtime), and also setting PYTHONHOME same as
-                # sys.executable (i.e. pgAdmin4.exe).
-                #
-                # As we know, we're running it under the runtime, we can assume
-                # that 'venv' directory will be available outside of 'bin'
-                # directory.
-                #
-                # We would try out luck to find python executable based on that
-                # assumptions.
-                bin_path = os.path.dirname(sys.executable)
 
-                venv = os.path.realpath(
-                    os.path.join(bin_path, '..\\venv')
-                )
-
-                interpreter = self.which('pythonw.exe', [venv])
-                if interpreter is None:
-                    interpreter = self.which('python.exe', [venv])
-
-                current_app.logger.info(
-                    "Process Executor: Interpreter value in virtual "
-                    "environment: %s", str(interpreter)
-                )
-
-                if interpreter is not None:
-                    # Our assumptions are proven right.
-                    # Let's append the 'bin' directory to the PATH environment
-                    # variable. And, also set PYTHONHOME environment variable
-                    # to 'venv' directory.
-                    os.environ['PATH'] = bin_path + ';' + os.environ['PATH']
-                    os.environ['PYTHONHOME'] = venv
-        else:
-            # Let's not use sys.prefix in runtime.
-            # 'sys.prefix' is not identified on *nix systems for some unknown
-            # reason, while running under the runtime.
-            # We're already adding '<installation path>/pgAdmin 4/venv/bin'
-            # directory in the PATH environment variable. Hence - it will
-            # anyway be the redundant value in paths.
-            if not current_app.PGADMIN_RUNTIME:
-                paths.insert(0, os.path.join(u_encode(sys.prefix), 'bin'))
-            python_binary_name = 'python{0}'.format(sys.version_info[0])
-            interpreter = self.which(u_encode(python_binary_name), paths)
+            if interpreter is not None:
+                # Our assumptions are proven right.
+                # Let's append the 'bin' directory to the PATH environment
+                # variable. And, also set PYTHONHOME environment variable
+                # to 'venv' directory.
+                os.environ['PATH'] = bin_path + ';' + os.environ['PATH']
+                os.environ['PYTHONHOME'] = venv
 
         return interpreter
 

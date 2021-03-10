@@ -30,7 +30,8 @@ define('pgadmin.dashboard', [
     is_super_user = false,
     current_user, maintenance_database,
     is_server_dashboard = false,
-    is_database_dashboard = false;
+    is_database_dashboard = false,
+    can_signal_backend = false;
 
   // Custom BackGrid cell, Responsible for cancelling active sessions
   var customDashboardActionCell = Backgrid.Extension.DeleteCell.extend({
@@ -225,7 +226,6 @@ define('pgadmin.dashboard', [
       var dashboardPanel = pgBrowser.panels['dashboard'].panel;
       if (dashboardPanel) {
         var div = dashboardPanel.layout().scene().find('.pg-panel-content');
-
         if (div) {
           var ajaxHook = function() {
             $.ajax({
@@ -294,6 +294,7 @@ define('pgadmin.dashboard', [
           // Check if user is super user
           var server = treeHierarchy['server'];
           maintenance_database = (server && server.db) || null;
+          can_signal_backend = (server && server.user) ? server.user.can_signal_backend : false;
 
           if (server && server.user && server.user.is_superuser) {
             is_super_user = true;
@@ -1100,7 +1101,13 @@ define('pgadmin.dashboard', [
       if(closed) {
         this.chartsDomObj && this.chartsDomObj.unmount();
       } else {
+        var t = pgBrowser.tree,
+          i = t.selected(),
+          d = i && t.itemData(i),
+          n = i && d && pgBrowser.Nodes[d._type];
+
         this.chartsDomObj && this.chartsDomObj.setPageVisible(dashboardVisible);
+        this.object_selected(i, d, n);
       }
     },
     can_take_action: function(m) {
@@ -1144,6 +1151,9 @@ define('pgadmin.dashboard', [
           gettext('The session is already in idle state.')
         );
         return false;
+      } else if (can_signal_backend) {
+        // user with membership of 'pg_signal_backend' can terminate the session of non admin user.
+        return true;
       } else if (is_super_user) {
         // Super user can do anything
         return true;

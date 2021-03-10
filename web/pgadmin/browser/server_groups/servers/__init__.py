@@ -244,6 +244,8 @@ class ServerModule(sg.ServerGroupPluginModule):
                 user=user_info,
                 in_recovery=in_recovery,
                 wal_pause=wal_paused,
+                host=server.host,
+                port=server.port,
                 is_password_saved=bool(server.save_password),
                 is_tunnel_password_saved=True
                 if server.tunnel_password is not None else False,
@@ -535,6 +537,7 @@ class ServerNode(PGChildNodeView):
                     server_type=server_type,
                     version=manager.version,
                     db=manager.db,
+                    host=server.host,
                     user=manager.user_info if connected else None,
                     in_recovery=in_recovery,
                     wal_pause=wal_paused,
@@ -604,6 +607,7 @@ class ServerNode(PGChildNodeView):
                 user=manager.user_info if connected else None,
                 in_recovery=in_recovery,
                 wal_pause=wal_paused,
+                host=server.host,
                 is_password_saved=bool(server.save_password),
                 is_tunnel_password_saved=True
                 if server.tunnel_password is not None else False,

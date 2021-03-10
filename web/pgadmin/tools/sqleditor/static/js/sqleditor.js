@@ -6,6 +6,11 @@
 // This software is released under the PostgreSQL Licence
 //
 //////////////////////////////////////////////////////////////
+/* eslint-disable */
+/* This is used to change publicPath of webpack at runtime for loading chunks */
+/* Do not add let, var, const to this variable */
+__webpack_public_path__ = window.resourceBasePath;
+/* eslint-enable */
 
 import {launchDataGrid} from 'tools/datagrid/static/js/show_query_tool';
 
@@ -1051,6 +1056,27 @@ define('tools.querytool', [
       };
 
       self.handler.slickgrid = grid;
+      // Add listener on data-grid table scroll.
+      self.handler.slickgrid.onScroll.subscribe(function() {
+        // Mark selected rows cells as selected.
+        setTimeout(() => {
+          // Can't use setSelectedRows as we are using cellSelectionModel.
+          var cellSelectionModel = self.handler.gridView.grid.getSelectionModel();
+          var ranges = cellSelectionModel.getSelectedRanges();
+
+          if (ranges.length > 1) {
+            // Set selected rows cell as selected.
+            cellSelectionModel.setSelectedRanges(ranges);
+          }
+        }, 100);
+
+        if(Object.keys(self.handler.data_store.deleted).length > 0) {
+          setTimeout(() => {
+            $(self.handler.gridView.grid.getCanvasNode()).find('div.selected').removeClass('strikeout');
+            $(self.handler.gridView.grid.getCanvasNode()).find('div.selected').addClass('strikeout');
+          }, 100);
+        }
+      });
       self.handler.slickgrid.CSVOptions = {
         quoting: self.preferences.results_grid_quoting,
         quote_char: self.preferences.results_grid_quote_char,

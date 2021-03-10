@@ -182,10 +182,15 @@ class ServerManager(object):
             return int(int(self.sversion / 100) / 100)
         raise InternalServerError(self._INFORMATION_MSG)
 
-    def connection(
-            self, database=None, conn_id=None, auto_reconnect=True, did=None,
-            async_=None, use_binary_placeholder=False, array_to_string=False
-    ):
+    def connection(self, **kwargs):
+        database = kwargs.get('database', None)
+        conn_id = kwargs.get('conn_id', None)
+        auto_reconnect = kwargs.get('auto_reconnect', True)
+        did = kwargs.get('did', None)
+        async_ = kwargs.get('async_', None)
+        use_binary_placeholder = kwargs.get('use_binary_placeholder', False)
+        array_to_string = kwargs.get('array_to_string', False)
+
         if database is not None:
             if did is not None and did in self.db_info:
                 self.db_info[did]['datname'] = database
@@ -247,7 +252,8 @@ WHERE db.oid = {0}""".format(did))
             else:
                 async_ = 1 if async_ is True else 0
             self.connections[my_id] = Connection(
-                self, my_id, database, auto_reconnect, async_,
+                self, my_id, database, auto_reconnect=auto_reconnect,
+                async_=async_,
                 use_binary_placeholder=use_binary_placeholder,
                 array_to_string=array_to_string
             )
@@ -359,7 +365,8 @@ WHERE db.oid = {0}""".format(did))
             else:
                 conn = self.connections[conn_info['conn_id']] = Connection(
                     self, conn_info['conn_id'], conn_info['database'],
-                    conn_info['auto_reconnect'], conn_info['async_'],
+                    auto_reconnect=conn_info['auto_reconnect'],
+                    async_=conn_info['async_'],
                     use_binary_placeholder=conn_info[
                         'use_binary_placeholder'],
                     array_to_string=conn_info['array_to_string']

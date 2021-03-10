@@ -224,7 +224,11 @@ COMMENT ON TABLE {{conn|qtIdent(data.schema, data.name)}}
 {% endif %}
 {% if 'changed' in data.relacl %}
 {% for priv in data.relacl.changed %}
+{% if priv.grantee != priv.old_grantee %}
+{{ PRIVILEGE.UNSETALL(conn, 'TABLE', priv.old_grantee, data.name, data.schema) }}
+{% else %}
 {{ PRIVILEGE.UNSETALL(conn, 'TABLE', priv.grantee, data.name, data.schema) }}
+{% endif %}
 {{ PRIVILEGE.SET(conn, 'TABLE', priv.grantee, data.name, priv.without_grant, priv.with_grant, data.schema) }}
 {% endfor %}
 {% endif %}
@@ -255,4 +259,18 @@ COMMENT ON TABLE {{conn|qtIdent(data.schema, data.name)}}
 {% endfor %}
 {% endif %}
 
+{% endif %}
+
+{#####################################################}
+{## Change replica identity ##}
+{#####################################################}
+{% if data.replica_identity and data.replica_identity != o_data.replica_identity %}
+ALTER TABLE {{conn|qtIdent(data.schema, data.name)}} REPLICA IDENTITY {{data.replica_identity }};
+{% endif %}
+
+{#####################################################}
+{## Change replica identity ##}
+{#####################################################}
+{% if data.replica_identity and data.replica_identity != o_data.replica_identity %}
+ALTER TABLE {{conn|qtIdent(data.schema, data.name)}} REPLICA IDENTITY {{data.replica_identity }};
 {% endif %}

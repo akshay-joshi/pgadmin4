@@ -74,7 +74,7 @@ REM Main build sequence Ends
     SET INSTALLERNAME=%APP_SHORTNAME%-%APP_MAJOR%.%APP_MINOR%-%APP_VERSION_SUFFIX%-x64.exe
     IF "%APP_VERSION_SUFFIX%" == "" SET INSTALLERNAME=%APP_SHORTNAME%-%APP_MAJOR%.%APP_MINOR%-x64.exe
 
-    REM get Python version for the runtime build ex. 2.7.1 will be 27
+    REM get Python version for the runtime build ex. 3.9.2 will be 39
     FOR /f "tokens=1 DELims=." %%G IN ('%PGADMIN_PYTHON_DIR%/python.exe -c "import sys; print(sys.version.split(' ')[0])"') DO SET PYTHON_MAJOR=%%G
     FOR /f "tokens=2 DELims=." %%G IN ('%PGADMIN_PYTHON_DIR%/python.exe -c "import sys; print(sys.version.split(' ')[0])"') DO SET PYTHON_MINOR=%%G
     FOR /f "tokens=3 DELims=." %%G IN ('%PGADMIN_PYTHON_DIR%/python.exe -c "import sys; print(sys.version.split(' ')[0])"') DO SET PYTHON_REVISION=%%G
@@ -165,7 +165,7 @@ REM Main build sequence Ends
     CALL "%TMPDIR%\venv\Scripts\activate" || EXIT /B 1
 
     ECHO Installing dependencies...
-    CALL pip install --upgrade pip
+    CALL python -m pip install --upgrade pip || EXIT /B 1
     CALL pip install --only-binary=cryptography -r "%WD%\requirements.txt" || EXIT /B 1
 
     CD %WD%
@@ -249,7 +249,11 @@ REM Main build sequence Ends
     MKDIR "%BUILDROOT%\docs\en_US\html"
     CD "%WD%\docs\en_US"
     CALL "%TMPDIR%\venv\Scripts\python.exe" build_code_snippet.py || EXIT /B 1
-    CALL "%TMPDIR%\venv\Scripts\sphinx-build.exe"   "%WD%\docs\en_US" "%BUILDROOT%\docs\en_US\html" || EXIT /B 1
+    CALL "%TMPDIR%\venv\Scripts\sphinx-build.exe" "%WD%\docs\en_US" "%BUILDROOT%\docs\en_US\html" || EXIT /B 1
+
+    REM Remove unnecessary doc files
+    DEL /q "%BUILDROOT%\docs\en_US\html\_static\*.png" 1> nul 2>&1
+    RD /Q /S "%BUILDROOT%\docs\en_US\html\_sources" 1> nul 2>&1
 
     ECHO Staging runtime components...
     XCOPY /S /I /E /H /Y "%WD%\runtime\assets" "%BUILDROOT%\runtime\assets" > nul || EXIT /B 1
@@ -260,9 +264,30 @@ REM Main build sequence Ends
     CALL yarn install --production=true || EXIT /B 1
 
     ECHO Downloading NWjs to %TMPDIR%...
-    CALL yarn --cwd "%TMPDIR%" add nw || EXIT /B
+    REM Get a fresh copy of nwjs.
+    REM NOTE: The nw download servers seem to be very unreliable, so at the moment we're using wget which retries
 
-    XCOPY /S /I /E /H /Y "%TMPDIR%\node_modules\nw\nwjs\*" "%BUILDROOT%\runtime" > nul || EXIT /B 1
+    REM YARN
+    REM CALL yarn --cwd "%TMPDIR%" add nw || EXIT /B
+    REM YARN END
+
+    REM WGET
+    FOR /f "tokens=2 delims='" %%i IN ('yarn info nw ^| findstr "latest: "') DO SET "NW_VERSION=%%i"
+    :GET_NW
+        wget https://dl.nwjs.io/v%NW_VERSION%/nwjs-v%NW_VERSION%-win-x64.zip -O "%TMPDIR%\nwjs-v%NW_VERSION%-win-x64.zip"
+        IF %ERRORLEVEL% NEQ 0 GOTO GET_NW
+
+    tar -C "%TMPDIR%" -xvf "%TMPDIR%\nwjs-v%NW_VERSION%-win-x64.zip" || EXIT /B 1
+    REM WGET END
+
+    REM YARN
+    REM XCOPY /S /I /E /H /Y "%TMPDIR%\node_modules\nw\nwjs\*" "%BUILDROOT%\runtime" > nul || EXIT /B 1
+    REM YARN END
+
+    REM WGET
+    XCOPY /S /I /E /H /Y "%TMPDIR%\nwjs-v%NW_VERSION%-win-x64\*" "%BUILDROOT%\runtime" > nul || EXIT /B 1
+    REM WGET END
+
     MOVE "%BUILDROOT%\runtime\nw.exe" "%BUILDROOT%\runtime\pgAdmin4.exe"
 
     ECHO Replacing executable icon...
@@ -299,11 +324,9 @@ REM Main build sequence Ends
     CD "%WD%\pkg\win32"
 
     ECHO Processing installer configuration script...
-    CALL "%PGADMIN_PYTHON_DIR%\python" "%WD%\pkg\win32\replace.py" "-i" "%WD%\pkg\win32\installer.iss.in" "-o" "%WD%\pkg\win32\installer.iss.in_stage1" "-s" MYAPP_NAME -r """%APP_NAME%"""
-    CALL "%PGADMIN_PYTHON_DIR%\python" "%WD%\pkg\win32\replace.py" "-i" "%WD%\pkg\win32\installer.iss.in_stage1" "-o" "%WD%\pkg\win32\installer.iss.in_stage2" "-s" MYAPP_FULLVERSION -r """%APP_VERSION%"""
-    CALL "%PGADMIN_PYTHON_DIR%\python" "%WD%\pkg\win32\replace.py" "-i" "%WD%\pkg\win32\installer.iss.in_stage2" "-o" "%WD%\pkg\win32\installer.iss.in_stage3" "-s" MYAPP_VERSION -r """v%APP_MAJOR%"""
-    CALL "%PGADMIN_PYTHON_DIR%\python" "%WD%\pkg\win32\replace.py" "-i" "%WD%\pkg\win32\installer.iss.in_stage3" "-o" "%WD%\pkg\win32\installer.iss.in_stage4" "-s" MYAPP_ARCHITECTURESMODE -r """x64"""
-    CALL "%PGADMIN_PYTHON_DIR%\python" "%WD%\pkg\win32\replace.py" "-i" "%WD%\pkg\win32\installer.iss.in_stage4" "-o" "%WD%\pkg\win32\installer.iss" "-s" MYAPP_VCDIST -r """%PGADMIN_VCREDIST_DIRNAME%\%VCREDIST_FILE%"""
+    CALL "%PGADMIN_PYTHON_DIR%\python" "%WD%\pkg\win32\replace.py" "-i" "%WD%\pkg\win32\installer.iss.in" "-o" "%WD%\pkg\win32\installer.iss.in_stage1" "-s" MYAPP_FULLVERSION -r """%APP_VERSION%"""
+    CALL "%PGADMIN_PYTHON_DIR%\python" "%WD%\pkg\win32\replace.py" "-i" "%WD%\pkg\win32\installer.iss.in_stage1" "-o" "%WD%\pkg\win32\installer.iss.in_stage2" "-s" MYAPP_VERSION -r """v%APP_MAJOR%"""
+    CALL "%PGADMIN_PYTHON_DIR%\python" "%WD%\pkg\win32\replace.py" "-i" "%WD%\pkg\win32\installer.iss.in_stage2" "-o" "%WD%\pkg\win32\installer.iss" "-s" MYAPP_VCDIST -r """%PGADMIN_VCREDIST_DIRNAME%\%VCREDIST_FILE%"""
 
     ECHO Cleaning up...
     DEL /s "%WD%\pkg\win32\installer.iss.in_stage*" > nul
@@ -312,7 +335,7 @@ REM Main build sequence Ends
     CALL "%PGADMIN_INNOTOOL_DIR%\ISCC.exe" /q "%WD%\pkg\win32\installer.iss" || EXIT /B 1
 
     ECHO Renaming installer...
-    MOVE "%WD%\pkg\win32\Output\Setup.exe" "%DISTROOT%\%INSTALLERNAME%" > nul || EXIT /B 1
+    MOVE "%WD%\pkg\win32\Output\pgadmin4-setup.exe" "%DISTROOT%\%INSTALLERNAME%" > nul || EXIT /B 1
 
     ECHO Location - %DISTROOT%\%INSTALLERNAME%
     ECHO Installer generated successfully.

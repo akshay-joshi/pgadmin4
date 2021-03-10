@@ -8,7 +8,8 @@
 ##########################################################################
 
 import json
-
+import uuid
+import random
 from pgadmin.utils.route import BaseTestGenerator
 from regression.python_test_utils import test_utils as utils
 from regression import parent_node_dict
@@ -23,7 +24,7 @@ from os import path
 class ERDSql(BaseTestGenerator):
 
     def setUp(self):
-        self.db_name = "erdtestdb"
+        self.db_name = "erdtestdb_{0}".format(str(uuid.uuid4())[1:8])
         self.sid = parent_node_dict["server"][-1]["server_id"]
         self.did = utils.create_database(self.server, self.db_name)
         self.sgid = config_data["server_group"]
@@ -44,7 +45,7 @@ class ERDSql(BaseTestGenerator):
                 sql_base_path, version_mapping['name'])
 
             if not path.exists(complete_path):
-                complete_path = path.join(sql_base_path, 'default')
+                continue
             break
 
         data_sql = ''
@@ -62,8 +63,9 @@ class ERDSql(BaseTestGenerator):
         if not db_con["info"] == "Database connected.":
             raise Exception("Could not connect to database to add the schema.")
 
+        trans_id = random.randint(1, 9999999)
         url = '/erd/sql/{trans_id}/{sgid}/{sid}/{did}'.format(
-            trans_id=123344, sgid=self.sgid, sid=self.sid, did=self.did)
+            trans_id=trans_id, sgid=self.sgid, sid=self.sid, did=self.did)
 
         curr_dir = path.dirname(__file__)
 

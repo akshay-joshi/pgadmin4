@@ -9,7 +9,6 @@
 
 import {getTreeNodeHierarchyFromIdentifier} from '../../../../static/js/tree/pgadmin_tree_node';
 import gettext from 'sources/gettext';
-import $ from 'jquery';
 
 export function getDatabaseLabel(parentData) {
   return parentData.database ? parentData.database.label
@@ -64,11 +63,11 @@ export function setQueryToolDockerTitle(panel, is_query_tool, panel_title, is_fi
   else if (is_query_tool == 'false' || is_query_tool == false) {
     // Edit grid titles
     panel_tooltip = gettext('View/Edit Data - ') + panel_title;
-    panel_icon = 'pg-font-icon icon-view-data';
+    panel_icon = 'pg-font-icon icon-view_data';
   } else {
     // Query tool titles
     panel_tooltip = gettext('Query Tool - ') + panel_title;
-    panel_icon = 'pg-font-icon icon-query-tool';
+    panel_icon = 'pg-font-icon icon-query_tool';
   }
 
   panel.title('<span title="'+ _.escape(panel_tooltip) +'">'+ _.escape(panel_title) +'</span>');
@@ -79,8 +78,6 @@ export function setQueryToolDockerTitle(panel, is_query_tool, panel_title, is_fi
 export function set_renamable_option(panel, is_file) {
   if(is_file || is_file == 'true') {
     panel.renamable(false);
-    $('.conn-info-dd').hide();
-    $('.connection-data').css({pointerEvents: 'none', cursor: 'arrow'});
   } else {
     panel.renamable(true);
   }

@@ -60,11 +60,19 @@ _create_python_virtualenv() {
     # Install the requirements
     pip3 install --no-cache-dir --no-binary psycopg2 -r ${SOURCEDIR}/requirements.txt
 
+    # Fixup the paths in the venv activation scripts
+    sed -i 's/VIRTUAL_ENV=.*/VIRTUAL_ENV="\/usr\/pgadmin4\/venv"/g' venv/bin/activate
+    sed -i 's/setenv VIRTUAL_ENV .*/setenv VIRTUAL_ENV "\/usr\/pgadmin4\/venv"/g' venv/bin/activate.csh
+    sed -i 's/set -gx VIRTUAL_ENV .*/set -gx VIRTUAL_ENV "\/usr\/pgadmin4\/venv"/g' venv/bin/activate.fish
+
+    # Fixup hash bangs
+    sed -i 's/#!.*\/python3/#\!\/usr\/pgadmin4\/venv\/bin\/python3/g' venv/bin/*
+
     # Figure out some paths for use when completing the venv
     # Use "python3" here as we want the venv path
     PYMODULES_PATH=$(python3 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
     DIR_PYMODULES_PATH=`dirname ${PYMODULES_PATH}`
-    
+
     # Use /usr/bin/python3 here as we want the system path
     if [ $1 == "debian" ]; then
         PYSYSLIB_PATH=$(/usr/bin/python3 -c "import sys; print('%s/lib/python%d.%.d' % (sys.prefix, sys.version_info.major, sys.version_info.minor))")
@@ -107,7 +115,7 @@ _create_python_virtualenv() {
 
 _build_runtime() {
     echo "Assembling the desktop runtime..."
-    
+
     # Get a fresh copy of nwjs.
     # NOTE: The nw download servers seem to be very unreliable, so at the moment we're using wget
     #       in a retry loop as Yarn/Npm don't seem to like that.
@@ -203,5 +211,13 @@ _copy_code() {
     # Web setup script
     mkdir -p "${WEBROOT}/usr/${APP_NAME}/bin/"
     cp "${SOURCEDIR}/pkg/linux/setup-web.sh" "${WEBROOT}/usr/${APP_NAME}/bin/"
+
+    # Ensure our venv will use the correct Python interpretor, even if the
+    # user has configured an alternative default.
+    # DO THIS LAST!
+    cd "${SERVERROOT}/usr/${APP_NAME}/venv/bin"
+    PYTHON_INTERPRETER=$(/usr/bin/python3 -c "import os, sys; print(os.path.realpath(sys.executable))")
+    rm python && ln -s python3 python
+    rm python3 && ln -s "${PYTHON_INTERPRETER}" python3
 }
 

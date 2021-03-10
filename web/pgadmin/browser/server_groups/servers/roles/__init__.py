@@ -831,7 +831,7 @@ rolmembership:{
             )
 
         status, rid = self.conn.execute_scalar(
-            "SELECT oid FROM pg_roles WHERE rolname = %(rolname)s",
+            "SELECT oid FROM pg_catalog.pg_roles WHERE rolname = %(rolname)s",
             {'rolname': self.request['rolname']}
         )
 
@@ -1106,7 +1106,7 @@ rolmembership:{
             # a new connection to run the query and fetch the dependents.
             is_connected = True
             try:
-                temp_conn = manager.connection(db_row['datname'])
+                temp_conn = manager.connection(database=db_row['datname'])
                 is_connected = temp_conn.connected()
                 if not is_connected:
                     temp_conn.connect()

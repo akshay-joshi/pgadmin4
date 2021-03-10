@@ -17,18 +17,16 @@ const sourceDir = __dirname + '/pgadmin/static';
 // and other util function used in CommonsChunksPlugin.
 const webpackShimConfig = require('./webpack.shim');
 const PRODUCTION = process.env.NODE_ENV === 'production';
-const OptimizeCssAssetsPlugin = require('optimize-css-assets-webpack-plugin');
+const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const extractStyle = new MiniCssExtractPlugin({
   filename: '[name].css',
   chunkFilename: '[name].css',
-  allChunks: true,
 });
-const WebpackRequireFromPlugin = require('webpack-require-from');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 const CopyPlugin = require('copy-webpack-plugin');
-const IconfontWebpackPlugin = require('iconfont-webpack-plugin');
+const ImageMinimizerPlugin = require('image-minimizer-webpack-plugin');
 
 const envType = PRODUCTION ? 'production': 'development';
 const devToolVal = PRODUCTION ? false : 'eval';
@@ -49,18 +47,8 @@ const providePlugin = new webpack.ProvidePlugin({
   pgAdmin: 'pgadmin',
   'moment': 'moment',
   'window.moment':'moment',
-});
-
-// Optimize CSS Assets by removing comments while bundling
-const optimizeAssetsPlugin = new OptimizeCssAssetsPlugin({
-  assetNameRegExp: /\.css$/g,
-  cssProcessor: require('cssnano'),
-  cssProcessorOptions: {
-    discardComments: {
-      removeAll: true,
-    },
-  },
-  canPrint: true,
+  process: 'process/browser',
+  Buffer: ['buffer', 'Buffer'],
 });
 
 // Helps in debugging each single file, it extracts the module files
@@ -72,27 +60,34 @@ const sourceMapDevToolPlugin = new webpack.SourceMapDevToolPlugin({
   columns: false,
 });
 
-// Supress errors while compiling as the getChunkURL method will be available
-// on runtime. window.getChunkURL is defined in base.html
-const webpackRequireFrom = new WebpackRequireFromPlugin({
-  methodName: 'getChunkURL',
-  supressErrors: true,
-});
-
 // can be enabled using bundle:analyze
 const bundleAnalyzer = new BundleAnalyzerPlugin({
   analyzerMode: analyzerMode,
   reportFilename: 'analyze_report.html',
 });
 
-const copyFiles = new CopyPlugin([
-  pgadminThemesJson,
-  {
-    from: './pgadmin/static/scss/resources/**/*.png',
-    to: outputPath + '/img',
-    flatten: true,
+const copyFiles = new CopyPlugin({
+  patterns: [
+    pgadminThemesJson,
+    {
+      from: './pgadmin/static/scss/resources/**/*.png',
+      to: 'img/[name].[ext]',
+    },
+  ],
+});
+
+const imageMinimizer = new ImageMinimizerPlugin({
+  test: /\.(jpe?g|png|gif|svg)$/i,
+  minimizerOptions: {
+    // Lossless optimization with custom option
+    // Feel free to experiment with options for better result for you
+    plugins: [
+      ['mozjpeg', { progressive: true }],
+      ['optipng', { optimizationLevel: 7 }],
+      ['pngquant', {quality: [0.75, .9], speed: 3}],
+    ],
   },
-]);
+});
 
 function cssToBeSkiped(curr_path) {
   /** Skip all templates **/
@@ -148,6 +143,7 @@ for(let i=0; i<webpackShimConfig.css_bundle_include.length; i++) {
 
 pushModulesStyles(path.join(__dirname,'./pgadmin'), pgadminScssStyles, '.scss');
 pushModulesStyles(path.join(__dirname,'./pgadmin'), pgadminCssStyles, '.css');
+pgadminCssStyles.push(path.join(__dirname,'./pgadmin/static/js/pgadmin.fonticon.js'));
 
 /* Get all the themes */
 
@@ -184,42 +180,22 @@ fs.writeFileSync(pgadminThemesJson, JSON.stringify(pgadminThemes, null, 4));
 var themeCssRules = function(theme_name) {
   return [{
     test: /\.(jpe?g|png|gif|svg)$/i,
-    loaders: [{
-      loader: 'url-loader',
-      options: {
-        emitFile: true,
-        name: 'img/[name].[ext]',
-        limit: 4096,
+    type: 'asset',
+    parser: {
+      dataUrlCondition: {
+        maxSize: 4 * 1024, // 4kb
       },
-    }, {
-      loader: 'image-webpack-loader',
-      query: {
-        bypassOnDebug: true,
-        mozjpeg: {
-          progressive: true,
-        },
-        gifsicle: {
-          interlaced: false,
-        },
-        optipng: {
-          optimizationLevel: 7,
-        },
-        pngquant: {
-          quality: '75-90',
-          speed: 3,
-        },
-      },
-    }],
+    },
+    generator: {
+      filename: 'img/[name].[ext]',
+    },
     exclude: /vendor/,
   }, {
     test: /\.(eot|svg|ttf|woff|woff2)$/,
-    loaders: [{
-      loader: 'file-loader',
-      options: {
-        name: 'fonts/[name].[ext]',
-        emitFile: true,
-      },
-    }],
+    type: 'asset/resource',
+    generator: {
+      filename: 'fonts/[name].[ext]',
+    },
     include: [
       /node_modules/,
       path.join(sourceDir, '/css/'),
@@ -230,15 +206,21 @@ var themeCssRules = function(theme_name) {
   }, {
     test: /\.scss$/,
     use: [
-      {loader: MiniCssExtractPlugin.loader},
+      {
+        loader: MiniCssExtractPlugin.loader,
+        options: {
+          publicPath: '',
+        },
+      },
       {loader: 'css-loader'},
       {
         loader: 'postcss-loader',
         options: {
-          plugins: (loader) => [
-            require('autoprefixer')(),
-            new IconfontWebpackPlugin(loader),
-          ],
+          postcssOptions: () =>({
+            plugins: [
+              require('autoprefixer')(),
+            ],
+          }),
         },
       },
       {loader: 'sass-loader'},
@@ -261,15 +243,21 @@ var themeCssRules = function(theme_name) {
   }, {
     test: /\.css$/,
     use: [
-      MiniCssExtractPlugin.loader,
+      {
+        loader: MiniCssExtractPlugin.loader,
+        options: {
+          publicPath: '',
+        },
+      },
       'css-loader',
       {
         loader: 'postcss-loader',
         options: {
-          plugins: (loader) => [
-            require('autoprefixer')(),
-            new IconfontWebpackPlugin(loader),
-          ],
+          postcssOptions: () =>({
+            plugins: [
+              require('autoprefixer')(),
+            ],
+          }),
         },
       },
     ],
@@ -295,6 +283,7 @@ var getThemeWebpackConfig = function(theme_name) {
       path: outputPath,
       filename: '[name].js',
       libraryExport: 'default',
+      publicPath: '',
     },
     // Templates files which contains python code needs to load dynamically
     // Such files specified in externals are loaded at first and defined in
@@ -306,6 +295,21 @@ var getThemeWebpackConfig = function(theme_name) {
       // Loaders: https://webpack.js.org/loaders/
       //
       rules: themeCssRules(theme_name),
+    },
+    optimization: {
+      minimize: true,
+      minimizer: [
+        new CssMinimizerPlugin({
+          minimizerOptions: {
+            preset: [
+              'default',
+              {
+                discardComments: { removeAll: true },
+              },
+            ],
+          }
+        }),
+      ],
     },
     resolve: {
       alias: webpackShimConfig.resolveAlias,
@@ -324,14 +328,10 @@ var getThemeWebpackConfig = function(theme_name) {
     },
     // Define list of Plugins used in Production or development mode
     // Ref:https://webpack.js.org/concepts/plugins/#components/sidebar/sidebar.jsx
-    plugins: PRODUCTION ? [
-      extractStyle,
-      optimizeAssetsPlugin,
-      sourceMapDevToolPlugin,
-    ]: [
+    plugins: [
       extractStyle,
       sourceMapDevToolPlugin,
-    ],
+    ]
   };
 };
 
@@ -343,7 +343,7 @@ Object.keys(pgadminThemes).map((theme_name)=>{
 module.exports = [{
   mode: envType,
   devtool: devToolVal,
-  stats: { children: false },
+  stats: { children: false, builtAt: true, chunks: true, timings: true },
   // The base directory, an absolute path, for resolving entry points and loaders
   // from configuration.
   context: __dirname,
@@ -369,6 +369,7 @@ module.exports = [{
     filename: '[name].js',
     chunkFilename: '[name].chunk.js',
     libraryExport: 'default',
+    publicPath: '',
   },
   // Templates files which contains python code needs to load dynamically
   // Such files specified in externals are loaded at first and defined in
@@ -385,6 +386,18 @@ module.exports = [{
     // It solves number of problems
     // Ref: http:/github.com/webpack-contrib/imports-loader/
     rules: [{
+      test: /\.fonticon\.js/,
+      use: [
+        MiniCssExtractPlugin.loader,
+        {
+          loader: 'css-loader',
+          options: {
+            url: false,
+          },
+        },
+        'webfonts-loader',
+      ],
+    },{
       test: /\.jsx?$/,
       exclude: [/node_modules/, /vendor/],
       use: {
@@ -410,7 +423,7 @@ module.exports = [{
       test: /\.js/,
       exclude: [/external_table/],
       loader: 'shim-loader',
-      query: webpackShimConfig,
+      options: webpackShimConfig,
       include: path.join(__dirname, '/pgadmin/browser'),
     }, {
       // imports-loader: it adds dependent modules(use:imports-loader?module1)
@@ -420,95 +433,108 @@ module.exports = [{
       // Ref: http:/github.com/webpack-contrib/imports-loader/
       test: require.resolve('./pgadmin/tools/datagrid/static/js/datagrid'),
       use: {
-        loader: 'imports-loader?' +
-        'pgadmin.dashboard' +
-        ',pgadmin.tools.user_management' +
-        ',pgadmin.browser.object_statistics' +
-        ',pgadmin.browser.dependencies' +
-        ',pgadmin.browser.dependents' +
-        ',pgadmin.browser.object_sql' +
-        ',pgadmin.browser.bgprocess' +
-        ',pgadmin.node.server_group' +
-        ',pgadmin.node.server' +
-        ',pgadmin.node.database' +
-        ',pgadmin.node.role' +
-        ',pgadmin.node.cast' +
-        ',pgadmin.node.tablespace' +
-        ',pgadmin.node.resource_group' +
-        ',pgadmin.node.event_trigger' +
-        ',pgadmin.node.extension' +
-        ',pgadmin.node.language' +
-        ',pgadmin.node.foreign_data_wrapper' +
-        ',pgadmin.node.foreign_server' +
-        ',pgadmin.node.user_mapping' +
-        ',pgadmin.node.schema' +
-        ',pgadmin.node.catalog' +
-        ',pgadmin.node.catalog_object' +
-        ',pgadmin.node.collation' +
-        ',pgadmin.node.domain' +
-        ',pgadmin.node.domain_constraints' +
-        ',pgadmin.node.foreign_table' +
-        ',pgadmin.node.fts_configuration' +
-        ',pgadmin.node.fts_dictionary' +
-        ',pgadmin.node.fts_parser' +
-        ',pgadmin.node.fts_template' +
-        ',pgadmin.node.function' +
-        ',pgadmin.node.procedure' +
-        ',pgadmin.node.edbfunc' +
-        ',pgadmin.node.edbproc' +
-        ',pgadmin.node.edbvar' +
-        ',pgadmin.node.edbvar' +
-        ',pgadmin.node.trigger_function' +
-        ',pgadmin.node.package' +
-        ',pgadmin.node.sequence' +
-        ',pgadmin.node.synonym' +
-        ',pgadmin.node.type' +
-        ',pgadmin.node.rule' +
-        ',pgadmin.node.index' +
-        ',pgadmin.node.row_security_policy' +
-        ',pgadmin.node.trigger' +
-        ',pgadmin.node.catalog_object_column' +
-        ',pgadmin.node.view' +
-        ',pgadmin.node.mview' +
-        ',pgadmin.node.table' +
-        ',pgadmin.node.partition' +
-        ',pgadmin.node.compound_trigger',
+        loader: 'imports-loader',
+        options: {
+          type: 'commonjs',
+          imports: [
+            'pure|pgadmin.dashboard',
+            'pure|pgadmin.browser.quick_search',
+            'pure|pgadmin.tools.user_management',
+            'pure|pgadmin.browser.object_statistics',
+            'pure|pgadmin.browser.dependencies',
+            'pure|pgadmin.browser.dependents',
+            'pure|pgadmin.browser.object_sql',
+            'pure|pgadmin.browser.bgprocess',
+            'pure|pgadmin.node.server_group',
+            'pure|pgadmin.node.server',
+            'pure|pgadmin.node.database',
+            'pure|pgadmin.node.role',
+            'pure|pgadmin.node.cast',
+            'pure|pgadmin.node.publication',
+            'pure|pgadmin.node.subscription',
+            'pure|pgadmin.node.tablespace',
+            'pure|pgadmin.node.resource_group',
+            'pure|pgadmin.node.event_trigger',
+            'pure|pgadmin.node.extension',
+            'pure|pgadmin.node.language',
+            'pure|pgadmin.node.foreign_data_wrapper',
+            'pure|pgadmin.node.foreign_server',
+            'pure|pgadmin.node.user_mapping',
+            'pure|pgadmin.node.schema',
+            'pure|pgadmin.node.catalog',
+            'pure|pgadmin.node.catalog_object',
+            'pure|pgadmin.node.collation',
+            'pure|pgadmin.node.domain',
+            'pure|pgadmin.node.domain_constraints',
+            'pure|pgadmin.node.foreign_table',
+            'pure|pgadmin.node.fts_configuration',
+            'pure|pgadmin.node.fts_dictionary',
+            'pure|pgadmin.node.fts_parser',
+            'pure|pgadmin.node.fts_template',
+            'pure|pgadmin.node.function',
+            'pure|pgadmin.node.procedure',
+            'pure|pgadmin.node.edbfunc',
+            'pure|pgadmin.node.edbproc',
+            'pure|pgadmin.node.edbvar',
+            'pure|pgadmin.node.trigger_function',
+            'pure|pgadmin.node.package',
+            'pure|pgadmin.node.sequence',
+            'pure|pgadmin.node.synonym',
+            'pure|pgadmin.node.type',
+            'pure|pgadmin.node.rule',
+            'pure|pgadmin.node.index',
+            'pure|pgadmin.node.row_security_policy',
+            'pure|pgadmin.node.trigger',
+            'pure|pgadmin.node.catalog_object_column',
+            'pure|pgadmin.node.view',
+            'pure|pgadmin.node.mview',
+            'pure|pgadmin.node.table',
+            'pure|pgadmin.node.partition',
+            'pure|pgadmin.node.compound_trigger',
+          ],
+        },
       },
     }, {
       test: require.resolve('./node_modules/acitree/js/jquery.aciTree.min'),
       use: {
-        loader: 'imports-loader?this=>window',
+        loader: 'imports-loader',
+        options: {
+          wrapper: 'window',
+        },
       },
     }, {
       test: require.resolve('./node_modules/acitree/js/jquery.aciPlugin.min'),
       use: {
-        loader: 'imports-loader?this=>window',
+        loader: 'imports-loader',
+        options: {
+          wrapper: 'window',
+        },
       },
     }, {
       test: require.resolve('./pgadmin/static/bundle/browser'),
       use: {
-        loader: 'imports-loader?' +
-        'pgadmin.about' +
-        ',pgadmin.preferences' +
-        ',pgadmin.file_manager' +
-        ',pgadmin.settings' +
-        ',pgadmin.tools.backup' +
-        ',pgadmin.tools.restore' +
-        ',pgadmin.tools.grant_wizard' +
-        ',pgadmin.tools.maintenance' +
-        ',pgadmin.tools.import_export' +
-        ',pgadmin.tools.debugger.controller' +
-        ',pgadmin.tools.debugger.direct' +
-        ',pgadmin.node.pga_job' +
-        ',pgadmin.tools.schema_diff' +
-        ',pgadmin.tools.storage_manager' +
-        ',pgadmin.tools.search_objects' +
-        ',pgadmin.tools.erd_module',
-      },
-    }, {
-      test: require.resolve('snapsvg'),
-      use: {
-        loader: 'imports-loader?this=>window,fix=>module.exports=0',
+        loader: 'imports-loader',
+        options: {
+          type: 'commonjs',
+          imports: [
+            'pure|pgadmin.about',
+            'pure|pgadmin.preferences',
+            'pure|pgadmin.file_manager',
+            'pure|pgadmin.settings',
+            'pure|pgadmin.tools.backup',
+            'pure|pgadmin.tools.restore',
+            'pure|pgadmin.tools.grant_wizard',
+            'pure|pgadmin.tools.maintenance',
+            'pure|pgadmin.tools.import_export',
+            'pure|pgadmin.tools.debugger.controller',
+            'pure|pgadmin.tools.debugger.direct',
+            'pure|pgadmin.node.pga_job',
+            'pure|pgadmin.tools.schema_diff',
+            'pure|pgadmin.tools.storage_manager',
+            'pure|pgadmin.tools.search_objects',
+            'pure|pgadmin.tools.erd_module',
+          ],
+        },
       },
     }].concat(themeCssRules('standard')),
     // Prevent module from parsing through webpack, helps in reducing build time
@@ -533,42 +559,14 @@ module.exports = [{
     minimizer: [
       new TerserPlugin({
         parallel: true,
-        cache: true,
+        extractComments: true,
         terserOptions: {
           compress: true,
-          extractComments: true,
-          output: {
-            comments: false,
-          },
         },
       }),
     ],
     splitChunks: {
       cacheGroups: {
-        slickgrid: {
-          name: 'slickgrid',
-          filename: 'slickgrid.js',
-          chunks: 'all',
-          reuseExistingChunk: true,
-          priority: 9,
-          minChunks: 2,
-          enforce: true,
-          test(module) {
-            return webpackShimConfig.matchModules(module, 'slickgrid');
-          },
-        },
-        codemirror: {
-          name: 'codemirror',
-          filename: 'codemirror.js',
-          chunks: 'all',
-          reuseExistingChunk: true,
-          priority: 8,
-          minChunks: 2,
-          enforce: true,
-          test(module) {
-            return webpackShimConfig.matchModules(module, 'codemirror');
-          },
-        },
         vendor_main: {
           name: 'vendor_main',
           filename: 'vendor.main.js',
@@ -623,16 +621,14 @@ module.exports = [{
   plugins: PRODUCTION ? [
     extractStyle,
     providePlugin,
-    optimizeAssetsPlugin,
     sourceMapDevToolPlugin,
-    webpackRequireFrom,
     bundleAnalyzer,
     copyFiles,
+    imageMinimizer,
   ]: [
     extractStyle,
     providePlugin,
     sourceMapDevToolPlugin,
-    webpackRequireFrom,
     copyFiles,
   ],
 }].concat(pgadminThemesWebpack);

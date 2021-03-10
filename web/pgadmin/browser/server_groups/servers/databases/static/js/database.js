@@ -76,12 +76,16 @@ define('pgadmin.node.database', [
           name: 'connect_database', node: 'database', module: this,
           applies: ['object', 'context'], callback: 'connect_database',
           category: 'connect', priority: 4, label: gettext('Connect Database...'),
-          icon: 'fa fa-link', enable : 'is_not_connected',
+          icon: 'fa fa-link', enable : 'is_not_connected', data: {
+            data_disabled: gettext('Selected database is already connected.'),
+          },
         },{
           name: 'disconnect_database', node: 'database', module: this,
           applies: ['object', 'context'], callback: 'disconnect_database',
           category: 'drop', priority: 5, label: gettext('Disconnect Database...'),
-          icon: 'fa fa-unlink', enable : 'is_connected',
+          icon: 'fa fa-unlink', enable : 'is_connected',data: {
+            data_disabled: gettext('Selected database is already disconnected.'),
+          },
         },{
           name: 'generate_erd', node: 'database', module: this,
           applies: ['object', 'context'], callback: 'generate_erd',
@@ -99,6 +103,18 @@ define('pgadmin.node.database', [
 
         return server.connected && server.user.can_create_db;
       },
+      canCreate: function(itemData, item) {
+        var treeData = this.getTreeNodeHierarchy(item),
+          server = treeData['server'];
+
+        // If server is less than 10 then do not allow 'create' menu
+        if (server && server.version < 100000)
+          return false;
+
+        // by default we want to allow create menu
+        return true;
+      },
+
       is_not_connected: function(node) {
         return (node && node.connected != true && node.allowConn == true);
       },

@@ -145,10 +145,14 @@ class Connection(BaseConnection):
         gettext("Cursor could not be found for the async connection.")
     ARGS_STR = "{0}#{1}"
 
-    def __init__(self, manager, conn_id, db, auto_reconnect=True, async_=0,
-                 use_binary_placeholder=False, array_to_string=False):
+    def __init__(self, manager, conn_id, db, **kwargs):
         assert (manager is not None)
         assert (conn_id is not None)
+
+        auto_reconnect = kwargs.get('auto_reconnect', True)
+        async_ = kwargs.get('async_', 0)
+        use_binary_placeholder = kwargs.get('use_binary_placeholder', False)
+        array_to_string = kwargs.get('array_to_string', False)
 
         self.conn_id = conn_id
         self.manager = manager
@@ -552,12 +556,20 @@ WHERE db.datname = current_database()""")
         """
         status = self._execute(cur, """
         SELECT
-            oid as id, rolname as name, rolsuper as is_superuser,
-            CASE WHEN rolsuper THEN true ELSE rolcreaterole END as
+            roles.oid as id, roles.rolname as name,
+            roles.rolsuper as is_superuser,
+            CASE WHEN roles.rolsuper THEN true ELSE roles.rolcreaterole END as
             can_create_role,
-            CASE WHEN rolsuper THEN true ELSE rolcreatedb END as can_create_db
+            CASE WHEN roles.rolsuper THEN true
+            ELSE roles.rolcreatedb END as can_create_db,
+            CASE WHEN 'pg_signal_backend'=ANY(ARRAY(
+                SELECT pg_catalog.pg_roles.rolname FROM
+                pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles ON
+                (m.roleid = pg_catalog.pg_roles.oid) WHERE
+                 m.member = roles.oid)) THEN True
+            ELSE False END as can_signal_backend
         FROM
-            pg_catalog.pg_roles
+            pg_catalog.pg_roles as roles
         WHERE
             rolname = current_user""")
 
