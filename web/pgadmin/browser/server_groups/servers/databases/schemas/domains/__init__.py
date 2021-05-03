@@ -536,9 +536,9 @@ It may have been removed by another user or moved to another schema.
         """
 
         condition = """typisdefined AND typtype IN ('b', 'c', 'd', 'e', 'r')
-AND NOT EXISTS (SELECT 1 FROM pg_class WHERE relnamespace=typnamespace
-AND relname = typname AND relkind != 'c') AND
-(typname NOT LIKE '_%' OR NOT EXISTS (SELECT 1 FROM pg_class WHERE
+AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class
+WHERE relnamespace=typnamespace AND relname = typname AND relkind != 'c') AND
+(typname NOT LIKE '_%' OR NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class WHERE
 relnamespace=typnamespace AND relname = substring(typname FROM 2)::name
 AND relkind != 'c'))"""
 
@@ -981,6 +981,37 @@ AND relkind != 'c'))"""
                 sql = self.sql(gid=gid, sid=sid, did=did, scid=scid, doid=oid,
                                json_resp=False)
         return sql
+
+    def get_dependencies(self, conn, object_id, where=None,
+                         show_system_objects=None, is_schema_diff=False):
+        """
+        This function is used to get dependencies of domain and it's
+        domain constraints.
+        """
+        domain_dependencies = []
+        domain_deps = super().get_dependencies(
+            conn, object_id, where=None, show_system_objects=None,
+            is_schema_diff=True)
+        if len(domain_deps) > 0:
+            domain_dependencies.extend(domain_deps)
+
+        # Get Domain Constraints
+        SQL = render_template("/".join([self.template_path,
+                                        self._GET_CONSTRAINTS_SQL]),
+                              doid=object_id)
+        status, res = self.conn.execute_dict(SQL)
+        if not status:
+            return False, internal_server_error(errormsg=res)
+
+        # Get the domain constraints dependencies.
+        for row in res['rows']:
+            constraint_deps = super().get_dependencies(
+                conn, row['conoid'], where=None, show_system_objects=None,
+                is_schema_diff=True)
+            if len(constraint_deps) > 0:
+                domain_dependencies.extend(constraint_deps)
+
+        return domain_dependencies
 
 
 SchemaDiffRegistry(blueprint.node_type, DomainView)

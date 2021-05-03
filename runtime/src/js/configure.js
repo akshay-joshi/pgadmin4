@@ -10,21 +10,21 @@
 const misc = require('../js/misc.js');
 
 // Get the window object of view log window
-var gui = require('nw.gui');
-var configWindow = gui.Window.get();
+let gui = require('nw.gui');
+let configWindow = gui.Window.get();
 
 function checkConfiguration() {
-  var configData = misc.ConfigureStore.getConfigData();
+  let configData = misc.ConfigureStore.getConfigData();
 
-  if (document.getElementById('fixedPortCheck').checked && configData['portNo'] != document.getElementById('portNo').value) {
-    var fixedPort = parseInt(document.getElementById('portNo').value);
+  if (document.getElementById('fixedPortCheck').checked && configData['portNo'] !== document.getElementById('portNo').value) {
+    let fixedPort = parseInt(document.getElementById('portNo').value);
     // get the available TCP port
     misc.getAvailablePort(fixedPort)
       .then(() => {
         saveConfiguration();
       })
       .catch(() => {
-        alert('The specified fixed port is already in use. Please provide any other valid port.');
+        alert('The port specified is already in use. Please enter a free port number.');
       });
   } else {
     saveConfiguration();
@@ -40,7 +40,7 @@ function saveConfiguration() {
 
   document.getElementById('status-text').innerHTML = 'Configuration Saved';
 
-  if (confirm('The pgAdmin 4 must be restarted for changes to take effect.\n\n Do you want to quit the application?') == true) {
+  if (confirm('pgAdmin 4 must be restarted for changes to take effect.\n\n Do you want to quit the application?') === true) {
     misc.cleanupAndQuitApp();
   }
   configWindow.close();
@@ -58,11 +58,11 @@ function onCheckChange() {
 }
 
 function enableDisableSaveButton() {
-  var configData = misc.ConfigureStore.getConfigData();
+  let configData = misc.ConfigureStore.getConfigData();
 
-  if (configData['fixedPort'] != document.getElementById('fixedPortCheck').checked ||
-      configData['portNo'] != document.getElementById('portNo').value ||
-      configData['connectionTimeout'] != document.getElementById('timeOut').value) {
+  if (configData['fixedPort'] !== document.getElementById('fixedPortCheck').checked ||
+      configData['portNo'] !== document.getElementById('portNo').value ||
+      configData['connectionTimeout'] !== document.getElementById('timeOut').value) {
     document.getElementById('btnSave').removeAttribute('disabled');
   } else {
     document.getElementById('btnSave').setAttribute('disabled', 'disabled');
@@ -72,7 +72,7 @@ function enableDisableSaveButton() {
 configWindow.on('loaded', function() {
   document.getElementById('status-text').innerHTML = '';
   // Get the config data from the file.
-  var configData = misc.ConfigureStore.getConfigData();
+  let configData = misc.ConfigureStore.getConfigData();
 
   // Set the GUI value as per configuration.
   if (configData['fixedPort']) {

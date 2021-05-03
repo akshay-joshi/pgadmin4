@@ -82,6 +82,17 @@ let NewConnectionDialog = {
                   'data-btn-name': 'ok',
                 },
               ],
+              focus: {
+                element: function(){
+                /*
+                returning false will focus nothing, but it will make
+                contents behind the modal accessible via Tab key,
+                so focus the dialog itself instead.
+                */
+                  return $(this.elements.dialog).find('.new-connection-dialog .nav-link.active.show');
+                },
+                select: true,
+              },
               // Set options for dialog
               options: {
                 title: title,
@@ -258,7 +269,7 @@ let NewConnectionDialog = {
     }).fail(function() {
       Alertify.alert().setting({
         'title': gettext('Connection lost'),
-        'label':gettext('Ok'),
+        'label':gettext('OK'),
         'message': gettext('Connection to the server has been lost.'),
         'onok': function(){
           //Close the window after connection is lost

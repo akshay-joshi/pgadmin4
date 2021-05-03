@@ -39,6 +39,26 @@ _.extend(pgBrowser, {
   mnu_viewlog_runtime: function() {
     this.send_signal_to_runtime('Runtime Open View Log');
   },
+
+  // This function is callback function when 'Enter Full Screen' menu is clicked.
+  mnu_toggle_fullscreen_runtime: function() {
+    this.send_signal_to_runtime('Runtime Toggle Full Screen');
+  },
+
+  // This function is callback function when 'Actual Size' menu is clicked.
+  mnu_actual_size_runtime: function() {
+    this.send_signal_to_runtime('Runtime Actual Size');
+  },
+
+  // This function is callback function when 'Zoom In' menu is clicked.
+  mnu_zoomin_runtime: function() {
+    this.send_signal_to_runtime('Runtime Zoom In');
+  },
+
+  // This function is callback function when 'Zoom Out' menu is clicked.
+  mnu_zoomout_runtime: function() {
+    this.send_signal_to_runtime('Runtime Zoom Out');
+  }
 });
 
 export {pgBrowser};

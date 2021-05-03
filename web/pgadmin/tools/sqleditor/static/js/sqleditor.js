@@ -51,6 +51,7 @@ define('tools.querytool', [
   'sources/window',
   'sources/is_native',
   'sources/sqleditor/macro',
+  'pgadmin.authenticate.kerberos',
   'sources/../bundle/slickgrid',
   'pgadmin.file_manager',
   'slick.pgadmin.formatters',
@@ -65,7 +66,7 @@ define('tools.querytool', [
   GeometryViewer, historyColl, queryHist, querySources,
   keyboardShortcuts, queryToolActions, queryToolNotifications, Datagrid,
   modifyAnimation, calculateQueryRunTime, callRenderAfterPoll, queryToolPref, queryTxnStatus, csrfToken, panelTitleFunc,
-  pgWindow, isNative, MacroHandler) {
+  pgWindow, isNative, MacroHandler, Kerberos) {
   /* Return back, this has been called more than once */
   if (pgAdmin.SqlEditor)
     return pgAdmin.SqlEditor;
@@ -491,6 +492,16 @@ define('tools.querytool', [
         }, 200);
       });
 
+      // Prevent browser from opening the drag file.
+      $('#datagrid').bind('dragover', function (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      });
+      $('#datagrid').bind('drop', function (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      });
+
       var open_new_tab = self.browser_preferences.new_browser_tab_open;
       if (_.isNull(open_new_tab) || _.isUndefined(open_new_tab) || !open_new_tab.includes('qt')) {
         // Listen on the panel closed event and notify user to save modifications.
@@ -506,13 +517,23 @@ define('tools.querytool', [
                 transId = self.handler.transId;
 
               if (!$container.hasClass('wcPanelTabContentHidden')) {
-                setTimeout(function () {
-                  self.handler.gridView.query_tool_obj.focus();
-                }, 200);
-                // Trigger an event to update connection status flag
-                pgBrowser.Events.trigger(
-                  'pgadmin:query_tool:panel:gain_focus:' + transId
-                );
+
+                let modal_list = ['fileSelectionDlg', 'createModeDlg',
+                  'confirm', 'alert', 'confirmSave', 'newConnectionDialog',
+                  'macroDialog'];
+
+                /* check the modals inside the sqleditor are open, if not,
+                focus on the editor instead. */
+                if(!SqlEditorUtils.isModalOpen(modal_list)) {
+                  setTimeout(function () {
+                    self.handler.gridView.query_tool_obj.focus();
+                  }, 200);
+
+                  // Trigger an event to update connection status flag
+                  pgBrowser.Events.trigger(
+                    'pgadmin:query_tool:panel:gain_focus:' + transId
+                  );
+                }
               }
             });
 
@@ -1407,7 +1428,9 @@ define('tools.querytool', [
       })
         .done(function(res) {
           self.handler.has_more_rows = res.data.has_more_rows;
-          $('#btn-flash').prop('disabled', false);
+          setTimeout(() => {
+            $('#btn-flash').prop('disabled', false);
+          }, 700);
           $('#btn-save-results-to-file').prop('disabled', false);
           self.handler.trigger('pgadmin-sqleditor:loading-icon:hide');
           self.update_grid_data(res.data.result);
@@ -1803,6 +1826,7 @@ define('tools.querytool', [
 
     // Callback function for the flash button click.
     on_flash: function() {
+      $('#btn-flash').prop('disabled', true);
       let data_click_counter = $('#btn-flash').attr('data-click-counter');
       data_click_counter = (parseInt(data_click_counter) + 1)%10;
       $('#btn-flash').attr('data-click-counter', data_click_counter);
@@ -2431,9 +2455,23 @@ define('tools.querytool', [
               pgBrowser.report_error(gettext('Error fetching rows - %s.', xhr.statusText), xhr.responseJSON.errormsg, undefined, self.close.bind(self));
             }
           } else {
-            pgBrowser.Events.trigger(
-              'pgadmin:query_tool:connected_fail:' + self.transId, xhr, error
-            );
+            if (xhr.responseText.search('Ticket expired') !== -1) {
+              let fetchTicket = Kerberos.fetch_ticket();
+              fetchTicket.then(
+                function() {
+                  self.initTransaction();
+                },
+                function(error) {
+                  pgBrowser.Events.trigger(
+                    'pgadmin:query_tool:connected_fail:' + self.transId, xhr, error
+                  );
+                }
+              );
+            } else {
+              pgBrowser.Events.trigger(
+                'pgadmin:query_tool:connected_fail:' + self.transId, xhr, error
+              );
+            }
           }
         });
       },
@@ -3089,7 +3127,8 @@ define('tools.querytool', [
 
             // Hide the loading icon
             self_col.trigger('pgadmin-sqleditor:loading-icon:hide');
-            $('#btn-flash').prop('disabled', false);
+
+            // Enable/Disable download button based on query result
             if (!_.isUndefined(data) && Array.isArray(data.result) && data.result.length > 0) {
               self.enable_disable_download_btn(false);
             }
@@ -3275,7 +3314,10 @@ define('tools.querytool', [
         }
 
         if (status != 'Busy') {
-          $('#btn-flash').prop('disabled', false);
+          setTimeout(() => {
+            $('#btn-flash').prop('disabled', false);
+          }, 400);
+
           self.trigger('pgadmin-sqleditor:loading-icon:hide');
 
           if(!self.total_time) {
@@ -4172,6 +4214,7 @@ define('tools.querytool', [
         if(pgAdmin.SqlEditor.copiedInOtherSessionWithHeaders) {
           copied_rows = copied_rows.slice(1);
         }
+        var row_index = 0;
         copied_rows = copied_rows.reduce((partial, values) => {
           // split each row with field separator character
           let row = {};
@@ -4182,13 +4225,27 @@ define('tools.querytool', [
             if(v === '') {
               if(self.columns[col].has_default_val) {
                 v = undefined;
+              } else if (self.copied_rows[row_index][self.columns[col].display_name] === null) {
+                v = null;
+              } else {
+                v = '';
+              }
+            }
+
+            if(self.columns[col].cell === 'boolean') {
+              if(v == 'true') {
+                v = true;
+              } else if(v == 'false') {
+                v = false;
               } else {
                 v = null;
               }
             }
+
             row[self.columns[col].name] = v;
           }
           partial.push(row);
+          row_index ++;
           return partial;
         }, []);
 
@@ -4794,7 +4851,7 @@ define('tools.querytool', [
         else if (!ignore_unsaved_query && self.is_query_tool
                    && self.is_query_changed
                    && self.preferences.prompt_save_query_changes) {
-          msg = gettext('The text has changed. Do you want to save changes?');
+          msg = gettext('The query text has changed. Do you want to save changes?');
           self.unsaved_changes_user_confirmation(msg, false);
         } // If a transaction is currently ongoing
         else if (self.preferences.prompt_commit_transaction
@@ -4923,14 +4980,46 @@ define('tools.querytool', [
                 break;
               case 1: // Don't Save
                 self.close_on_save = false;
-                if(this.is_unsaved_data)
-                  self.ignore_on_close.unsaved_data = true;
-                else
-                  self.ignore_on_close.unsaved_query = true;
-                // Go back to check for any other needed confirmations before closing
-                if (!self.check_needed_confirmations_before_closing_panel()){
-                  closeEvent.cancel = true;
-                }
+                self.is_unsaved_data = this.is_unsaved_data;
+                $.ajax({
+                  url: url_for('sqleditor._check_server_connection_status', {
+                    'sid': self.url_params.sid,
+                    'sgid': self.url_params.sgid,
+                  }),
+                  headers: {
+                    'Cache-Control' : 'no-cache',
+                  },
+                }).done(function (res) {
+                  let response = res.data.result.server;
+                  if (response) {
+                    closeEvent.cancel = true;
+                    if (self.is_unsaved_data)
+                      self.ignore_on_close.unsaved_data = true;
+                    else
+                      self.ignore_on_close.unsaved_query = true;
+
+                    // Go back to check for any other needed confirmations before closing
+                    if (!self.check_needed_confirmations_before_closing_panel()) {
+                      closeEvent.cancel = true;
+                    }
+                  } else {
+                    alertify.confirm(
+                      gettext('Warning'),
+                      gettext('The current transaction has been rolled back because the server was disconnected.'),
+                      function() {
+                        // Close the query tool if server is disconnected.
+                        setTimeout(() => { self.close(); }, 200);
+                      },
+                      function() {
+                        return true;
+                      }
+                    ).set('labels', {
+                      ok: gettext('OK')
+                    });
+                  }
+                }).fail(function() {
+                  /* failure should be ignored */
+                });
                 break;
               case 2: //Save
                 self.close_on_save = true;

@@ -12,19 +12,22 @@ define('pgadmin.browser', [
   'sources/gettext', 'sources/url_for', 'require', 'jquery', 'underscore',
   'bootstrap', 'sources/pgadmin', 'pgadmin.alertifyjs', 'bundled_codemirror',
   'sources/check_node_visibility', './toolbar', 'pgadmin.help',
-  'sources/csrf', 'sources/utils', 'sources/window', 'pgadmin.browser.utils',
-  'wcdocker', 'jquery.contextmenu', 'jquery.aciplugin', 'jquery.acitree',
+  'sources/csrf', 'sources/utils', 'sources/window', 'pgadmin.authenticate.kerberos',
+  'pgadmin.browser.utils', 'wcdocker', 'jquery.contextmenu', 'jquery.aciplugin',
+  'jquery.acitree',
   'pgadmin.browser.preferences', 'pgadmin.browser.messages',
   'pgadmin.browser.menu', 'pgadmin.browser.panel', 'pgadmin.browser.layout',
   'pgadmin.browser.runtime', 'pgadmin.browser.error', 'pgadmin.browser.frame',
   'pgadmin.browser.node', 'pgadmin.browser.collection', 'pgadmin.browser.activity',
   'sources/codemirror/addon/fold/pgadmin-sqlfoldcode',
-  'pgadmin.browser.keyboard', 'sources/tree/pgadmin_tree_save_state','jquery.acisortable', 'jquery.acifragment',
+  'pgadmin.browser.keyboard', 'sources/tree/pgadmin_tree_save_state','jquery.acisortable',
+  'jquery.acifragment',
 ], function(
   tree,
   gettext, url_for, require, $, _,
   Bootstrap, pgAdmin, Alertify, codemirror,
-  checkNodeVisibility, toolBar, help, csrfToken, pgadminUtils, pgWindow
+  checkNodeVisibility, toolBar, help, csrfToken, pgadminUtils, pgWindow,
+  Kerberos
 ) {
   window.jQuery = window.$ = $;
   // Some scripts do export their object in the window only.
@@ -37,6 +40,8 @@ define('pgadmin.browser', [
   var select_object_msg = gettext('Please select an object in the tree view.');
 
   csrfToken.setPGCSRFToken(pgAdmin.csrf_token_header, pgAdmin.csrf_token);
+
+  Kerberos.validate_kerberos_ticket();
 
   var panelEvents = {};
   panelEvents[wcDocker.EVENT.VISIBILITY_CHANGED] = function() {
@@ -836,7 +841,7 @@ define('pgadmin.browser', [
                 enable: (_m.enable == '' ? true : (_.isString(_m.enable) &&
                   _m.enable.toLowerCase() == 'false') ?
                   false : _m.enable),
-                node: _m.node, checked: _m.checked,
+                node: _m.node, checked: _m.checked, below: _m.below,
               });
             };
 
@@ -907,7 +912,12 @@ define('pgadmin.browser', [
 
         window.open(fullUrl, 'postgres_help');
       } else if(type == 'dialog_help') {
-        window.open(url, 'pgadmin_help');
+        if (pgWindow && pgWindow.default) {
+          pgWindow.default.open(url, 'pgadmin_help');
+        }
+        else {
+          window.open(url, 'pgadmin_help');
+        }
       }
       $('#live-search-field').focus();
     },

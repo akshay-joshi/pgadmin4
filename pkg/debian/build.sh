@@ -56,7 +56,7 @@ cat << EOF > "${DESKTOPROOT}/DEBIAN/control"
 Package: ${APP_NAME}-desktop
 Version: ${APP_LONG_VERSION}
 Architecture: ${OS_ARCH}
-Depends: ${APP_NAME}-server (= ${APP_LONG_VERSION}), libatomic1
+Depends: ${APP_NAME}-server (= ${APP_LONG_VERSION}), libatomic1, xdg-utils
 Maintainer: pgAdmin Development Team <pgadmin-hackers@postgresql.org>
 Description: The desktop user interface for pgAdmin. pgAdmin is the most popular and feature rich Open Source administration and development platform for PostgreSQL, the most advanced Open Source database in the world.
 EOF
@@ -71,6 +71,10 @@ fakeroot dpkg-deb --build "${DESKTOPROOT}" "${DISTROOT}/${APP_NAME}-desktop_${AP
 # Create the Debian packaging stuffs for the web
 echo "Creating the web package..."
 mkdir "${WEBROOT}/DEBIAN"
+
+cat << EOF > "${WEBROOT}/DEBIAN/conffiles"
+/etc/apache2/conf-available/pgadmin4.conf
+EOF
 
 cat << EOF > "${WEBROOT}/DEBIAN/control"
 Package: ${APP_NAME}-web

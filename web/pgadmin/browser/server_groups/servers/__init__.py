@@ -253,7 +253,8 @@ class ServerModule(sg.ServerGroupPluginModule):
                 errmsg=errmsg,
                 user_id=server.user_id,
                 user_name=server.username,
-                shared=server.shared
+                shared=server.shared,
+                is_kerberos_conn=bool(server.kerberos_conn),
             )
 
     @property
@@ -339,6 +340,7 @@ class ServerModule(sg.ServerGroupPluginModule):
             db.session.rollback()
             user = User.query.filter_by(id=data.user_id).first()
             shared_server = SharedServer(
+                osid=data.id,
                 user_id=current_user.id,
                 server_owner=user.username,
                 servergroup_id=gid,
@@ -346,7 +348,7 @@ class ServerModule(sg.ServerGroupPluginModule):
                 host=data.host,
                 hostaddr=data.hostaddr,
                 port=data.port,
-                maintenance_db=None,
+                maintenance_db=data.maintenance_db,
                 username=None,
                 save_password=0,
                 ssl_mode=data.ssl_mode,
@@ -388,14 +390,14 @@ class ServerModule(sg.ServerGroupPluginModule):
         """
         shared_server = SharedServer.query.filter_by(
             name=server.name, user_id=current_user.id,
-            servergroup_id=gid).first()
+            servergroup_id=gid, osid=server.id).first()
 
         if shared_server is None:
             ServerModule.create_shared_server(server, gid)
 
             shared_server = SharedServer.query.filter_by(
                 name=server.name, user_id=current_user.id,
-                servergroup_id=gid).first()
+                servergroup_id=gid, osid=server.id).first()
 
         return shared_server
 
@@ -546,7 +548,8 @@ class ServerNode(PGChildNodeView):
                     if server.tunnel_password is not None else False,
                     errmsg=errmsg,
                     user_name=server.username,
-                    shared=server.shared
+                    shared=server.shared,
+                    is_kerberos_conn=bool(server.kerberos_conn)
                 )
             )
 
@@ -613,11 +616,12 @@ class ServerNode(PGChildNodeView):
                 if server.tunnel_password is not None else False,
                 errmsg=errmsg,
                 shared=server.shared,
-                user_name=server.username
+                user_name=server.username,
+                is_kerberos_conn=bool(server.kerberos_conn)
             ),
         )
 
-    def delete_shared_server(self, server_name, gid):
+    def delete_shared_server(self, server_name, gid, osid):
         """
         Delete the shared server
         :param server_name:
@@ -625,7 +629,8 @@ class ServerNode(PGChildNodeView):
         """
         try:
             shared_server = SharedServer.query.filter_by(name=server_name,
-                                                         servergroup_id=gid)
+                                                         servergroup_id=gid,
+                                                         osid=osid)
             for s in shared_server:
                 get_driver(PG_DEFAULT_DRIVER).delete_manager(s.id)
                 db.session.delete(s)
@@ -661,7 +666,7 @@ class ServerNode(PGChildNodeView):
                     get_driver(PG_DEFAULT_DRIVER).delete_manager(s.id)
                     db.session.delete(s)
                 db.session.commit()
-                self.delete_shared_server(server_name, gid)
+                self.delete_shared_server(server_name, gid, sid)
                 QueryHistory.clear_history(current_user.id, sid)
 
             except Exception as e:
@@ -719,7 +724,8 @@ class ServerNode(PGChildNodeView):
             'tunnel_username': 'tunnel_username',
             'tunnel_authentication': 'tunnel_authentication',
             'tunnel_identity_file': 'tunnel_identity_file',
-            'shared': 'shared'
+            'shared': 'shared',
+            'kerberos_conn': 'kerberos_conn',
         }
 
         disp_lbl = {
@@ -818,7 +824,7 @@ class ServerNode(PGChildNodeView):
                 if 'shared' in data and not data['shared']:
                     # Delete the shared server from DB if server
                     # owner uncheck shared property
-                    self.delete_shared_server(server.name, gid)
+                    self.delete_shared_server(server.name, gid, server.id)
                 if arg == 'sslcompression':
                     value = 1 if value else 0
                 self._update_server_details(server, sharedserver,
@@ -983,7 +989,8 @@ class ServerNode(PGChildNodeView):
             'tunnel_username': tunnel_username,
             'tunnel_identity_file': server.tunnel_identity_file
             if server.tunnel_identity_file else None,
-            'tunnel_authentication': tunnel_authentication
+            'tunnel_authentication': tunnel_authentication,
+            'kerberos_conn': bool(server.kerberos_conn),
         }
 
         return ajax_response(response)
@@ -1069,7 +1076,9 @@ class ServerNode(PGChildNodeView):
                 tunnel_username=data.get('tunnel_username', None),
                 tunnel_authentication=data.get('tunnel_authentication', 0),
                 tunnel_identity_file=data.get('tunnel_identity_file', None),
-                shared=data.get('shared', None)
+                shared=data.get('shared', None),
+                passfile=data.get('passfile', None),
+                kerberos_conn=1 if data.get('kerberos_conn', False) else 0,
             )
             db.session.add(server)
             db.session.commit()
@@ -1151,7 +1160,8 @@ class ServerNode(PGChildNodeView):
                     else 'pg',
                     version=manager.version
                     if manager and manager.version
-                    else None
+                    else None,
+                    is_kerberos_conn=bool(server.kerberos_conn),
                 )
             )
 
@@ -1345,7 +1355,7 @@ class ServerNode(PGChildNodeView):
                 except Exception as e:
                     current_app.logger.exception(e)
                     return internal_server_error(errormsg=str(e))
-        if 'password' not in data:
+        if 'password' not in data and server.kerberos_conn is False:
             conn_passwd = getattr(conn, 'password', None)
             if conn_passwd is None and not server.save_password and \
                     server.passfile is None and server.service is None:
@@ -1397,6 +1407,9 @@ class ServerNode(PGChildNodeView):
                 "Could not connect to server(#{0}) - '{1}'.\nError: {2}"
                 .format(server.id, server.name, errmsg)
             )
+            if errmsg.find('Ticket expired') != -1:
+                return internal_server_error(errmsg)
+
             return self.get_response_for_password(server, 401, True,
                                                   True, errmsg)
         else:
@@ -1464,6 +1477,7 @@ class ServerNode(PGChildNodeView):
                     'is_password_saved': bool(server.save_password),
                     'is_tunnel_password_saved': True
                     if server.tunnel_password is not None else False,
+                    'is_kerberos_conn': bool(server.kerberos_conn),
                 }
             )
 
@@ -1572,7 +1586,11 @@ class ServerNode(PGChildNodeView):
             sid: Server id
         """
         try:
-            data = json.loads(request.form['data'], encoding='utf-8')
+            if request.form and request.form['data']:
+                data = json.loads(request.form['data'], encoding='utf-8')
+            else:
+                data = json.loads(request.data, encoding='utf-8')
+
             crypt_key = get_crypt_key()[1]
 
             # Fetch Server Details
@@ -1873,7 +1891,7 @@ class ServerNode(PGChildNodeView):
             if server.shared and server.user_id != current_user.id:
                 shared_server = SharedServer.query.filter_by(
                     name=server.name, user_id=current_user.id,
-                    servergroup_id=gid).first()
+                    servergroup_id=gid, osid=server.id).first()
 
                 if shared_server is None:
                     return make_json_response(

@@ -10,6 +10,7 @@
 import json
 import logging
 import os
+import sys
 from abc import ABCMeta, abstractmethod, abstractproperty
 from smtplib import SMTPConnectError, SMTPResponseException, \
     SMTPServerDisconnected, SMTPDataError, SMTPHeloError, SMTPException, \
@@ -49,13 +50,12 @@ from pgadmin.utils.master_password import validate_master_password, \
     set_crypt_key, process_masterpass_disabled
 from pgadmin.model import User
 from pgadmin.utils.constants import MIMETYPE_APP_JS, PGADMIN_NODE,\
-    INTERNAL, KERBEROS
+    INTERNAL, KERBEROS, LDAP
 
 try:
     from flask_security.views import default_render_json
 except ImportError as e:
     # Support Flask-Security-Too == 3.2
-    import sys
     if sys.version_info < (3, 8):
         from flask_security.views import _render_json as default_render_json
 
@@ -197,7 +197,8 @@ class BrowserModule(PgAdminModule):
         for name, script in [
             [PGADMIN_BROWSER, 'js/browser'],
             ['pgadmin.browser.endpoints', 'js/endpoints'],
-            ['pgadmin.browser.error', 'js/error']
+            ['pgadmin.browser.error', 'js/error'],
+            ['pgadmin.browser.constants', 'js/constants']
         ]:
             scripts.append({
                 'name': name,
@@ -272,6 +273,17 @@ class BrowserModule(PgAdminModule):
 
         # We need 'Configure...' and 'View log...' Menu only in runtime.
         if current_app.PGADMIN_RUNTIME:
+            full_screen_label = gettext('Enter Full Screen  (F10)')
+            actual_size_label = gettext('Actual Size (Ctrl 0)')
+            zoom_in_label = gettext('Zoom In (Ctrl +)')
+            zoom_out_label = gettext('Zoom Out (Ctrl -)')
+
+            if sys.platform == 'darwin':
+                full_screen_label = gettext('Enter Full Screen  (Cmd Ctrl F)')
+                actual_size_label = gettext('Actual Size (Cmd 0)')
+                zoom_in_label = gettext('Zoom In (Cmd +)')
+                zoom_out_label = gettext('Zoom Out (Cmd -)')
+
             menus['file_items'].append(
                 MenuItem(
                     name='mnu_runtime',
@@ -289,7 +301,32 @@ class BrowserModule(PgAdminModule):
                         module=PGADMIN_BROWSER,
                         callback='mnu_viewlog_runtime',
                         priority=1,
-                        label=gettext('View log...')
+                        label=gettext('View log...'),
+                        below=True,
+                    ), MenuItem(
+                        name='mnu_toggle_fullscreen_runtime',
+                        module=PGADMIN_BROWSER,
+                        callback='mnu_toggle_fullscreen_runtime',
+                        priority=2,
+                        label=full_screen_label
+                    ), MenuItem(
+                        name='mnu_actual_size_runtime',
+                        module=PGADMIN_BROWSER,
+                        callback='mnu_actual_size_runtime',
+                        priority=3,
+                        label=actual_size_label
+                    ), MenuItem(
+                        name='mnu_zoomin_runtime',
+                        module=PGADMIN_BROWSER,
+                        callback='mnu_zoomin_runtime',
+                        priority=4,
+                        label=zoom_in_label
+                    ), MenuItem(
+                        name='mnu_zoomout_runtime',
+                        module=PGADMIN_BROWSER,
+                        callback='mnu_zoomout_runtime',
+                        priority=5,
+                        label=zoom_out_label
                     )]
                 )
             )
@@ -828,6 +865,18 @@ def exposed_urls():
     )
 
 
+@blueprint.route("/js/constants.js")
+@pgCSRFProtect.exempt
+def app_constants():
+    return make_response(
+        render_template('browser/js/constants.js',
+                        INTERNAL=INTERNAL,
+                        LDAP=LDAP,
+                        KERBEROS=KERBEROS),
+        200, {'Content-Type': MIMETYPE_APP_JS}
+    )
+
+
 @blueprint.route("/js/error.js")
 @pgCSRFProtect.exempt
 @login_required
@@ -1024,22 +1073,24 @@ def lock_layout():
 @blueprint.route("/signal_runtime", endpoint="signal_runtime",
                  methods=["POST"])
 def signal_runtime():
-    data = None
+    # If not runtime then no need to send signal
+    if current_app.PGADMIN_RUNTIME:
+        data = None
 
-    if hasattr(request.data, 'decode'):
-        data = request.data.decode('utf-8')
+        if hasattr(request.data, 'decode'):
+            data = request.data.decode('utf-8')
 
-    if data != '':
-        data = json.loads(data)
+        if data != '':
+            data = json.loads(data)
 
-    # Add Info Handler to current app just to send signal to runtime
-    tmp_handler = logging.StreamHandler()
-    tmp_handler.setLevel(logging.INFO)
-    current_app.logger.addHandler(tmp_handler)
-    # Send signal to runtime
-    current_app.logger.info(data['command'])
-    # Remove the temporary handler
-    current_app.logger.removeHandler(tmp_handler)
+        # Add Info Handler to current app just to send signal to runtime
+        tmp_handler = logging.StreamHandler()
+        tmp_handler.setLevel(logging.INFO)
+        current_app.logger.addHandler(tmp_handler)
+        # Send signal to runtime
+        current_app.logger.info(data['command'])
+        # Remove the temporary handler
+        current_app.logger.removeHandler(tmp_handler)
 
     return make_json_response()
 

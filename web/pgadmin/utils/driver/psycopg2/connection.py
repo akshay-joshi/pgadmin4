@@ -18,11 +18,13 @@ import select
 import datetime
 from collections import deque
 import psycopg2
-from flask import g, current_app
+import threading
+from flask import g, current_app, session
 from flask_babelex import gettext
 from flask_security import current_user
 from pgadmin.utils.crypto import decrypt, encrypt
 from psycopg2.extensions import encodings
+from os import environ
 
 import config
 from pgadmin.model import User
@@ -30,7 +32,7 @@ from pgadmin.utils.exception import ConnectionLost, CryptKeyMissing
 from pgadmin.utils import get_complete_file_path
 from ..abstract import BaseConnection
 from .cursor import DictCursor
-from .typecast import register_global_typecasters, \
+from .typecast import numeric_typecasters, register_global_typecasters,\
     register_string_typecasters, register_binary_typecasters, \
     unregister_numeric_typecasters, \
     register_array_to_string_typecasters, ALL_JSON_TYPES
@@ -38,6 +40,9 @@ from .encoding import get_encoding, configure_driver_encodings
 from pgadmin.utils import csv
 from pgadmin.utils.master_password import get_crypt_key
 from io import StringIO
+from pgadmin.utils.constants import KERBEROS
+
+lock = threading.Lock()
 
 _ = gettext
 
@@ -313,6 +318,13 @@ class Connection(BaseConnection):
             os.environ['PGAPPNAME'] = '{0} - {1}'.format(
                 config.APP_NAME, conn_id)
 
+            if config.SERVER_MODE and \
+                    session['_auth_source_manager_obj']['current_source'] == \
+                    KERBEROS and 'KRB5CCNAME' in session\
+                    and manager.kerberos_conn:
+                lock.acquire()
+                environ['KRB5CCNAME'] = session['KRB5CCNAME']
+
             pg_conn = psycopg2.connect(
                 host=manager.local_bind_host if manager.use_ssh_tunnel
                 else manager.host,
@@ -340,7 +352,13 @@ class Connection(BaseConnection):
             if self.async_ == 1:
                 self._wait(pg_conn)
 
+            if config.SERVER_MODE and \
+                    session['_auth_source_manager_obj']['current_source'] == \
+                    KERBEROS:
+                environ['KRB5CCNAME'] = ''
+
         except psycopg2.Error as e:
+            environ['KRB5CCNAME'] = ''
             manager.stop_ssh_tunnel()
             if e.pgerror:
                 msg = e.pgerror
@@ -358,6 +376,11 @@ class Connection(BaseConnection):
                 )
             )
             return False, msg
+        finally:
+            if config.SERVER_MODE and \
+                    session['_auth_source_manager_obj']['current_source'] == \
+                    KERBEROS and lock.locked():
+                lock.release()
 
         # Overwrite connection notice attr to support
         # more than 50 notices at a time
@@ -526,7 +549,7 @@ SELECT
     has_database_privilege(db.oid, 'CREATE') as cancreate, datlastsysoid,
     datistemplate
 FROM
-    pg_database db
+    pg_catalog.pg_database db
 WHERE db.datname = current_database()""")
 
         if status is None:
@@ -844,6 +867,9 @@ WHERE db.datname = current_database()""")
             if not results:
                 yield gettext('The query executed did not return any data.')
                 return
+
+            # Type cast the numeric values
+            results = numeric_typecasters(results)
 
             header = []
             json_columns = []
@@ -1435,7 +1461,6 @@ Failed to reset the connection to the server due to following error:
         Args:
             conn: connection object
         """
-
         while True:
             state = conn.poll()
             if state == psycopg2.extensions.POLL_OK:
@@ -1970,5 +1995,9 @@ Failed to reset the connection to the server due to following error:
         if not status:
             return None
         else:
-            mogrified_sql = cursor.mogrify(query, parameters)
-            return mogrified_sql
+
+            if parameters:
+                mogrified_sql = cursor.mogrify(query, parameters)
+                return mogrified_sql
+            else:
+                return query

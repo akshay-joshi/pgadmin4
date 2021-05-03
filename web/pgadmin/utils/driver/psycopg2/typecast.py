@@ -13,6 +13,7 @@ data types.
 """
 
 from psycopg2 import STRING as _STRING
+from psycopg2.extensions import FLOAT as _FLOAT
 from psycopg2.extensions import DECIMAL as _DECIMAL, encodings
 import psycopg2
 from psycopg2.extras import Json as psycopg2_json
@@ -20,7 +21,6 @@ from psycopg2.extras import Json as psycopg2_json
 from .encoding import configure_driver_encodings, get_encoding
 
 configure_driver_encodings(encodings)
-
 
 # OIDs of data types which need to typecast as string to avoid JavaScript
 # compatibility issues.
@@ -66,7 +66,6 @@ TO_ARRAY_OF_STRING_DATATYPES = (
 # OID of record array data type
 RECORD_ARRAY = (2287,)
 
-
 # OIDs of builtin array datatypes supported by psycopg2
 # OID reference psycopg2/psycopg/typecast_builtins.c
 #
@@ -102,21 +101,17 @@ PSYCOPG_SUPPORTED_JSON_ARRAY_TYPES = (199, 3807)
 ALL_JSON_TYPES = PSYCOPG_SUPPORTED_JSON_TYPES +\
     PSYCOPG_SUPPORTED_JSON_ARRAY_TYPES
 
-
 # INET[], CIDR[]
 # OID reference psycopg2/lib/_ipaddress.py
 PSYCOPG_SUPPORTED_IPADDRESS_ARRAY_TYPES = (1041, 651)
-
 
 # uuid[]
 # OID reference psycopg2/lib/extras.py
 PSYCOPG_SUPPORTED_IPADDRESS_ARRAY_TYPES = (2951,)
 
-
 # int4range, int8range, numrange, daterange tsrange, tstzrange[]
 # OID reference psycopg2/lib/_range.py
 PSYCOPG_SUPPORTED_RANGE_TYPES = (3904, 3926, 3906, 3912, 3908, 3910)
-
 
 # int4range[], int8range[], numrange[], daterange[] tsrange[], tstzrange[]
 # OID reference psycopg2/lib/_range.py
@@ -201,6 +196,28 @@ def register_string_typecasters(connection):
 
         psycopg2.extensions.register_type(unicode_type, connection)
         psycopg2.extensions.register_type(unicode_array_type, connection)
+
+
+def is_numeric(val):
+    """Check if value is numeric or not"""
+    try:
+        if '.' in val:
+            float(val)
+        else:
+            int(val)
+    except ValueError:
+        return False
+    return True
+
+
+def numeric_typecasters(results):
+    # This function is to convert pg types to numeic type caster
+
+    for result in results:
+        for key, value in result.items():
+            if isinstance(result[key], str) and is_numeric(result[key]):
+                result[key] = float(result[key])
+    return results
 
 
 def register_binary_typecasters(connection):

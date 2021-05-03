@@ -587,7 +587,6 @@ define([
     },
     template: _.template([
       '<span class="<%=controlLabelClassName%>"><%=label%></span>',
-      '<label class="sr-value sr-only" for="<%=cId%>"></label>',
       '<div class="<%=controlsClassName%> <%=extraClasses.join(\' \')%>">',
       '      <input tabindex="-1" type="checkbox" aria-hidden="true" aria-label="' + gettext('Toggle button') + '" data-style="quick" data-toggle="toggle"',
       '      data-size="<%=options.size%>" data-height="<%=options.height%>"  ',
@@ -615,11 +614,11 @@ define([
 
       if(this.$el.find('.toggle.btn').hasClass('off')) {
         this.$el.find('.sr-value').text(`
-          ${label}, ${offText}, ` + gettext('Toggle button') + `
+          ${label}, ${offText}, ` + gettext('Toggle') + `
         `);
       } else {
         this.$el.find('.sr-value').text(`
-          ${label}, ${onText}, ` + gettext('Toggle button') + `
+          ${label}, ${onText}, ` + gettext('Toggle') + `
         `);
       }
     },
@@ -693,6 +692,7 @@ define([
         .attr('id', data.cId);
 
       this.$el.find('.toggle.btn .toggle-group .btn').attr('aria-hidden', true);
+      this.$el.find('div.toggle').append('<label class="sr-value sr-only" for="<%=cId%>"></label>');
       this.setSrValue();
 
       this.updateInvalid();
@@ -1868,7 +1868,6 @@ define([
             }).done(function(res) {
               self.sqlCtrl.clearHistory();
               self.sqlCtrl.setValue(res.data);
-              self.setCodeMirrorHeight(obj);
             }).fail(function() {
               self.model.trigger('pgadmin-view:msql:error', self.method, node, arguments);
             }).always(function() {
@@ -1884,7 +1883,6 @@ define([
         }
         this.sqlCtrl.refresh.apply(this.sqlCtrl);
       }
-      this.setCodeMirrorHeight(obj);
     },
     onPanelResized: function(o) {
       if (o && o.container) {
@@ -1900,7 +1898,6 @@ define([
             'height: ' + ($tabContent.height() + 8) + 'px !important;'
           );
         }
-        this.sqlCtrl.setSize($tabContent.width() + 'px', $tabContent.height() + 'px');
       }
     },
     remove: function() {
@@ -1916,25 +1913,6 @@ define([
 
       Backform.Control.__super__.remove.apply(this, arguments);
     },
-    setCodeMirrorHeight: function(obj) {
-      // Fix for mac os code-mirror showing black screen.
-      var txtArea = $('.pgadmin-controls .pg-el-sm-12 .SQL > .CodeMirror > div > textarea').first();
-      txtArea.css('z-index', -1);
-      var $tabContent = $('.backform-tab > .tab-content').first();
-      var $sqlPane = $tabContent.find('.CodeMirror > div > textarea');
-      for(let i=0; i<$sqlPane.length; i++) {$($sqlPane[i]).css('z-index', -1);}
-
-      $tabContent = $('.backform-tab > .tab-content').first();
-      $sqlPane = $tabContent.find('div[role=tabpanel].tab-pane.' + obj.tab.innerText);
-      // Set height to CodeMirror.
-      if ($sqlPane.hasClass('active')) {
-        $sqlPane.find('.CodeMirror').css(
-          'cssText',
-          'height: ' + ($tabContent.height()) + 'px !important;'
-        );
-      }
-    }
-
   });
   /*
    * Numeric input Control functionality just like backgrid
@@ -1950,7 +1928,7 @@ define([
       helpMessage: null,
     },
     template: _.template([
-      '<label for="<%=cId%>" class="<%=Backform.controlLabelClassName%>"><%=label%></label>',
+      '<label for="<%=cId%>" class="<%=Backform.controlLabelClassName%> text-wrap"><%=label%></label>',
       '<div class="<%=Backform.controlsClassName%>">',
       '  <input type="<%=type%>" id="<%=cId%>" class="<%=Backform.controlClassName%> <%=extraClasses.join(\' \')%>" name="<%=name%>" min="<%=min%>" max="<%=max%>"maxlength="<%=maxlength%>" value="<%-value%>" placeholder="<%-placeholder%>" <%=disabled ? "disabled" : ""%> <%=readonly ? "readonly aria-readonly=true" : ""%> <%=required ? "required" : ""%> />',
       '  <% if (helpMessage && helpMessage.length) { %>',
@@ -2631,16 +2609,49 @@ define([
       // refresh the code mirror object on 'pg-property-tab-changed' event to
       // make it work properly.
       self.model.on('pg-property-tab-changed', this.refreshTextArea, this);
-
+      this.sqlCtrl.setOption('dragDrop', true);
       this.sqlCtrl.on('focus', this.onFocus);
       this.sqlCtrl.on('blur', this.onBlur);
-
+      this.sqlCtrl.on('drop', this.onDrop);
       // Refresh SQL Field to refresh the control lazily after it renders
       setTimeout(function() {
         self.refreshTextArea.apply(self);
       }, 0);
 
       return self;
+    },
+
+    onDrop: function(editor, e){
+      var dropDetails = null;
+      try {
+        dropDetails = JSON.parse(e.dataTransfer.getData('text'));
+
+        /* Stop firefox from redirecting */
+
+        if(e.preventDefault) {
+          e.preventDefault();
+        }
+        if (e.stopPropagation) {
+          e.stopPropagation();
+        }
+      } catch(error) {
+        /* if parsing fails, it must be the drag internal of codemirror text */
+        return;
+      }
+
+      var cursor = editor.coordsChar({
+        left: e.x,
+        top: e.y,
+      });
+      editor.replaceRange(dropDetails.text, cursor);
+      editor.focus();
+      editor.setSelection({
+        ...cursor,
+        ch: cursor.ch + dropDetails.cur.from,
+      },{
+        ...cursor,
+        ch: cursor.ch +dropDetails.cur.to,
+      });
     },
 
     onFocus: function() {

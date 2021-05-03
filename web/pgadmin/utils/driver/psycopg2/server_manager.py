@@ -105,6 +105,7 @@ class ServerManager(object):
             self.tunnel_identity_file = None
             self.tunnel_password = None
 
+        self.kerberos_conn = server.kerberos_conn
         for con in self.connections:
             self.connections[con]._release()
 
@@ -211,11 +212,11 @@ class ServerManager(object):
                         status, res = conn.execute_dict("""
 SELECT
     db.oid as did, db.datname, db.datallowconn,
-    pg_encoding_to_char(db.encoding) AS serverencoding,
-    has_database_privilege(db.oid, 'CREATE') as cancreate, datlastsysoid,
-    datistemplate
+    pg_catalog.pg_encoding_to_char(db.encoding) AS serverencoding,
+    pg_catalog.has_database_privilege(db.oid, 'CREATE') as cancreate,
+    datlastsysoid, datistemplate
 FROM
-    pg_database db
+    pg_catalog.pg_database db
 WHERE db.oid = {0}""".format(did))
 
                         if status and len(res['rows']) > 0:

@@ -43,7 +43,7 @@ APP_ICON = 'pg-icon'
 
 # Application version number components
 APP_RELEASE = 5
-APP_REVISION = 0
+APP_REVISION = 2
 
 # Application version suffix, e.g. 'beta1', 'dev'. Usually an empty string
 # for GA releases.
@@ -52,7 +52,7 @@ APP_SUFFIX = ''
 # Numeric application version for upgrade checks. Should be in the format:
 # [X]XYYZZ, where X is the release version, Y is the revision, with a leading
 # zero if needed, and Z represents the suffix, with a leading zero if needed
-APP_VERSION_INT = 50000
+APP_VERSION_INT = 50200
 
 # DO NOT CHANGE!
 # The application version string, constructed from the components
@@ -633,6 +633,9 @@ KRB_KTNAME = '<KRB5_KEYTAB_FILE>'
 # in this case Admin has to add the user manually in the SQLite database.
 
 KRB_AUTO_CREATE_USER = True
+
+KERBEROS_CCACHE_DIR = os.path.join(DATA_DIR, 'krbccache')
+
 
 ##########################################################################
 # Local config settings

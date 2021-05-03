@@ -13,11 +13,11 @@ define([
   'backbone', 'pgadmin.backgrid', 'codemirror', 'pgadmin.backform',
   'pgadmin.tools.debugger.ui', 'pgadmin.tools.debugger.utils',
   'tools/datagrid/static/js/show_query_tool', 'sources/utils',
-  'wcdocker', 'pgadmin.browser.frame',
+  'pgadmin.authenticate.kerberos', 'wcdocker', 'pgadmin.browser.frame',
 ], function(
   gettext, url_for, $, _, Alertify, pgAdmin, pgBrowser, Backbone, Backgrid,
   CodeMirror, Backform, get_function_arguments, debuggerUtils, showQueryTool,
-  pgadminUtils,
+  pgadminUtils, Kerberos
 ) {
   var pgTools = pgAdmin.Tools = pgAdmin.Tools || {},
     wcDocker = window.wcDocker;
@@ -415,6 +415,10 @@ define([
           var open_new_tab = browser_preferences.new_browser_tab_open;
           if (open_new_tab && open_new_tab.includes('debugger')) {
             window.open(url, '_blank');
+            // Send the signal to runtime, so that proper zoom level will be set.
+            setTimeout(function() {
+              pgBrowser.send_signal_to_runtime('Runtime new window opened');
+            }, 500);
           } else {
             pgBrowser.Events.once(
               'pgadmin-browser:frame:urlloaded:frm_debugger',
@@ -468,8 +472,20 @@ define([
         .fail(function(xhr) {
           try {
             var err = JSON.parse(xhr.responseText);
-            if (err.success == 0) {
-              Alertify.alert(gettext('Debugger Error'), err.errormsg);
+            if (err.errormsg.search('Ticket expired') !== -1) {
+              let fetchTicket = Kerberos.fetch_ticket();
+              fetchTicket.then(
+                function() {
+                  self.start_global_debugger();
+                },
+                function(error) {
+                  Alertify.alert(gettext('Debugger Error'), error);
+                }
+              );
+            } else {
+              if (err.success == 0) {
+                Alertify.alert(gettext('Debugger Error'), err.errormsg);
+              }
             }
           } catch (e) {
             console.warn(e.stack || e);
@@ -559,6 +575,10 @@ define([
                 var open_new_tab = browser_preferences.new_browser_tab_open;
                 if (open_new_tab && open_new_tab.includes('debugger')) {
                   window.open(url, '_blank');
+                  // Send the signal to runtime, so that proper zoom level will be set.
+                  setTimeout(function() {
+                    pgBrowser.send_signal_to_runtime('Runtime new window opened');
+                  }, 500);
                 } else {
                   pgBrowser.Events.once(
                     'pgadmin-browser:frame:urlloaded:frm_debugger',

@@ -43,6 +43,11 @@ export function showDataGrid(
     return;
   }
 
+  let applicable_nodes = ['table', 'partition', 'view', 'mview', 'foreign_table', 'catalog_object'];
+  if (applicable_nodes.indexOf(node.getData()._type) === -1) {
+    return;
+  }
+
   const gridUrl = generateUrl(transId, connectionData, node.getData(), parentData);
   const queryToolTitle = generateDatagridTitle(pgBrowser, aciTreeIdentifier);
   if(filter) {
@@ -239,7 +244,7 @@ function initFilterDialog(alertify, pgBrowser) {
                   alertify.alert()
                     .setting({
                       'title': gettext('Validation Error'),
-                      'label':gettext('Ok'),
+                      'label':gettext('OK'),
                       'message': gettext(res.data.result),
                       'onok': function(){
                         filter_editor.focus();
