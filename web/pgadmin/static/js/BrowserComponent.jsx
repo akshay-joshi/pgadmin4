@@ -1,4 +1,13 @@
-import React, {useEffect, useMemo, useState } from 'react';
+/////////////////////////////////////////////////////////////
+//
+// pgAdmin 4 - PostgreSQL Tools
+//
+// Copyright (C) 2013 - 2024, The pgAdmin Development Team
+// This software is released under the PostgreSQL Licence
+//
+//////////////////////////////////////////////////////////////
+
+import React, {Fragment, useEffect, useMemo, useState } from 'react';
 import AppMenuBar from './AppMenuBar';
 import ObjectBreadcrumbs from './components/ObjectBreadcrumbs';
 import Layout, { LayoutDocker, getDefaultGroup } from './helpers/Layout';
@@ -7,7 +16,7 @@ import ObjectExplorer from './tree/ObjectExplorer';
 import Properties from '../../misc/properties/Properties';
 import SQL from '../../misc/sql/static/js/SQL';
 import Statistics from '../../misc/statistics/static/js/Statistics';
-import { BROWSER_PANELS } from '../../browser/static/js/constants';
+import { BROWSER_PANELS, WORKSPACES } from '../../browser/static/js/constants';
 import Dependencies from '../../misc/dependencies/static/js/Dependencies';
 import Dependents from '../../misc/dependents/static/js/Dependents';
 import UtilityView from './UtilityView';
@@ -23,7 +32,8 @@ import PropTypes from 'prop-types';
 import Processes from '../../misc/bgprocess/static/js/Processes';
 import { useBeforeUnload } from './custom_hooks';
 import pgWindow from 'sources/window';
-
+import Workspace from '../../misc/workspaces/static/js/Workspace';
+import WorkspaceWelcomePage from '../../misc/workspaces/static/js/WorkspaceWelcomePage';
 
 const objectExplorerGroup  = {
   tabLocked: true,
@@ -38,6 +48,14 @@ const mainPanelGroup  = {
 
 export const processesPanelData = {
   id: BROWSER_PANELS.PROCESSES, title: gettext('Processes'), content: <Processes />, closable: true, group: 'playground'
+};
+
+export const welcomeQueryToolPanelData = {
+  id: BROWSER_PANELS.WELCOME_QUERY_TOOL, title: gettext('Welcome'), content: <WorkspaceWelcomePage mode={'Query Tool'} />, closable: false, group: 'playground'
+};
+
+export const welcomePSQLPanelData = {
+  id: BROWSER_PANELS.WELCOME_PSQL_TOOL, title: gettext('Welcome'), content: <WorkspaceWelcomePage mode={'PSQL'} />, closable: false, group: 'playground'
 };
 
 export const defaultTabsData = [
@@ -92,10 +110,73 @@ export default function BrowserComponent({pgAdmin}) {
       ]
     },
   };
+
+  let queryToolWorkspaceLayout = {
+    dockbox: {
+      mode: 'vertical',
+      children: [
+        {
+          mode: 'horizontal',
+          children: [
+            {
+              size: 100,
+              id: BROWSER_PANELS.MAIN,
+              group: 'playground',
+              tabs: [welcomeQueryToolPanelData],
+              panelLock: {panelStyle: 'playground'},
+            }
+          ]
+        },
+      ]
+    }
+  };
+
+  let psqlWorkspaceLayout = {
+    dockbox: {
+      mode: 'vertical',
+      children: [
+        {
+          mode: 'horizontal',
+          children: [
+            {
+              size: 100,
+              id: BROWSER_PANELS.MAIN,
+              group: 'playground',
+              tabs: [welcomePSQLPanelData],
+              panelLock: {panelStyle: 'playground'},
+            }
+          ]
+        },
+      ]
+    }
+  };
+
+  let workspaceLayout = {
+    dockbox: {
+      mode: 'vertical',
+      children: [
+        {
+          mode: 'horizontal',
+          children: [
+            {
+              size: 100,
+              id: BROWSER_PANELS.MAIN,
+              group: 'playground',
+              tabs: [],
+              panelLock: {panelStyle: 'playground'},
+            }
+          ]
+        },
+      ]
+    }
+  };
+
   const {isLoading, failed, getPreferencesForModule} = usePreferences();
   let { name: browser } = useMemo(()=>getBrowser(), []);
   const [uiReady, setUiReady] = useState(false);
   const confirmOnClose = getPreferencesForModule('browser').confirm_on_refresh_close;
+  const [selectedWorkspace, setSelectedWorkspace] = useState(WORKSPACES.DEFAULT);
+  const isClassicUI = getPreferencesForModule('misc').layout == 'classic';
 
   useBeforeUnload({
     enabled: confirmOnClose,
@@ -122,16 +203,25 @@ export default function BrowserComponent({pgAdmin}) {
   if(failed) {
     return <>Failed to load preferences</>;
   }
+  /* In case of classic UI all workspace objects should point to the
+  * the instance of the default layout.
+  */
+  if (isClassicUI && pgAdmin.Browser.docker.default_workspace) {
+    pgAdmin.Browser.docker.query_tool_workspace = pgAdmin.Browser.docker.default_workspace;
+    pgAdmin.Browser.docker.psql_workspace = pgAdmin.Browser.docker.default_workspace;
+    pgAdmin.Browser.docker.schema_diff_workspace = pgAdmin.Browser.docker.default_workspace;
+  }
 
   return (
     <PgAdminContext.Provider value={pgAdmin}>
       <ModalProvider>
         <NotifierProvider pgAdmin={pgAdmin} pgWindow={pgWindow} onReady={()=>setUiReady(true)}/>
         {browser != 'Electron' && <AppMenuBar />}
-        <div style={{height: (browser != 'Electron' ? 'calc(100% - 30px)' : '100%')}}>
+        <div style={{display: 'flex', height: (browser != 'Electron' ? 'calc(100% - 30px)' : '100%')}}>
+          {!isClassicUI && <Workspace selectedWorkspace={selectedWorkspace} onChangeWorkspace={(w)=>{setSelectedWorkspace(w);}}/> }
           <Layout
             getLayoutInstance={(obj)=>{
-              pgAdmin.Browser.docker = obj;
+              pgAdmin.Browser.docker.default_workspace = obj;
             }}
             defaultLayout={defaultLayout}
             layoutId='Browser/Layout'
@@ -142,10 +232,49 @@ export default function BrowserComponent({pgAdmin}) {
             }}
             noContextGroups={['object-explorer']}
             resetToTabPanel={BROWSER_PANELS.MAIN}
+            isLayoutVisible={isClassicUI || selectedWorkspace == WORKSPACES.DEFAULT}
           />
+          {!isClassicUI && <Fragment>
+            <Layout
+              getLayoutInstance={(obj)=>{
+                pgAdmin.Browser.docker.query_tool_workspace = obj;
+              }}
+              layoutId='Browser/QueryToolLayout'
+              defaultLayout={queryToolWorkspaceLayout}
+              groups={{
+                'playground': {...getDefaultGroup()},
+              }}
+              resetToTabPanel={BROWSER_PANELS.MAIN}
+              isLayoutVisible={selectedWorkspace == WORKSPACES.QUERY_TOOL}
+            />
+            <Layout
+              getLayoutInstance={(obj)=>{
+                pgAdmin.Browser.docker.psql_workspace = obj;
+              }}
+              layoutId='Browser/PSQLLayout'
+              defaultLayout={psqlWorkspaceLayout}
+              groups={{
+                'playground': {...getDefaultGroup()},
+              }}
+              resetToTabPanel={BROWSER_PANELS.MAIN}
+              isLayoutVisible={selectedWorkspace == WORKSPACES.PSQL_TOOL}
+            />
+            <Layout
+              getLayoutInstance={(obj)=>{
+                pgAdmin.Browser.docker.schema_diff_workspace = obj;
+              }}
+              layoutId='Browser/SchemaDiffLayout'
+              defaultLayout={workspaceLayout}
+              groups={{
+                'playground': {...getDefaultGroup()},
+              }}
+              resetToTabPanel={BROWSER_PANELS.MAIN}
+              isLayoutVisible={selectedWorkspace == WORKSPACES.SCHEMA_DIFF_TOOL}
+            />
+          </Fragment> }
         </div>
         <UtilityView />
-        <ToolView />
+        <ToolView onChangeWorkspace={(w)=>{setSelectedWorkspace(w);}}/>
       </ModalProvider>
       <ObjectBreadcrumbs pgAdmin={pgAdmin} />
     </PgAdminContext.Provider>

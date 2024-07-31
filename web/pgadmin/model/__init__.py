@@ -33,7 +33,7 @@ import config
 #
 ##########################################################################
 
-SCHEMA_VERSION = 40
+SCHEMA_VERSION = 41
 
 ##########################################################################
 #
@@ -209,6 +209,18 @@ class Server(db.Model):
     cloud_status = db.Column(db.Integer(), nullable=False, default=0)
     connection_params = db.Column(MutableDict.as_mutable(types.JSON))
     prepare_threshold = db.Column(db.Integer(), nullable=True)
+    is_adhoc = db.Column(
+        db.Integer(),
+        db.CheckConstraint('is_adhoc >= 0 AND is_adhoc <= 1'),
+        nullable=False, default=0
+    )
+
+    def clone(self):
+        d = dict(self.__dict__)
+        d.pop("id")  # get rid of id
+        d.pop("_sa_instance_state")  # get rid of SQLAlchemy special attr
+        copy = self.__class__(**d)
+        return copy
 
 
 class ModulePreference(db.Model):

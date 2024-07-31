@@ -1,3 +1,12 @@
+/////////////////////////////////////////////////////////////
+//
+// pgAdmin 4 - PostgreSQL Tools
+//
+// Copyright (C) 2013 - 2024, The pgAdmin Development Team
+// This software is released under the PostgreSQL Licence
+//
+//////////////////////////////////////////////////////////////
+
 import React from 'react';
 import QueryToolSvg from '../../img/fonticon/query_tool.svg?svgr';
 import ViewDataSvg from '../../img/fonticon/view_data.svg?svgr';
@@ -23,7 +32,6 @@ import ExecuteQuerySvg from '../../img/execute_query.svg?svgr';
 import MagicSvg from '../../img/magic.svg?svgr';
 import MsAzure from '../../img/ms_azure.svg?svgr';
 import GoogleCloud from '../../img/google-cloud-1.svg?svgr';
-import TerminalSvg from '../../img/fonticon/terminal.svg?svgr';
 import RowFilterSvg from '../../img/fonticon/row_filter.svg?svgr';
 import SvgIcon from '@mui/material/SvgIcon';
 
@@ -76,9 +84,6 @@ ExpandDialogIcon.propTypes = {style: PropTypes.object};
 
 export const MinimizeDialogIcon = ({style})=><ExternalIcon Icon={Collapse} style={{height: '1.4rem', ...style}} data-label="MinimizeDialogIcon" />;
 MinimizeDialogIcon.propTypes = {style: PropTypes.object};
-
-export const TerminalIcon = ({style})=><ExternalIcon Icon={TerminalSvg} style={{height: '1.5rem', transform: 'scale(0.95)', ...style}} data-label="TerminalIcon" />;
-TerminalIcon.propTypes = {style: PropTypes.object};
 
 export const RowFilterIcon = ({style})=><ExternalIcon Icon={RowFilterSvg} style={{height: '1rem', ...style}} data-label="RowFilterIcon" />;
 RowFilterIcon.propTypes = {style: PropTypes.object};

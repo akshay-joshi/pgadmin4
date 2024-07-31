@@ -372,7 +372,7 @@ export function getDefaultGroup() {
   };
 }
 
-export default function Layout({groups, noContextGroups, getLayoutInstance, layoutId, savedLayout, resetToTabPanel, ...props}) {
+export default function Layout({groups, noContextGroups, getLayoutInstance, layoutId, savedLayout, resetToTabPanel, isLayoutVisible=true, ...props}) {
   const [[contextPos, contextPanelId, contextExtraMenus], setContextPos] = React.useState([null, null, null]);
   const defaultGroups = React.useMemo(()=>({
     'dialogs': getDialogsGroup(),
@@ -456,29 +456,31 @@ export default function Layout({groups, noContextGroups, getLayoutInstance, layo
 
   return (
     <LayoutDockerContext.Provider value={layoutDockerObj}>
-      {useMemo(()=>(<DockLayout
-        style={{
-          height: '100%',
-        }}
-        ref={(obj)=>{
-          if(obj) {
-            layoutDockerObj.layoutObj = obj;
-            getLayoutInstance?.(layoutDockerObj);
-            layoutDockerObj.loadLayout(savedLayout);
-          }
-        }}
-        groups={defaultGroups}
-        onLayoutChange={(l, currentTabId, direction)=>{
-          if(Object.values(LAYOUT_EVENTS).indexOf(direction) > -1) {
-            layoutDockerObj.eventBus.fireEvent(LAYOUT_EVENTS[direction.toUpperCase()], currentTabId);
-            layoutDockerObj.saveLayout(l);
-          } else if(direction && direction != 'update') {
-            layoutDockerObj.eventBus.fireEvent(LAYOUT_EVENTS.CHANGE, currentTabId);
-            layoutDockerObj.saveLayout(l);
-          }
-        }}
-        {...props}
-      />), [])}
+      <Box height="100%" width="100%" display={isLayoutVisible ? 'initial' : 'none'} >
+        {useMemo(()=>(<DockLayout
+          style={{
+            height: '100%',
+          }}
+          ref={(obj)=>{
+            if(obj) {
+              layoutDockerObj.layoutObj = obj;
+              getLayoutInstance?.(layoutDockerObj);
+              layoutDockerObj.loadLayout(savedLayout);
+            }
+          }}
+          groups={defaultGroups}
+          onLayoutChange={(l, currentTabId, direction)=>{
+            if(Object.values(LAYOUT_EVENTS).indexOf(direction) > -1) {
+              layoutDockerObj.eventBus.fireEvent(LAYOUT_EVENTS[direction.toUpperCase()], currentTabId);
+              layoutDockerObj.saveLayout(l);
+            } else if(direction && direction != 'update') {
+              layoutDockerObj.eventBus.fireEvent(LAYOUT_EVENTS.CHANGE, currentTabId);
+              layoutDockerObj.saveLayout(l);
+            }
+          }}
+          {...props}
+        />), [])}
+      </Box>
       <div id="layout-portal"></div>
       <ContextMenu menuItems={contextMenuItems} position={contextPos} onClose={()=>setContextPos([null, null, null])}
         label="Layout Context Menu" />
@@ -494,6 +496,7 @@ Layout.propTypes = {
   layoutId: PropTypes.string,
   savedLayout: PropTypes.string,
   resetToTabPanel: PropTypes.string,
+  isLayoutVisible: PropTypes.bool
 };
 
 

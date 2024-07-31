@@ -10,7 +10,7 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { usePgAdmin } from './BrowserComponent';
-import { BROWSER_PANELS } from '../../browser/static/js/constants';
+import { BROWSER_PANELS, WORKSPACES } from '../../browser/static/js/constants';
 import PropTypes from 'prop-types';
 import LayoutIframeTab from './helpers/Layout/LayoutIframeTab';
 
@@ -35,8 +35,22 @@ ToolForm.propTypes = {
   params: PropTypes.object,
 };
 
+function getDockerInstance(panelId, pgAdmin, onChangeWorkspace) {
+  if (panelId.indexOf('query-tool') > 0) {
+    onChangeWorkspace(WORKSPACES.QUERY_TOOL);
+    return pgAdmin.Browser.docker.query_tool_workspace;
+  } else if (panelId.indexOf('psql-tool') > 0) {
+    onChangeWorkspace(WORKSPACES.PSQL_TOOL);
+    return pgAdmin.Browser.docker.psql_workspace;
+  } else if (panelId.indexOf('schema-diff-tool') > 0) {
+    onChangeWorkspace(WORKSPACES.SCHEMA_DIFF_TOOL);
+    return pgAdmin.Browser.docker.schema_diff_workspace;
+  }
 
-export default function ToolView() {
+  return pgAdmin.Browser.docker.default_workspace;
+}
+
+export default function ToolView({onChangeWorkspace}) {
   const pgAdmin = usePgAdmin();
 
   useEffect(()=>{
@@ -54,7 +68,8 @@ export default function ToolView() {
           window.open(toolUrl);
         }
       } else {
-        pgAdmin.Browser.docker.openTab({
+        let dockerObj = getDockerInstance(panelId, pgAdmin, onChangeWorkspace);
+        dockerObj.openTab({
           id: panelId,
           title: panelId,
           content: (
@@ -73,3 +88,6 @@ export default function ToolView() {
   }, []);
   return <></>;
 }
+ToolView.propTypes = {
+  onChangeWorkspace: PropTypes.func
+};

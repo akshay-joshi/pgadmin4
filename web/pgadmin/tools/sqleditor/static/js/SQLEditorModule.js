@@ -234,7 +234,7 @@ export default class SQLEditor {
         <PgAdminContext.Provider value={pgAdmin}>
           <ModalProvider>
             <NotifierProvider pgAdmin={pgAdmin} pgWindow={pgWindow} />
-            <QueryToolComponent params={params} pgWindow={pgWindow} pgAdmin={pgAdmin} qtPanelDocker={pgWindow.pgAdmin.Browser.docker}
+            <QueryToolComponent params={params} pgWindow={pgWindow} pgAdmin={pgAdmin} qtPanelDocker={pgWindow.pgAdmin.Browser.docker.query_tool_workspace}
               qtPanelId={`${BROWSER_PANELS.QUERY_TOOL}_${params.trans_id}`} selectedNodeInfo={selectedNodeInfo}/>
           </ModalProvider>
         </PgAdminContext.Provider>
