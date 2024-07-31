@@ -1,3 +1,12 @@
+/////////////////////////////////////////////////////////////
+//
+// pgAdmin 4 - PostgreSQL Tools
+//
+// Copyright (C) 2013 - 2024, The pgAdmin Development Team
+// This software is released under the PostgreSQL Licence
+//
+//////////////////////////////////////////////////////////////
+
 import React from 'react';
 import QueryToolSvg from '../../img/fonticon/query_tool.svg?svgr';
 import ViewDataSvg from '../../img/fonticon/view_data.svg?svgr';
@@ -76,9 +85,6 @@ ExpandDialogIcon.propTypes = {style: PropTypes.object};
 
 export const MinimizeDialogIcon = ({style})=><ExternalIcon Icon={Collapse} style={{height: '1.4rem', ...style}} data-label="MinimizeDialogIcon" />;
 MinimizeDialogIcon.propTypes = {style: PropTypes.object};
-
-export const TerminalIcon = ({style})=><ExternalIcon Icon={TerminalSvg} style={{height: '1.5rem', transform: 'scale(0.95)', ...style}} data-label="TerminalIcon" />;
-TerminalIcon.propTypes = {style: PropTypes.object};
 
 export const RowFilterIcon = ({style})=><ExternalIcon Icon={RowFilterSvg} style={{height: '1rem', ...style}} data-label="RowFilterIcon" />;
 RowFilterIcon.propTypes = {style: PropTypes.object};

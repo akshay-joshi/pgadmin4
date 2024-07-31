@@ -46,12 +46,12 @@ export default class ImportExportServersModule {
   showImportExportServers() {
     const panelTitle = gettext('Import/Export Servers');
     const panelId = BROWSER_PANELS.IMPORT_EXPORT_SERVERS;
-    pgAdmin.Browser.docker.openDialog({
+    pgAdmin.Browser.docker.default_workspace.openDialog({
       id: panelId,
       title: panelTitle,
       manualClose: false,
       content: (
-        <ImportExportServers onClose={()=>{pgAdmin.Browser.docker.close(panelId);}}/>
+        <ImportExportServers onClose={()=>{pgAdmin.Browser.docker.default_workspace.close(panelId);}}/>
       )
     }, pgAdmin.Browser.stdW.lg, pgAdmin.Browser.stdH.lg);
   }

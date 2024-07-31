@@ -51,6 +51,7 @@ from pgadmin import authenticate
 from pgadmin.utils.security_headers import SecurityHeaders
 from pgadmin.utils.constants import KERBEROS, OAUTH2, INTERNAL, LDAP, WEBSERVER
 from jsonformatter import JsonFormatter
+from sqlalchemy import text
 
 # Explicitly set the mime-types so that a corrupted windows registry will not
 # affect pgAdmin 4 to be load properly. This will avoid the issues that may
@@ -398,6 +399,28 @@ def create_app(app_name=None):
                 ' database'.format(invalid_tb_names))
             backup_db_file()
 
+    def delete_adhoc_servers():
+        """
+        This function will remove all the adhoc servers.
+        """
+        with app.app_context():
+            try:
+                # TODO:
+                # Remove SID from manager.
+                db.session.query(Server).filter(Server.is_adhoc).delete()
+                db.session.commit()
+
+                # Reset the sequence again
+                query = ("UPDATE sqlite_sequence SET seq = "
+                         "(SELECT max(id) from server)  WHERE name = "
+                         "'server'")
+                with db.engine.connect() as connection:
+                    connection.execute(text(query))
+                    connection.commit()
+            except Exception:
+                db.session.rollback()
+                raise
+
     def run_migration_for_sqlite():
         with app.app_context():
             # Run migration for the first time i.e. create database
@@ -471,6 +494,9 @@ def create_app(app_name=None):
         run_migration_for_others()
     else:
         run_migration_for_sqlite()
+
+    # Delete all the adhoc(temporary) servers from the pgAdmin database.
+    delete_adhoc_servers()
 
     Mail(app)
 

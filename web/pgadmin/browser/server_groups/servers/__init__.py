@@ -33,7 +33,8 @@ from pgadmin.utils.master_password import get_crypt_key
 from pgadmin.utils.exception import CryptKeyMissing
 from pgadmin.tools.schema_diff.node_registry import SchemaDiffRegistry
 from pgadmin.browser.server_groups.servers.utils import \
-    is_valid_ipaddress, get_replication_type
+    (is_valid_ipaddress, get_replication_type, convert_connection_parameter,
+     check_ssl_fields)
 from pgadmin.utils.constants import UNAUTH_REQ, MIMETYPE_APP_JS, \
     SERVER_CONNECTION_CLOSED
 from sqlalchemy import or_
@@ -462,73 +463,6 @@ class ServerNode(PGChildNodeView):
         'clear_saved_password': [{'put': 'clear_saved_password'}],
         'clear_sshtunnel_password': [{'put': 'clear_sshtunnel_password'}],
     })
-    SSL_MODES = ['prefer', 'require', 'verify-ca', 'verify-full']
-
-    def check_ssl_fields(self, data):
-        """
-        This function will allow us to check and set defaults for
-        SSL fields
-
-        Args:
-            data: Response data
-
-        Returns:
-            Flag and Data
-        """
-        flag = False
-
-        if 'sslmode' in data and data['sslmode'] in self.SSL_MODES:
-            flag = True
-            ssl_fields = [
-                'sslcert', 'sslkey', 'sslrootcert', 'sslcrl', 'sslcompression'
-            ]
-            # Required SSL fields for SERVER mode from user
-            required_ssl_fields_server_mode = ['sslcert', 'sslkey']
-
-            for field in ssl_fields:
-                if field in data:
-                    continue
-                elif config.SERVER_MODE and \
-                        field in required_ssl_fields_server_mode:
-                    # In Server mode,
-                    # we will set dummy SSL certificate file path which will
-                    # prevent using default SSL certificates from web servers
-
-                    # Set file manager directory from preference
-                    import os
-                    file_extn = '.key' if field.endswith('key') else '.crt'
-                    dummy_ssl_file = os.path.join(
-                        '<STORAGE_DIR>', '.postgresql',
-                        'postgresql' + file_extn
-                    )
-                    data[field] = dummy_ssl_file
-                    # For Desktop mode, we will allow to default
-
-        return flag, data
-
-    def convert_connection_parameter(self, params):
-        """
-        This function is used to convert the connection parameter based
-        on the instance type.
-        """
-        conn_params = None
-        # if params is of type list then it is coming from the frontend,
-        # and we have to convert it into the dict and store it into the
-        # database
-        if isinstance(params, list):
-            conn_params = {}
-            for item in params:
-                conn_params[item['name']] = item['value']
-        # if params is of type dict then it is coming from the database,
-        # and we have to convert it into the list of params to show on GUI.
-        elif isinstance(params, dict):
-            conn_params = []
-            for key, value in params.items():
-                if value is not None:
-                    conn_params.append(
-                        {'name': key, 'keyword': key, 'value': value})
-
-        return conn_params
 
     def update_connection_parameter(self, data, server):
         """
@@ -1012,7 +946,7 @@ class ServerNode(PGChildNodeView):
         tunnel_authentication = False
         tunnel_keep_alive = 0
         connection_params = \
-            self.convert_connection_parameter(server.connection_params)
+            convert_connection_parameter(server.connection_params)
 
         if server.use_ssh_tunnel:
             use_ssh_tunnel = bool(server.use_ssh_tunnel)
@@ -1129,7 +1063,7 @@ class ServerNode(PGChildNodeView):
                     ).format(arg)
                 )
 
-        connection_params = self.convert_connection_parameter(
+        connection_params = convert_connection_parameter(
             data.get('connection_params', []))
 
         if 'hostaddr' in connection_params and \
@@ -1141,7 +1075,7 @@ class ServerNode(PGChildNodeView):
             )
 
         # To check ssl configuration
-        _, connection_params = self.check_ssl_fields(connection_params)
+        _, connection_params = check_ssl_fields(connection_params)
         # set the connection params again in the data
         if 'connection_params' in data:
             data['connection_params'] = connection_params

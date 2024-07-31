@@ -26,7 +26,7 @@ export default function UtilityView() {
     pgAdmin.Browser.Events.on('pgadmin:utility:show', (item, panelTitle, dialogProps, width=pgAdmin.Browser.stdW.default, height=pgAdmin.Browser.stdH.md)=>{
       const treeNodeInfo = pgAdmin.Browser.tree.getTreeNodeHierarchy(item);
       const panelId = _.uniqueId(BROWSER_PANELS.UTILITY_DIALOG);
-      pgAdmin.Browser.docker.openDialog({
+      pgAdmin.Browser.docker.default_workspace.openDialog({
         id: panelId,
         title: panelTitle,
         content: (
@@ -48,7 +48,7 @@ export default function UtilityView() {
                 } else if(data.info) {
                   pgAdmin.Browser.notifier.success(data.info);
                 }
-                pgAdmin.Browser.docker.close(panelId);
+                pgAdmin.Browser.docker.default_workspace.close(panelId);
               })}
               extraData={dialogProps.extraData??{}}
               saveBtnName={dialogProps.saveBtnName}
@@ -83,7 +83,7 @@ function UtilityViewContent({panelId, schema, treeNodeInfo, actionType, formType
   let nodeObj = extraData.nodeType? pgAdmin.Browser.Nodes[extraData.nodeType]: undefined;
   let itemNodeData = extraData?.itemNodeData ? itemNodeData: undefined;
 
-  const onClose = ()=>pgAdmin.Browser.docker.close(panelId);
+  const onClose = ()=>pgAdmin.Browser.docker.default_workspace.close(panelId);
 
   /* on save button callback, promise required */
   const onSaveClick = (isNew, data)=>new Promise((resolve, reject)=>{
