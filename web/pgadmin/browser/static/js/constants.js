@@ -44,6 +44,13 @@ export const BROWSER_PANELS = {
   IMPORT_EXPORT_SERVERS: 'id-import-export-servers'
 };
 
+export const WORKSPACES = {
+  DEFAULT: 'default_workspace',
+  QUERY_TOOL: 'query_tool_workspace',
+  PSQL_TOOL: 'psql_workspace',
+  SCHEMA_DIFF_TOOL: 'schema_diff_workspace'
+};
+
 export const WEEKDAYS = [
     {label: gettext('Sunday'), value: '7'},
     {label: gettext('Monday'), value: '1'},
