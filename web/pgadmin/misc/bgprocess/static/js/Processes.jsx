@@ -163,7 +163,7 @@ export default function Processes() {
   const onViewDetailsClick = useCallback((p)=>{
     const panelTitle = gettext('Process Watcher - %s', p.type_desc);
     const panelId = BROWSER_PANELS.PROCESS_DETAILS+''+p.id;
-    pgAdmin.Browser.docker.openDialog({
+    pgAdmin.Browser.docker.default_workspace.openDialog({
       id: panelId,
       title: panelTitle,
       content: (
