@@ -358,14 +358,14 @@ def does_utility_exist(file):
     return error_msg
 
 
-def get_server(sid):
+def get_server(sid, only_owned=False):
+    """Fetch a server by ID with access check.
+
+    Delegates to server_access.get_server(). Kept here for backward
+    compatibility — existing callers import from pgadmin.utils.
     """
-    # Fetch the server  etc
-    :param sid:
-    :return: server
-    """
-    server = Server.query.filter_by(id=sid).first()
-    return server
+    from pgadmin.utils.server_access import get_server as _get_server
+    return _get_server(sid, only_owned=only_owned)
 
 
 def get_binary_path_versions(binary_path: str) -> dict:
@@ -999,8 +999,11 @@ def get_safe_post_logout_redirect():
 
 
 def check_extension_exists(conn, extension_name):
-    sql = f"SELECT * FROM pg_extension WHERE extname = '{extension_name}'"
-    status, res = conn.execute_scalar(sql)
+    sql = (
+        "SELECT 1 FROM pg_catalog.pg_extension "
+        "WHERE extname = %s"
+    )
+    status, res = conn.execute_scalar(sql, [extension_name])
     if status:
         if res:
             return status, True
